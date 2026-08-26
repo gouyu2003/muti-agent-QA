@@ -1,0 +1,133 @@
+{
+  "agent_id": "retriever_v0",
+  "agent_name": "检索与证据智能体",
+  "version": "0.1.0",
+  "role": "retriever",
+  "domain": "multi_hop_qa",
+  "description": "接收规划智能体拆解的子问题列表，对每个子问题独立执行检索，返回相关的证据片段（文本段落）。支持顺序检索和并行检索两种策略。当验证智能体判断证据不足时，可针对指定子问题重新检索或扩展关键词补充检索。",
+
+  "reasoning_method": "rag",
+
+  "knowledge_sources": [
+    {
+      "source_id": "hotpotqa_local",
+      "source_type": "local_dataset",
+      "path_or_endpoint": "data/hotpotqa/hotpot_dev_distractor_v1.json",
+      "description": "HotpotQA 本地数据集（干扰文档集），V0 阶段使用此数据集模拟检索"
+    },
+    {
+      "source_id": "vector_store_faiss",
+      "source_type": "vector_store",
+      "path_or_endpoint": "data/index/faiss_hotpotqa",
+      "description": "基于 FAISS 的向量索引，用于语义检索；V0 阶段可选，若未构建则退回 BM25"
+    }
+  ],
+
+  "tools": [
+    {
+      "tool_id": "bm25_retriever",
+      "tool_type": "python_fn",
+      "description": "基于 BM25 的关键词检索工具，从本地文档集中返回 top-k 段落"
+    },
+    {
+      "tool_id": "dense_retriever",
+      "tool_type": "python_fn",
+      "description": "基于向量嵌入的语义检索工具（需要 FAISS 索引），与 BM25 可组合使用"
+    }
+  ],
+
+  "model_config": {
+    "model_name": "gpt-4o-mini",
+    "temperature": 0.1,
+    "max_tokens": 512,
+    "system_prompt": "你是一个专业的证据检索智能体。给定一个子问题，你的任务是：\n1. 从提供的检索结果中筛选出与该子问题最相关的段落（最多 3 段）；\n2. 对每段证据标注其来源文档标题和段落编号；\n3. 评估该证据是否足以回答子问题（sufficient / insufficient）；\n4. 若不足，简述缺少什么信息。\n请以结构化 JSON 格式输出。"
+  },
+
+  "neighbor_agents": [
+    {
+      "agent_id": "planner_v0",
+      "relationship": "upstream",
+      "communication": "shared_state",
+      "description": "从共享状态读取 Planner 产生的子问题列表和检索策略"
+    },
+    {
+      "agent_id": "answer_validator_v0",
+      "relationship": "downstream",
+      "communication": "shared_state",
+      "description": "将检索到的证据片段写入共享状态，供 Answer-Validator 使用"
+    }
+  ],
+
+  "input_schema": {
+    "sub_questions": {
+      "type": "array",
+      "description": "来自 Planner 的子问题列表（含关键词和依赖关系）",
+      "required": true
+    },
+    "retrieval_strategy": {
+      "type": "string",
+      "description": "检索策略：sequential 或 parallel",
+      "required": true
+    },
+    "retrieval_supplement_request": {
+      "type": "object",
+      "description": "来自 Answer-Validator 的补充检索请求（证据不足时触发）",
+      "required": false,
+      "properties": {
+        "target_sq_id": { "type": "string", "description": "需要补充检索的子问题 ID" },
+        "additional_keywords": { "type": "array", "items": { "type": "string" } },
+        "reason": { "type": "string" }
+      }
+    },
+    "retrieval_retry_count": {
+      "type": "integer",
+      "description": "当前补充检索次数，防止无限循环",
+      "required": false,
+      "default": 0
+    }
+  },
+
+  "output_schema": {
+    "evidence_chunks": {
+      "type": "array",
+      "description": "每个子问题对应的证据片段列表",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sq_id": { "type": "string", "description": "对应的子问题编号" },
+          "chunks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": { "type": "string", "description": "证据段落文本" },
+                "source_title": { "type": "string", "description": "来源文档标题" },
+                "source_paragraph": { "type": "integer", "description": "段落编号" },
+                "relevance_score": { "type": "number", "description": "相关性得分 0-1" }
+              }
+            }
+          },
+          "sufficiency": {
+            "type": "string",
+            "enum": ["sufficient", "insufficient"],
+            "description": "检索智能体对证据充分性的自评"
+          },
+          "insufficiency_note": {
+            "type": "string",
+            "description": "若 insufficient，说明缺少哪方面信息"
+          }
+        }
+      }
+    },
+    "retrieval_retry_count": {
+      "type": "integer",
+      "description": "更新后的补充检索次数"
+    }
+  },
+
+  "failure_handling": {
+    "max_retries": 3,
+    "on_failure": "answer_validator_v0",
+    "fallback_message": "检索失败或超过最大重试次数，将使用已有证据（可能不完整）继续生成答案。"
+  }
+}

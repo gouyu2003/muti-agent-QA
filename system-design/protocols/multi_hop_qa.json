@@ -1,0 +1,117 @@
+{
+  "protocol_id": "multi_hop_qa_v0",
+  "protocol_name": "复杂多跳问答协同协议",
+  "version": "0.1.0",
+  "domain": "multi_hop_qa",
+  "description": "定义 Planner、Retriever、Answer-Validator 三个智能体在复杂多跳问答任务中的协同顺序、状态跳转规则、信息传递格式和失败处理策略。",
+
+  "agents": [
+    "planner_v0",
+    "retriever_v0",
+    "answer_validator_v0"
+  ],
+
+  "entry_node": "planner_v0",
+
+  "shared_state_fields": {
+    "question":                     { "type": "str",  "writer": "system",              "readers": ["planner_v0", "answer_validator_v0"] },
+    "sub_questions":                { "type": "list", "writer": "planner_v0",          "readers": ["retriever_v0", "answer_validator_v0"] },
+    "retrieval_strategy":           { "type": "str",  "writer": "planner_v0",          "readers": ["retriever_v0"] },
+    "plan_retry_count":             { "type": "int",  "writer": "planner_v0",          "readers": ["planner_v0", "router"] },
+    "evidence_chunks":              { "type": "list", "writer": "retriever_v0",        "readers": ["answer_validator_v0"] },
+    "retrieval_retry_count":        { "type": "int",  "writer": "retriever_v0",        "readers": ["retriever_v0", "router"] },
+    "retrieval_supplement_request": { "type": "dict", "writer": "answer_validator_v0", "readers": ["retriever_v0"] },
+    "answer":                       { "type": "str",  "writer": "answer_validator_v0", "readers": ["system_output"] },
+    "verified":                     { "type": "bool", "writer": "answer_validator_v0", "readers": ["router"] },
+    "failure_type":                 { "type": "str",  "writer": "answer_validator_v0", "readers": ["router"] },
+    "conflict_flag":                { "type": "bool", "writer": "answer_validator_v0", "readers": ["planner_v0", "router"] },
+    "conflict_note":                { "type": "str",  "writer": "answer_validator_v0", "readers": ["planner_v0"] },
+    "conflict_pairs":               { "type": "list", "writer": "answer_validator_v0", "readers": ["planner_v0"] },
+    "insufficient_sq_ids":          { "type": "list", "writer": "answer_validator_v0", "readers": ["retriever_v0"] },
+    "verification_note":            { "type": "str",  "writer": "answer_validator_v0", "readers": ["system_output"] },
+    "supporting_evidence":          { "type": "list", "writer": "answer_validator_v0", "readers": ["system_output"] },
+    "validation_retry_count":       { "type": "int",  "writer": "answer_validator_v0", "readers": ["answer_validator_v0", "router"] }
+  },
+
+  "edges": [
+    {
+      "edge_id": "e1",
+      "from": "planner_v0",
+      "to": "retriever_v0",
+      "condition": "always",
+      "description": "规划完成后，无条件进入检索节点"
+    },
+    {
+      "edge_id": "e2",
+      "from": "retriever_v0",
+      "to": "answer_validator_v0",
+      "condition": "always",
+      "description": "检索完成后，无条件进入验证节点"
+    },
+    {
+      "edge_id": "e3_pass",
+      "from": "answer_validator_v0",
+      "to": "END",
+      "condition": "state.verified == true",
+      "description": "验证通过：证据充分且无冲突，输出最终结果"
+    },
+    {
+      "edge_id": "e3_insufficient",
+      "from": "answer_validator_v0",
+      "to": "retriever_v0",
+      "condition": "state.failure_type == 'insufficient' AND state.retrieval_retry_count < 3",
+      "description": "证据不足：触发补充检索，回到 Retriever（最多 3 次）"
+    },
+    {
+      "edge_id": "e3_conflict",
+      "from": "answer_validator_v0",
+      "to": "planner_v0",
+      "condition": "state.failure_type == 'conflict' AND state.plan_retry_count < 2",
+      "description": "证据冲突：触发重规划，回到 Planner（最多 2 次）"
+    },
+    {
+      "edge_id": "e3_max_retry",
+      "from": "answer_validator_v0",
+      "to": "END",
+      "condition": "(state.failure_type == 'insufficient' AND state.retrieval_retry_count >= 3) OR (state.failure_type == 'conflict' AND state.plan_retry_count >= 2)",
+      "description": "超过最大重试次数：强制输出当前最佳答案（可能不完整）"
+    }
+  ],
+
+  "routing_rules": {
+    "final_answer_authority": "answer_validator_v0",
+    "parallel_nodes": [],
+    "parallel_note": "V0 所有节点串行执行；V1 扩展 Retriever 支持子问题并行检索",
+    "max_cycles": {
+      "retrieval_retry_count": 3,
+      "plan_retry_count": 2,
+      "validation_retry_count": 2
+    }
+  },
+
+  "message_schemas": {
+    "planner_to_retriever": {
+      "fields": ["sub_questions", "retrieval_strategy"],
+      "format": "shared_state"
+    },
+    "retriever_to_validator": {
+      "fields": ["evidence_chunks", "retrieval_retry_count"],
+      "format": "shared_state"
+    },
+    "validator_to_retriever": {
+      "fields": ["retrieval_supplement_request", "insufficient_sq_ids"],
+      "format": "shared_state",
+      "trigger": "failure_type == insufficient"
+    },
+    "validator_to_planner": {
+      "fields": ["conflict_flag", "conflict_note", "conflict_pairs"],
+      "format": "shared_state",
+      "trigger": "failure_type == conflict"
+    },
+    "system_output": {
+      "fields": ["answer", "supporting_evidence", "verification_note", "verified"],
+      "format": "json",
+      "trigger": "verified == true OR max_retry_exceeded"
+    }
+  }
+}

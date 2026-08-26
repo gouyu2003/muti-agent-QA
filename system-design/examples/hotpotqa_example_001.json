@@ -1,0 +1,167 @@
+{
+  "_comment": "=== 任务 6：复杂多跳问答领域配置示例 ===",
+  "_comment_2": "这不是抽象模板，而是用一道具体 HotpotQA 题填好的完整实例配置。",
+
+  "example_id": "hotpotqa_example_001",
+  "example_name": "HotpotQA 桥接型多跳问答示例",
+  "domain": "multi_hop_qa",
+  "question_type": "bridge",
+  "difficulty": "hard",
+
+  "question": "《哈利·波特》系列小说的作者毕业于哪所大学？",
+  "ground_truth_answer": "埃克塞特大学",
+
+  "supporting_facts": [
+    {
+      "source_title": "J·K·罗琳",
+      "sentence": "J·K·罗琳，全名乔安妮·罗琳，英国著名作家，代表作为《哈利·波特》系列小说。"
+    },
+    {
+      "source_title": "J·K·罗琳",
+      "sentence": "罗琳于1983年就读于埃克塞特大学，主修法语与古典文学，并于1987年毕业。"
+    }
+  ],
+
+  "reasoning_chain": [
+    "跳1：从问题中确定《哈利·波特》的作者 → J·K·罗琳",
+    "跳2：查询 J·K·罗琳的教育背景 → 埃克塞特大学（1983-1987）"
+  ],
+
+  "agent_instances": {
+
+    "planner": {
+      "agent_id": "planner_v0",
+      "agent_name": "规划智能体",
+      "model_config": {
+        "model_name": "deepseek-v4-flash",
+        "temperature": 0.3,
+        "max_tokens": 1024,
+        "system_prompt": "你是一个专业的问题分析与规划智能体。给定一个复杂的多跳问答问题，你的任务是：\n1. 分析该问题需要哪些知识点才能回答；\n2. 将问题拆解为 2-4 个可以独立检索的子问题，每个子问题应聚焦单一事实；\n3. 为每个子问题给出简要的检索关键词建议；\n4. 判断各子问题之间的依赖关系（是否有先后顺序）。\n请以结构化 JSON 格式输出结果。"
+      },
+      "expected_output": {
+        "sub_questions": [
+          {
+            "id": "sq_1",
+            "question": "《哈利·波特》系列小说的作者是谁？",
+            "keywords": ["哈利·波特", "作者", "小说"],
+            "depends_on": []
+          },
+          {
+            "id": "sq_2",
+            "question": "J·K·罗琳毕业于哪所大学？",
+            "keywords": ["J·K·罗琳", "大学", "毕业", "教育背景"],
+            "depends_on": ["sq_1"]
+          }
+        ],
+        "retrieval_strategy": "sequential"
+      }
+    },
+
+    "retriever": {
+      "agent_id": "retriever_v0",
+      "agent_name": "检索与证据智能体",
+      "model_config": {
+        "model_name": "deepseek-v4-flash",
+        "temperature": 0.1,
+        "max_tokens": 512,
+        "system_prompt": "你是一个专业的证据检索智能体。给定一个子问题，你的任务是：\n1. 从提供的检索结果中筛选出与该子问题最相关的段落（最多 3 段）；\n2. 对每段证据标注其来源文档标题和段落编号；\n3. 评估该证据是否足以回答子问题（sufficient / insufficient）；\n4. 若不足，简述缺少什么信息。\n请以结构化 JSON 格式输出。"
+      },
+      "knowledge_sources": [
+        {
+          "source_id": "hotpotqa_local",
+          "source_type": "local_dataset",
+          "path_or_endpoint": "data/hotpotqa/hotpot_dev_distractor_v1.json",
+          "description": "HotpotQA 开发集（干扰文档设置），包含目标段落和 8 篇干扰文档"
+        }
+      ],
+      "expected_output": {
+        "evidence_chunks": [
+          {
+            "sq_id": "sq_1",
+            "chunks": [
+              {
+                "text": "J·K·罗琳，全名乔安妮·罗琳，英国著名作家，代表作为《哈利·波特》系列小说。",
+                "source_title": "J·K·罗琳",
+                "source_paragraph": 1,
+                "relevance_score": 0.97
+              }
+            ],
+            "sufficiency": "sufficient",
+            "insufficiency_note": ""
+          },
+          {
+            "sq_id": "sq_2",
+            "chunks": [
+              {
+                "text": "罗琳于1983年就读于埃克塞特大学，主修法语与古典文学，并于1987年毕业。",
+                "source_title": "J·K·罗琳",
+                "source_paragraph": 3,
+                "relevance_score": 0.95
+              }
+            ],
+            "sufficiency": "sufficient",
+            "insufficiency_note": ""
+          }
+        ],
+        "retrieval_retry_count": 0
+      }
+    },
+
+    "answer_validator": {
+      "agent_id": "answer_validator_v0",
+      "agent_name": "回答与验证智能体",
+      "model_config": {
+        "model_name": "deepseek-v4-flash",
+        "temperature": 0.2,
+        "max_tokens": 1024,
+        "system_prompt": "你是一个专业的问答与证据验证智能体。给定一个复杂问题、其子问题列表以及每个子问题对应的证据片段，你的任务是：\n1. 综合所有证据，生成对原始问题的完整答案；\n2. 检查每个子问题的证据是否充分（是否能回答该子问题）；\n3. 检查不同来源的证据之间是否存在事实冲突；\n4. 给出验证结论。\n请以结构化 JSON 格式输出答案和验证结论。"
+      },
+      "expected_output": {
+        "answer": "埃克塞特大学",
+        "verified": true,
+        "failure_type": "none",
+        "conflict_flag": false,
+        "conflict_note": "",
+        "verification_note": "sq_1 证据充分：确认作者为 J·K·罗琳；sq_2 证据充分：罗琳毕业于埃克塞特大学（1987年）。两条证据无冲突，答案可信。",
+        "supporting_evidence": [
+          {
+            "sq_id": "sq_1",
+            "text": "J·K·罗琳，全名乔安妮·罗琳，英国著名作家，代表作为《哈利·波特》系列小说。",
+            "source_title": "J·K·罗琳"
+          },
+          {
+            "sq_id": "sq_2",
+            "text": "罗琳于1983年就读于埃克塞特大学，主修法语与古典文学，并于1987年毕业。",
+            "source_title": "J·K·罗琳"
+          }
+        ],
+        "validation_retry_count": 0
+      }
+    }
+  },
+
+  "protocol_instance": "multi_hop_qa_v0",
+
+  "execution_path": {
+    "steps": [
+      { "step": 1, "node": "planner_v0",          "action": "将原始问题拆解为 sq_1（作者是谁）和 sq_2（毕业于哪所大学）" },
+      { "step": 2, "node": "retriever_v0",         "action": "顺序检索 sq_1，从 HotpotQA 数据集中找到 J·K·罗琳词条" },
+      { "step": 3, "node": "retriever_v0",         "action": "顺序检索 sq_2，在 J·K·罗琳词条中找到大学教育段落" },
+      { "step": 4, "node": "answer_validator_v0",  "action": "综合两条证据，生成答案“埃克塞特大学”，验证通过（verified=true）"},
+      { "step": 5, "node": "router",               "action": "verified=true → 路由到 END，输出最终结果" }
+    ],
+    "routing_taken": "e3_pass（验证通过，直接输出）",
+    "total_llm_calls": 4,
+    "retry_cycles": 0
+  },
+
+  "final_output": {
+    "answer": "埃克塞特大学",
+    "verified": true,
+    "supporting_evidence": [
+      { "source": "J·K·罗琳 §1", "text": "J·K·罗琳……代表作为《哈利·波特》系列小说。" },
+      { "source": "J·K·罗琳 §3", "text": "罗琳于1983年就读于埃克塞特大学……并于1987年毕业。" }
+    ],
+    "verification_note": "sq_1 证据充分：确认作者为 J·K·罗琳；sq_2 证据充分：罗琳毕业于埃克塞特大学。两条证据无冲突，答案可信。"
+  }
+}

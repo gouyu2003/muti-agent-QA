@@ -1,0 +1,166 @@
+{
+  "agent_id": "answer_validator_v0",
+  "agent_name": "回答与验证智能体",
+  "version": "0.1.0",
+  "role": "answer_validator",
+  "domain": "multi_hop_qa",
+  "description": "综合规划智能体的子问题列表和检索智能体的证据片段，生成最终答案。同时负责证据充分性检查（是否有子问题缺乏证据支撑）和证据冲突检测（多个证据之间是否相互矛盾）。验证通过则输出最终结果；证据不足则触发补充检索；证据冲突则触发重规划。",
+
+  "reasoning_method": "cot",
+
+  "knowledge_sources": [
+    {
+      "source_id": "none",
+      "source_type": "none",
+      "path_or_endpoint": "",
+      "description": "Answer-Validator 不直接访问外部知识库，所有推理基于 Retriever 提供的证据片段"
+    }
+  ],
+
+  "tools": [
+    {
+      "tool_id": "evidence_checker",
+      "tool_type": "python_fn",
+      "description": "辅助函数：检查每个子问题是否有对应的充分证据（sufficient），返回缺失列表"
+    },
+    {
+      "tool_id": "conflict_detector",
+      "tool_type": "python_fn",
+      "description": "辅助函数：检测不同来源的证据片段之间是否存在事实矛盾，返回冲突对列表"
+    }
+  ],
+
+  "model_config": {
+    "model_name": "gpt-4o-mini",
+    "temperature": 0.2,
+    "max_tokens": 1024,
+    "system_prompt": "你是一个专业的问答与证据验证智能体。给定一个复杂问题、其子问题列表以及每个子问题对应的证据片段，你的任务是：\n1. 综合所有证据，生成对原始问题的完整答案；\n2. 检查每个子问题的证据是否充分（是否能回答该子问题）；\n3. 检查不同来源的证据之间是否存在事实冲突；\n4. 给出验证结论：\n   - verified=true：证据充分且无冲突，答案可信；\n   - verified=false + insufficient：证据不足，需要补充检索；\n   - verified=false + conflict：证据存在冲突，需要重新规划。\n请以结构化 JSON 格式输出答案和验证结论。"
+  },
+
+  "neighbor_agents": [
+    {
+      "agent_id": "retriever_v0",
+      "relationship": "upstream",
+      "communication": "shared_state",
+      "description": "从共享状态读取 Retriever 产生的证据片段列表"
+    },
+    {
+      "agent_id": "planner_v0",
+      "relationship": "upstream",
+      "communication": "shared_state",
+      "description": "从共享状态读取 Planner 产生的子问题列表，用于对应证据"
+    },
+    {
+      "agent_id": "retriever_v0",
+      "relationship": "downstream",
+      "communication": "shared_state",
+      "description": "证据不足时，向共享状态写入补充检索请求，触发 Retriever 重新检索"
+    },
+    {
+      "agent_id": "planner_v0",
+      "relationship": "downstream",
+      "communication": "shared_state",
+      "description": "证据冲突时，向共享状态写入冲突标记，触发 Planner 重新规划"
+    }
+  ],
+
+  "input_schema": {
+    "question": {
+      "type": "string",
+      "description": "用户输入的原始问题",
+      "required": true
+    },
+    "sub_questions": {
+      "type": "array",
+      "description": "来自 Planner 的子问题列表",
+      "required": true
+    },
+    "evidence_chunks": {
+      "type": "array",
+      "description": "来自 Retriever 的证据片段列表（按子问题分组）",
+      "required": true
+    },
+    "validation_retry_count": {
+      "type": "integer",
+      "description": "当前验证循环次数，防止无限循环",
+      "required": false,
+      "default": 0
+    }
+  },
+
+  "output_schema": {
+    "answer": {
+      "type": "string",
+      "description": "综合所有证据生成的最终答案"
+    },
+    "verified": {
+      "type": "boolean",
+      "description": "验证是否通过：true 表示证据充分且无冲突，可直接输出"
+    },
+    "failure_type": {
+      "type": "string",
+      "enum": ["none", "insufficient", "conflict"],
+      "description": "验证失败的类型：none（通过）/ insufficient（证据不足）/ conflict（证据冲突）"
+    },
+    "insufficient_sq_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "证据不足的子问题 ID 列表，触发 Retriever 补充检索时使用"
+    },
+    "retrieval_supplement_request": {
+      "type": "object",
+      "description": "向 Retriever 发出的补充检索请求（failure_type=insufficient 时写入）",
+      "properties": {
+        "target_sq_id": { "type": "string" },
+        "additional_keywords": { "type": "array", "items": { "type": "string" } },
+        "reason": { "type": "string" }
+      }
+    },
+    "conflict_flag": {
+      "type": "boolean",
+      "description": "证据冲突标记，failure_type=conflict 时为 true，触发 Planner 重规划"
+    },
+    "conflict_note": {
+      "type": "string",
+      "description": "冲突内容说明，帮助 Planner 调整问题分解策略"
+    },
+    "conflict_pairs": {
+      "type": "array",
+      "description": "具体冲突的证据对",
+      "items": {
+        "type": "object",
+        "properties": {
+          "chunk_a": { "type": "string", "description": "证据片段 A 的来源标识" },
+          "chunk_b": { "type": "string", "description": "证据片段 B 的来源标识" },
+          "conflict_description": { "type": "string" }
+        }
+      }
+    },
+    "verification_note": {
+      "type": "string",
+      "description": "验证过程的完整说明，输出到最终结果"
+    },
+    "supporting_evidence": {
+      "type": "array",
+      "description": "最终答案所依赖的证据片段（仅 verified=true 时有效）",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sq_id": { "type": "string" },
+          "text": { "type": "string" },
+          "source_title": { "type": "string" }
+        }
+      }
+    },
+    "validation_retry_count": {
+      "type": "integer",
+      "description": "更新后的验证循环次数"
+    }
+  },
+
+  "failure_handling": {
+    "max_retries": 2,
+    "on_failure": "terminate",
+    "fallback_message": "验证智能体无法完成验证，超过最大重试次数。将输出当前最佳答案（可能不完整）。"
+  }
+}
