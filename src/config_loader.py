@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-
+# 路径常量与文件映射定义
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 AGENTS_DIR = PROJECT_ROOT / "system-design" / "agents"
 PROTOCOLS_DIR = PROJECT_ROOT / "system-design" / "protocols"
@@ -18,6 +18,7 @@ PROTOCOL_FILES = {
     "multi_hop_qa_v0": "multi_hop_qa.json",
 }
 
+# 必填字段集合
 REQUIRED_AGENT_FIELDS = frozenset(
     {
         "agent_id",
@@ -46,7 +47,7 @@ REQUIRED_PROTOCOL_FIELDS = frozenset(
     }
 )
 
-
+# 通用 JSON 读取与字段校验函数
 def load_json(path: Path) -> dict[str, Any]:
     """读取一个 JSON 对象，并将常见配置错误转换为清晰异常。"""
     try:
@@ -61,7 +62,6 @@ def load_json(path: Path) -> dict[str, Any]:
         raise ValueError(f"配置根节点必须是 JSON 对象：{path}")
     return data
 
-
 def validate_required_fields(
     data: dict[str, Any], required_fields: frozenset[str], label: str
 ) -> None:
@@ -69,7 +69,7 @@ def validate_required_fields(
     if missing_fields:
         raise ValueError(f"{label}缺少必填字段：{', '.join(missing_fields)}")
 
-# 加载并校验所有智能体配置
+# 智能体配置加载与校验
 def load_agent_configs() -> dict[str, dict[str, Any]]:
     """读取并校验 V0 的三份智能体配置。"""
     configs: dict[str, dict[str, Any]] = {}
