@@ -37,7 +37,7 @@
   ],
 
   "model_config": {
-    "model_name": "gpt-4o-mini",
+    "model_name": "deepseek-v4-flash",
     "temperature": 0.1,
     "max_tokens": 512,
     "system_prompt": "你是一个专业的证据检索智能体。给定一个子问题，你的任务是：\n1. 从提供的检索结果中筛选出与该子问题最相关的段落（最多 3 段）；\n2. 对每段证据标注其来源文档标题和段落编号；\n3. 评估该证据是否足以回答子问题（sufficient / insufficient）；\n4. 若不足，简述缺少什么信息。\n请以结构化 JSON 格式输出。"

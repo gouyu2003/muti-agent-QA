@@ -31,7 +31,7 @@
   ],
 
   "model_config": {
-    "model_name": "gpt-4o-mini",
+    "model_name": "deepseek-v4-flash",
     "temperature": 0.2,
     "max_tokens": 1024,
     "system_prompt": "你是一个专业的问答与证据验证智能体。给定一个复杂问题、其子问题列表以及每个子问题对应的证据片段，你的任务是：\n1. 综合所有证据，生成对原始问题的完整答案；\n2. 检查每个子问题的证据是否充分（是否能回答该子问题）；\n3. 检查不同来源的证据之间是否存在事实冲突；\n4. 给出验证结论：\n   - verified=true：证据充分且无冲突，答案可信；\n   - verified=false + insufficient：证据不足，需要补充检索；\n   - verified=false + conflict：证据存在冲突，需要重新规划。\n请以结构化 JSON 格式输出答案和验证结论。"
