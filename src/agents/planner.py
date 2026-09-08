@@ -30,7 +30,7 @@ def build_prompt(state:AgentState,system_prompt:str) -> str:
         for pair in state.get("conflict_pairs", []):
             parts.append(
                 f"- {pair.get('chunk_a', '')} vs {pair.get('chunk_b', '')}："
-                f"{pair.get('conflict_description', '')}"
+                f"{pair.get('conflict_description', '')}"   
             )
         parts.append("")
     parts += [
