@@ -10,6 +10,7 @@ import re
 from typing import Any, Optional, Protocol
 
 from src.agents.json_utils import as_bool, as_list, as_str, extract_json_object
+from src.agents.llm_retry import invoke_text
 from src.config_loader import load_agent_configs
 from src.state import AgentState
 
@@ -82,7 +83,24 @@ def build_prompt(state: AgentState, system_prompt: str) -> str:
 
 
 def parse_verification(raw: str, state: AgentState) -> dict[str, Any]:
-    """纯函数：解析并规整验证结果，处理脏输出与字段缺失。"""
+    """纯函数：解析并规整验证结果，处理脏输出与字段缺失。
+
+    raw 为空（推理 token 耗尽导致 content 为空）时不抛异常，
+    而是按「证据不足」处理，交给路由触发补充检索，避免整图中断。
+    """
+    if not (raw or "").strip():
+        return {
+            "answer": "",
+            "verified": False,
+            "failure_type": "insufficient",
+            "insufficient_sq_ids": [],
+            "conflict_flag": False,
+            "conflict_note": "",
+            "conflict_pairs": [],
+            "verification_note": "LLM 返回为空（推理 token 预算耗尽），按证据不足处理",
+            "supporting_evidence": [],
+        }
+
     data = extract_json_object(raw)
 
     known_texts = {
@@ -174,9 +192,9 @@ def answer_validator_fn(state: AgentState, llm: Optional[ChatLike] = None) -> di
     chat = llm if llm is not None else default_llm()
 
     prompt = build_prompt(state, config["model_config"]["system_prompt"])
-    response = chat.invoke(prompt)
-    raw = getattr(response, "content", response)
+    max_retries = config.get("failure_handling", {}).get("max_retries", 2)
+    raw = invoke_text(chat, prompt, max_retries)
 
-    result = parse_verification(raw if isinstance(raw, str) else str(raw), state)
+    result = parse_verification(raw, state)
     result["validation_retry_count"] = int(state.get("validation_retry_count", 0)) + 1
     return result

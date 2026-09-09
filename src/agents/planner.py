@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Any,Optional,Protocol
 
 from src.agents.json_utils import as_list, as_str, extract_json_object
+from src.agents.llm_retry import invoke_text
 from src.config_loader import load_agent_configs
 from src.state import AgentState, SubQuestion
 AGENT_ID = "planner_v0"
@@ -47,7 +48,21 @@ def parse_plan(raw: str, fallback_question: str = "") -> dict[str, Any]:
     fallback_question 非空时，即使模型没给出任何子问题也不抛异常，
     而是降级为「把原问题当作唯一子问题」，保证图不会因一次抖动而整体崩溃；
     两者都为空才视为真正的规划失败。
+
+    raw 为空（推理模型把 max_tokens 预算耗尽时的典型表现）也走同一条降级路径，
+    而不是抛出解析错误让整图中断。
     """
+    if not (raw or "").strip():
+        fallback = (fallback_question or "").strip()
+        if not fallback:
+            raise ValueError("Planner 输出为空")
+        return {
+            "sub_questions": [
+                {"id": "sq_1", "question": fallback, "keywords": [], "depends_on": []}
+            ],
+            "retrieval_strategy": "sequential",
+        }
+
     data = extract_json_object(raw)
 
     sub_questions: list[SubQuestion] = []
@@ -87,9 +102,9 @@ def planner_fn(state: AgentState, llm: Optional[ChatLike] = None) -> dict[str, A
     chat = llm if llm is not None else default_llm()
 
     prompt = build_prompt(state, config["model_config"]["system_prompt"])
-    response = chat.invoke(prompt)
-    raw = getattr(response, "content", response)
-    plan = parse_plan(raw if isinstance(raw, str) else str(raw), state.get("question", ""))
+    max_retries = config.get("failure_handling", {}).get("max_retries", 2)
+    raw = invoke_text(chat, prompt, max_retries)
+    plan = parse_plan(raw, state.get("question", ""))
 
     retry_count = int(state.get("plan_retry_count", 0))
     if state.get("conflict_flag"):

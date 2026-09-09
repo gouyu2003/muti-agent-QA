@@ -16,6 +16,10 @@ def _candidates(text: str) -> Iterator[str]:
     start, end = text.find("{"), text.rfind("}")
     if start != -1 and end > start:
         yield text[start : end + 1]
+    # 输出被 max_tokens 截断时：丢弃最后一个不完整的字段后补上闭合括号再试一次，
+    # 至少保住已生成的前半部分，而不是整块判死
+    if start != -1 and "," in text[start:]:
+        yield text[start : text.rfind(",")] + "}"
 
 
 def extract_json_object(raw: str) -> dict[str, Any]:
