@@ -27,6 +27,11 @@ from src.state import EvidenceChunk
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
+# 相关性阈值：BM25 得分为 0 表示 query 与该句没有任何共有词，
+# 这类"命中"纯属噪声。保留阈值后检索器才可能真正返回空结果，
+# Retriever 才能据此标记 insufficient，而不是永远返回 top-k。
+MIN_SCORE = 0.0
+
 
 def tokenize(text: str) -> list[str]:
     """确定性 tokenizer：小写后提取字母/数字串。"""
@@ -70,9 +75,13 @@ class BM25Retriever:
         ]
         self._bm25 = BM25Okapi(tokenized_docs)
 
-    def search(self, query: str, top_k: int = 3) -> list[EvidenceChunk]:
-        """返回相关性最高的 top_k 条证据，按得分降序。
+    def search(
+        self, query: str, top_k: int = 3, min_score: float = MIN_SCORE
+    ) -> list[EvidenceChunk]:
+        """返回得分高于 min_score 的最多 top_k 条证据，按得分降序。
 
+        得分不高于 min_score 的文档一律丢弃；因此查询与语料完全无关时
+        返回空列表，由上层判定为证据不足。
         relevance_score 仅为相对排序依据，不承诺任何绝对含义。
         """
         if top_k <= 0:
@@ -84,7 +93,7 @@ class BM25Retriever:
 
         scores = self._bm25.get_scores(query_tokens)
         ranked = sorted(
-            range(len(self._docs)),
+            (index for index in range(len(self._docs)) if scores[index] > min_score),
             key=lambda index: scores[index],
             reverse=True,
         )[:top_k]

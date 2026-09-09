@@ -41,8 +41,13 @@ def build_prompt(state:AgentState,system_prompt:str) -> str:
     ]
     return "\n".join(parts)
 
-def parse_plan(raw: str) -> dict[str, Any]:
-    """纯函数：把 LLM 文本解析为 Planner 输出片段，便于单测覆盖脏输出。"""
+def parse_plan(raw: str, fallback_question: str = "") -> dict[str, Any]:
+    """纯函数：把 LLM 文本解析为 Planner 输出片段，便于单测覆盖脏输出。
+
+    fallback_question 非空时，即使模型没给出任何子问题也不抛异常，
+    而是降级为「把原问题当作唯一子问题」，保证图不会因一次抖动而整体崩溃；
+    两者都为空才视为真正的规划失败。
+    """
     data = extract_json_object(raw)
 
     sub_questions: list[SubQuestion] = []
@@ -61,7 +66,13 @@ def parse_plan(raw: str) -> dict[str, Any]:
             }
         )
     if not sub_questions:
-        raise ValueError("Planner 输出中没有可用的 sub_questions")
+        fallback = (fallback_question or "").strip()
+        if not fallback:
+            raise ValueError("Planner 输出中没有可用的 sub_questions")
+        # 降级：原问题整体作为单一子问题，至少让检索与验证跑完，而不是中断整图
+        sub_questions = [
+            {"id": "sq_1", "question": fallback, "keywords": [], "depends_on": []}
+        ]
 
     strategy = as_str(data, "retrieval_strategy", "sequential").strip().lower()
     if strategy not in ALLOWED_STRATEGIES:
@@ -78,7 +89,7 @@ def planner_fn(state: AgentState, llm: Optional[ChatLike] = None) -> dict[str, A
     prompt = build_prompt(state, config["model_config"]["system_prompt"])
     response = chat.invoke(prompt)
     raw = getattr(response, "content", response)
-    plan = parse_plan(raw if isinstance(raw, str) else str(raw))
+    plan = parse_plan(raw if isinstance(raw, str) else str(raw), state.get("question", ""))
 
     retry_count = int(state.get("plan_retry_count", 0))
     if state.get("conflict_flag"):

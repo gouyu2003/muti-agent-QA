@@ -44,3 +44,15 @@ def test_format_result_tolerates_empty_state():
 
     assert "(无)" in text
     assert "支撑证据（0 条）" in text
+
+
+def test_main_returns_one_and_reports_error_on_failure(monkeypatch, capsys):
+    """节点抛异常时必须给出可读错误并返回非零退出码，而不是抛 traceback。"""
+    import main as main_module
+
+    def boom(question, thread_id="cli"):
+        raise RuntimeError("节点炸了")
+
+    monkeypatch.setattr(main_module, "run", boom)
+    assert main_module.main(["Q?"]) == 1
+    assert "运行失败" in capsys.readouterr().out

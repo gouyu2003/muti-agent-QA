@@ -79,3 +79,34 @@ def test_drops_hallucinated_supporting_evidence():
 def test_inconsistent_verified_is_normalized():
     out = parse_verification(json.dumps({"answer": "A", "verified": True, "failure_type": "conflict"}), STATE)
     assert out["failure_type"] == "conflict" and out["verified"] is False
+
+
+LONG_TEXT = "Shirley Temple served as Chief of Protocol of the United States."
+STATE_LONG = {
+    "question": "Q?",
+    "sub_questions": [{"id": "sq_1", "question": "q1", "keywords": [], "depends_on": []}],
+    "evidence_chunks": [
+        {"sq_id": "sq_1", "sufficiency": "sufficient", "insufficiency_note": "",
+         "chunks": [{"text": LONG_TEXT, "source_title": "Shirley Temple",
+                     "source_paragraph": 0, "relevance_score": 1.0}]}
+    ],
+}
+
+
+def _supporting(payload_text):
+    payload = {"answer": "A", "verified": True, "failure_type": "none",
+               "supporting_evidence": [{"sq_id": "sq_1", "text": payload_text,
+                                        "source_title": "Shirley Temple"}]}
+    return parse_verification(json.dumps(payload), STATE_LONG)["supporting_evidence"]
+
+
+def test_paraphrased_evidence_is_accepted_and_rewritten_to_source():
+    """模型转述/截取证据时仍应保留，且写回的是检索原文，不是模型措辞。"""
+    items = _supporting("shirley temple served as Chief of Protocol of the United States, "
+                        "a post she held in the 1970s")
+    assert len(items) == 1
+    assert items[0]["text"] == LONG_TEXT
+
+
+def test_long_hallucinated_evidence_is_still_dropped():
+    assert _supporting("Shirley Temple was born in 1928 and never held any office") == []

@@ -64,6 +64,20 @@ def test_parse_plan_rejects_empty_sub_questions():
         parse_plan('{"sub_questions": []}')
 
 
+def test_parse_plan_falls_back_to_original_question():
+    """模型没给出子问题时不得抛穿整图：降级为原问题整体检索。"""
+    out = parse_plan('{"sub_questions": []}', fallback_question="Who is X?")
+    assert [sq["id"] for sq in out["sub_questions"]] == ["sq_1"]
+    assert out["sub_questions"][0]["question"] == "Who is X?"
+    assert out["sub_questions"][0]["keywords"] == []
+
+
+def test_planner_fn_degrades_instead_of_crashing():
+    out = planner_fn({"question": "..."}, llm=FakeLLM('{"sub_questions": []}'))
+    assert out["sub_questions"][0]["question"] == "..."
+    assert out["plan_retry_count"] == 0
+
+
 def test_parse_plan_falls_back_on_bad_strategy():
     assert parse_plan('{"sub_questions": [{"question": "Q?"}], "retrieval_strategy": "weird"}')[
         "retrieval_strategy"

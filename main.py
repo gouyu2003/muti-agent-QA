@@ -95,7 +95,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     question = " ".join(args.question).strip() or DEFAULT_QUESTION
 
-    state = run(question, thread_id=args.thread_id)
+    try:
+        state = run(question, thread_id=args.thread_id)
+    except Exception as exc:  # 节点抛异常时给出可读错误，而不是整段 traceback
+        print(f"运行失败：{type(exc).__name__}: {exc}")
+        return 1
+
     print(format_result(state))
     return 0
 

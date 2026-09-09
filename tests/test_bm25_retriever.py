@@ -94,6 +94,12 @@ def test_empty_query_returns_empty_list():
     assert retriever.search("   !!!  ") == []
 
 
+def test_irrelevant_query_returns_empty_list():
+    """与语料毫无共有词时必须返回空，否则 Retriever 永远判不出证据不足。"""
+    retriever = _retriever()
+    assert retriever.search("zzz qqq www unrelated nonsense") == []
+
+
 def test_tokenize_is_plain_ascii_alnum():
     assert tokenize("Shirley Temple's 1945 (film)") == [
         "shirley",

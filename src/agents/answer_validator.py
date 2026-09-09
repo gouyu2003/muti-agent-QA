@@ -1,10 +1,12 @@
 """Answer-Validator 节点：综合证据作答，并判定充分性 / 冲突。
 
-防幻觉：supporting_evidence 只保留文本能在已检索证据中精确匹配到的条目。
+防幻觉：supporting_evidence 只保留能在已检索证据中匹配到的条目，且写回的
+永远是检索到的原文，而不是模型的转述，避免"看起来有证据、实则是编造"。
 """
 
 from __future__ import annotations
 
+import re
 from typing import Any, Optional, Protocol
 
 from src.agents.json_utils import as_bool, as_list, as_str, extract_json_object
@@ -14,6 +16,36 @@ from src.state import AgentState
 AGENT_ID = "answer_validator_v0"
 FAILURE_TYPES = ("none", "insufficient", "conflict")
 MAX_EVIDENCE_CHARS = 600
+
+# 模糊匹配的最短归一化长度：低于此长度的短证据只接受归一化后完全相等，
+# 避免"the"/"in" 这类碎片被当成命中
+MIN_FUZZY_CHARS = 10
+
+_PUNCT_RE = re.compile(r"[^\w\s]", re.UNICODE)
+_WS_RE = re.compile(r"\s+")
+
+
+def normalize_text(text: str) -> str:
+    """归一化：小写、去标点、压缩空白。用于容忍模型转述时的细微差异。"""
+    return _WS_RE.sub(" ", _PUNCT_RE.sub(" ", (text or "").lower())).strip()
+
+
+def match_evidence(text: str, known: dict[str, str]) -> str:
+    """把模型给出的证据文本对齐回已检索原文；匹配不上返回空串。
+
+    known 为 {归一化文本: 原始文本}。命中后返回原始文本，
+    因此即使模型转述或截取，写回状态里的仍是检索到的原句。
+    """
+    norm = normalize_text(text)
+    if not norm:
+        return ""
+    if norm in known:
+        return known[norm]
+    if len(norm) >= MIN_FUZZY_CHARS:
+        for key, original in known.items():
+            if norm in key or key in norm:
+                return original
+    return ""
 
 
 class ChatLike(Protocol):
@@ -54,9 +86,10 @@ def parse_verification(raw: str, state: AgentState) -> dict[str, Any]:
     data = extract_json_object(raw)
 
     known_texts = {
-        chunk["text"]
+        normalize_text(chunk["text"]): chunk["text"]
         for group in state.get("evidence_chunks", [])
         for chunk in group.get("chunks", [])
+        if isinstance(chunk.get("text"), str)
     }
 
     answer = as_str(data, "answer").strip()
@@ -86,15 +119,15 @@ def parse_verification(raw: str, state: AgentState) -> dict[str, Any]:
 
     conflict_flag = failure_type == "conflict"
 
-    # 防幻觉：只保留能在已检索证据中精确匹配的支撑证据
+    # 防幻觉：只保留能对齐回已检索证据的支撑证据，且写回原文而非模型转述
     supporting_evidence = []
     for item in as_list(data, "supporting_evidence"):
         if not isinstance(item, dict):
             continue
-        text = as_str(item, "text")
-        if text and text in known_texts:
+        matched = match_evidence(as_str(item, "text"), known_texts)
+        if matched:
             supporting_evidence.append(
-                {"sq_id": as_str(item, "sq_id"), "text": text,
+                {"sq_id": as_str(item, "sq_id"), "text": matched,
                  "source_title": as_str(item, "source_title")}
             )
 
