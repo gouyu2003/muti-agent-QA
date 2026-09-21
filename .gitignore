@@ -6,3 +6,10 @@ __pycache__/
 frontend/node_modules/
 frontend/dist/
 frontend/coverage/
+# SQLite 运行记录
+data/runtime/*.sqlite3
+data/runtime/*.sqlite3-shm
+data/runtime/*.sqlite3-wal
+
+# pytest 临时目录
+.pytest-tmp*/
