@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from typing import Callable
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -19,16 +20,41 @@ from backend.schemas import (
 )
 from backend.streaming import stream_qa_events
 from src.config_loader import load_agent_configs, load_protocol_config
-from src.graph import build_graph
 from src.knowledge.hotpotqa_loader import load_fixture
+from src.runtime.context import build_v0_run_context
+from src.runtime.models import RunContext
+from src.runtime.service import RunService
+from src.runtime.sqlite_repository import SQLiteRunRepository
+
+
+RunServiceFactory = Callable[[], RunService]
+
+
+def build_default_run_service() -> RunService:
+    """构造生产环境默认的持久化运行服务。"""
+
+    return RunService(SQLiteRunRepository())
+
+
+def build_api_run_context(question: str, run_id: str | None = None) -> RunContext:
+    """根据当前 V0 配置生成一次 API 运行的可复现实验上下文。"""
+
+    return build_v0_run_context(
+        question,
+        entrypoint="api",
+        run_id=run_id,
+    )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 应用入口负责加载本地环境变量，不输出其中的值。
     load_dotenv()
-    app.state.graph_factory = build_graph
-    yield
+    app.state.run_service = app.state.run_service_factory()
+    try:
+        yield
+    finally:
+        del app.state.run_service
 
 
 app = FastAPI(
@@ -36,6 +62,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.state.run_service_factory = build_default_run_service
 
 app.add_middleware(
     CORSMiddleware,
@@ -101,9 +128,10 @@ def system_info() -> SystemInfoResponse:
 
 @app.post("/api/v1/qa/stream")
 def stream_question(body: QuestionRequest, request: Request) -> StreamingResponse:
-    graph_factory = getattr(request.app.state, "graph_factory", build_graph)
+    run_service: RunService = request.app.state.run_service
+    context = build_api_run_context(body.question)
     return StreamingResponse(
-        stream_qa_events(body.question, graph_factory=graph_factory),
+        stream_qa_events(context, run_service),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache, no-transform",

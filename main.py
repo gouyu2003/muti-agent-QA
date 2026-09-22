@@ -1,30 +1,20 @@
-"""命令行入口：输入一个英文问题，跑完 V0 图并打印结果。
-
-用法（在项目根目录执行）：
-
-    python main.py "What government position was held by the woman who portrayed Corliss Archer in the film Kiss and Tell?"
-    python main.py                      # 留空则使用下面的 DEFAULT_QUESTION
-    python main.py "..." --thread-id t1 # 指定 thread_id，配合 InMemorySaver 复用会话
-
-职责边界：
-- 只做四件事：接收问题、构建图、执行、打印结果；
-- 只有这里调用 load_dotenv()，库代码（src/*）一律不读 .env；
-- 真实调用 DeepSeek，需要 .env 中的 DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL。
-"""
+"""命令行入口：通过统一 RunService 执行并持久化一次 V0 问答。"""
 
 from __future__ import annotations
 
 import argparse
 from typing import Any, Optional, Sequence
 
-from src.graph import build_graph
+from src.runtime.context import build_v0_run_context
+from src.runtime.models import RunDetail
+from src.runtime.service import RunService
+from src.runtime.sqlite_repository import SQLiteRunRepository
+
 
 DEFAULT_QUESTION = (
     "What government position was held by the woman who portrayed "
     "Corliss Archer in the film Kiss and Tell?"
 )
-DEFAULT_THREAD_ID = "cli"
-RECURSION_LIMIT = 30
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -37,39 +27,63 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         help="英文问题；留空则使用内置的 HotpotQA fixture 问题",
     )
     parser.add_argument(
+        "--run-id",
         "--thread-id",
-        default=DEFAULT_THREAD_ID,
-        help=f"LangGraph thread_id，默认 {DEFAULT_THREAD_ID}",
+        dest="run_id",
+        default=None,
+        help=(
+            "指定本次运行 ID；默认自动生成 UUID。"
+            "--thread-id 作为旧参数名兼容保留"
+        ),
     )
     return parser.parse_args(argv)
 
 
-def run(question: str, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
-    """构建图并执行一次，返回最终状态。"""
-    app = build_graph()
-    return app.invoke(
-        {"question": question},
-        config={
-            "configurable": {"thread_id": thread_id},
-            "recursion_limit": RECURSION_LIMIT,
-        },
+def build_default_run_service() -> RunService:
+    """构造 CLI 使用的默认持久化运行服务。"""
+
+    return RunService(SQLiteRunRepository())
+
+
+def run(
+    question: str,
+    run_id: str | None = None,
+    *,
+    run_service: RunService | None = None,
+) -> RunDetail:
+    """通过统一 RunService 执行一次 CLI 运行并返回持久化详情。"""
+
+    service = run_service or build_default_run_service()
+    context = build_v0_run_context(
+        question,
+        entrypoint="cli",
+        run_id=run_id,
     )
+    return service.run(context)
 
 
-def format_result(state: dict[str, Any]) -> str:
-    """把最终状态渲染成人类可读文本。"""
+def format_result(
+    state: dict[str, Any],
+    *,
+    run_id: str | None = None,
+) -> str:
+    """把最终公开状态渲染成人类可读文本。"""
+
     evidence = state.get("supporting_evidence") or []
-
-    lines = [
-        "===== 最终输出 =====",
-        f"问题：{state.get('question', '')}",
-        f"答案：{state.get('answer') or '(无)'}",
-        f"验证通过：{state.get('verified', False)}",
-        f"失败类型：{state.get('failure_type', 'none')}",
-        f"验证说明：{state.get('verification_note', '')}",
-        "",
-        f"支撑证据（{len(evidence)} 条）：",
-    ]
+    lines = ["===== 最终输出 ====="]
+    if run_id is not None:
+        lines.append(f"运行 ID：{run_id}")
+    lines.extend(
+        [
+            f"问题：{state.get('question', '')}",
+            f"答案：{state.get('answer') or '(无)'}",
+            f"验证通过：{state.get('verified', False)}",
+            f"失败类型：{state.get('failure_type', 'none')}",
+            f"验证说明：{state.get('verification_note', '')}",
+            "",
+            f"支撑证据（{len(evidence)} 条）：",
+        ]
+    )
     if evidence:
         for item in evidence:
             lines.append(
@@ -86,22 +100,36 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     from dotenv import load_dotenv
 
-    # Windows 下输出被重定向时 stdout 可能是 cp1252，中文标签会抛 UnicodeEncodeError
+    # Windows 下输出被重定向时 stdout 可能不是 UTF-8。
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
-    load_dotenv()  # 只在此处加载 .env，绝不打印或回显其中的值
+    load_dotenv()  # 只在入口加载 .env，不打印或回显其中的值。
 
     args = parse_args(argv)
     question = " ".join(args.question).strip() or DEFAULT_QUESTION
 
     try:
-        state = run(question, thread_id=args.thread_id)
-    except Exception as exc:  # 节点抛异常时给出可读错误，而不是整段 traceback
+        detail = run(question, run_id=args.run_id)
+    except Exception as exc:
         print(f"运行失败：{type(exc).__name__}: {exc}")
         return 1
 
-    print(format_result(state))
+    record = detail.run
+    if record.status == "failed":
+        error_type = record.error.error_type if record.error else "execution_error"
+        message = record.error.message if record.error else "多智能体流程执行失败"
+        print(f"运行失败 [{error_type}]：{message}")
+        print(f"运行 ID：{record.context.run_id}")
+        return 1
+
+    if record.status != "completed":
+        print(f"运行未完成：{record.status}")
+        print(f"运行 ID：{record.context.run_id}")
+        return 1
+
+    final_state = record.final_state or {"question": question}
+    print(format_result(final_state, run_id=record.context.run_id))
     return 0
 
 
