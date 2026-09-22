@@ -8,6 +8,7 @@ from src.router import (
     MAX_RETRIEVAL_RETRY,
     PLANNER_NODE,
     RETRIEVER_NODE,
+    decide_route,
     route_after_validator,
 )
 
@@ -51,6 +52,14 @@ def test_unknown_or_missing_failure_terminates():
     assert route_after_validator({"failure_type": "none"}) == END
     assert route_after_validator({"failure_type": "unknown"}) == END
     assert route_after_validator({"question": "q"}) == END
+
+
+def test_decide_route_exposes_the_same_target_and_stable_reason():
+    state = {"failure_type": "insufficient", "retrieval_retry_count": 0}
+    decision = decide_route(state)
+
+    assert decision.target == route_after_validator(state) == RETRIEVER_NODE
+    assert decision.reason == "insufficient_retry"
 
 
 def test_node_names_match_agent_ids():

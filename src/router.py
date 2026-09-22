@@ -13,6 +13,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from langgraph.graph import END
 
 from src.state import AgentState
@@ -25,29 +27,45 @@ PLANNER_NODE = "planner_v0"
 RETRIEVER_NODE = "retriever_v0"
 
 
-def route_after_validator(state: AgentState) -> str:
-    """返回下一个节点名：END / "retriever_v0" / "planner_v0"。
+@dataclass(frozen=True)
+class RouteDecision:
+    """可同时供 LangGraph 路由和运行轨迹使用的确定性决策。"""
+
+    target: str
+    reason: str
+
+
+def decide_route(state: AgentState) -> RouteDecision:
+    """返回下一节点及稳定原因码，不修改状态也不产生副作用。
 
     判断顺序与协议 edges 一致：先 pass，再 insufficient，再 conflict，
     最后兜底 END。任何未知或缺失状态都导向 END，保证图不会死循环。
     """
     # e3_pass：验证通过优先；即使 failure_type 残留旧值也不再重试
     if state.get("verified", False):
-        return END
+        return RouteDecision(target=END, reason="verified")
 
     failure_type = state.get("failure_type", "none")
 
     # e3_insufficient：证据不足，且未超过补充检索上限
     if failure_type == "insufficient":
         if int(state.get("retrieval_retry_count", 0)) < MAX_RETRIEVAL_RETRY:
-            return RETRIEVER_NODE
-        return END
+            return RouteDecision(
+                target=RETRIEVER_NODE, reason="insufficient_retry"
+            )
+        return RouteDecision(target=END, reason="insufficient_max_retry")
 
     # e3_conflict：证据冲突，且未超过重规划上限
     if failure_type == "conflict":
         if int(state.get("plan_retry_count", 0)) < MAX_PLAN_RETRY:
-            return PLANNER_NODE
-        return END
+            return RouteDecision(target=PLANNER_NODE, reason="conflict_replan")
+        return RouteDecision(target=END, reason="conflict_max_retry")
 
     # failure_type 为 none（但未 verified）或未知取值：直接结束
-    return END
+    return RouteDecision(target=END, reason="terminal_fallback")
+
+
+def route_after_validator(state: AgentState) -> str:
+    """LangGraph 条件边适配器；实际判断统一委托给 decide_route()。"""
+
+    return decide_route(state).target
