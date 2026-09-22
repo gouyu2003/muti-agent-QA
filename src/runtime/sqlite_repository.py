@@ -23,6 +23,7 @@ from src.runtime.models import (
     TraceEvent,
 )
 from src.runtime.repository import (
+    InvalidRunTransitionError,
     RepositoryError,
     RunAlreadyExistsError,
     RunNotFoundError,
@@ -340,6 +341,9 @@ class SQLiteRunRepository:
             ) from exc
 
     def create_run(self, record: RunRecord) -> None:
+        if record.status != "running":
+            raise InvalidRunTransitionError("新建运行记录的状态必须是 running")
+
         now_text = _datetime_to_text(_utc_now())
         error_type = record.error.error_type if record.error else None
         error_message = record.error.message if record.error else None
@@ -427,6 +431,12 @@ class SQLiteRunRepository:
                 existing = self._row_to_run(existing_row)
                 if existing.context != record.context:
                     raise RepositoryError(f"运行上下文创建后不能修改：{run_id}")
+                if existing.started_at != record.started_at:
+                    raise RepositoryError(f"运行开始时间创建后不能修改：{run_id}")
+                if existing.status != "running":
+                    raise InvalidRunTransitionError(
+                        f"终态运行记录不能再次更新：{run_id} ({existing.status})"
+                    )
 
                 cursor = connection.execute(
                     """
@@ -567,10 +577,30 @@ class SQLiteRunRepository:
         try:
             with self._connection() as connection:
                 parent = connection.execute(
-                    "SELECT 1 FROM runs WHERE run_id = ?", (event.run_id,)
+                    "SELECT status FROM runs WHERE run_id = ?", (event.run_id,)
                 ).fetchone()
                 if parent is None:
                     raise RunNotFoundError(f"运行记录不存在：{event.run_id}")
+                if parent["status"] != "running":
+                    raise InvalidRunTransitionError(
+                        f"终态运行记录不能追加轨迹：{event.run_id}"
+                    )
+
+                sequence_row = connection.execute(
+                    """
+                    SELECT COALESCE(MAX(sequence), -1) + 1 AS next_sequence
+                    FROM trace_events
+                    WHERE run_id = ?
+                    """,
+                    (event.run_id,),
+                ).fetchone()
+                expected_sequence = int(sequence_row["next_sequence"])
+                if event.sequence != expected_sequence:
+                    raise TraceSequenceConflictError(
+                        "轨迹序号必须连续递增："
+                        f"run_id={event.run_id}, expected={expected_sequence}, "
+                        f"actual={event.sequence}"
+                    )
 
                 connection.execute(
                     """
@@ -591,7 +621,7 @@ class SQLiteRunRepository:
                         _dump_json(event.payload),
                     ),
                 )
-        except RunNotFoundError:
+        except (RunNotFoundError, InvalidRunTransitionError):
             raise
         except sqlite3.IntegrityError as exc:
             if "UNIQUE constraint failed" in str(exc):
@@ -631,3 +661,52 @@ class SQLiteRunRepository:
             return RunDetail(run=run, events=self.get_events(run_id))
         except ValidationError as exc:
             raise RepositoryError(f"无法组装运行详情：{run_id}") from exc
+
+    def export_runs_jsonl(
+        self,
+        *,
+        status: RunStatus | None = None,
+        entrypoint: RunEntryPoint | None = None,
+        method_id: str | None = None,
+    ) -> Iterator[str]:
+        """导出每行一个 RunDetail 的 UTF-8 友好 JSON 文本。
+
+        首版面向单机研究数据集，在同一个数据库快照中组装全部结果后关闭连接，
+        再把内存中的行迭代给上层，避免流式响应期间长期占用 SQLite 连接。
+        """
+
+        where_sql, parameters = self._build_filters(
+            status=status, entrypoint=entrypoint, method_id=method_id
+        )
+        try:
+            with self._connection() as connection:
+                run_rows = connection.execute(
+                    "SELECT * FROM runs"
+                    + where_sql
+                    + " ORDER BY started_at DESC, run_id DESC",
+                    parameters,
+                ).fetchall()
+
+                lines: list[str] = []
+                for run_row in run_rows:
+                    run = self._row_to_run(run_row)
+                    event_rows = connection.execute(
+                        """
+                        SELECT * FROM trace_events
+                        WHERE run_id = ?
+                        ORDER BY sequence ASC
+                        """,
+                        (run.context.run_id,),
+                    ).fetchall()
+                    detail = RunDetail(
+                        run=run,
+                        events=[self._row_to_event(row) for row in event_rows],
+                    )
+                    lines.append(
+                        _dump_json(detail.model_dump(mode="json")) + "\n"
+                    )
+            return iter(lines)
+        except RepositoryError:
+            raise
+        except (sqlite3.Error, ValidationError) as exc:
+            raise RepositoryError("导出运行记录失败") from exc

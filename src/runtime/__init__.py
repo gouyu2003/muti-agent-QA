@@ -1,6 +1,6 @@
 """运行时公共数据契约。
 
-本包当前只定义运行记录、轨迹事件与指标模型；尚未接入持久化或执行流程。
+本包定义运行记录数据契约与 SQLite 持久化；执行流程将在 RunService 中接入。
 """
 
 from src.runtime.models import (
@@ -11,6 +11,15 @@ from src.runtime.models import (
     RunRecord,
     TraceEvent,
 )
+from src.runtime.repository import (
+    InvalidRunTransitionError,
+    RepositoryError,
+    RunAlreadyExistsError,
+    RunNotFoundError,
+    TraceSequenceConflictError,
+)
+from src.runtime.sqlite_repository import SQLiteRunRepository
+from src.runtime.service import RunService
 
 __all__ = [
     "RunContext",
@@ -18,5 +27,12 @@ __all__ = [
     "RunError",
     "RunMetrics",
     "RunRecord",
+    "RunService",
+    "SQLiteRunRepository",
     "TraceEvent",
+    "InvalidRunTransitionError",
+    "RepositoryError",
+    "RunAlreadyExistsError",
+    "RunNotFoundError",
+    "TraceSequenceConflictError",
 ]

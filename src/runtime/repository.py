@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Iterator, Protocol
 
 from src.runtime.models import (
     RunDetail,
@@ -26,7 +26,11 @@ class RunNotFoundError(RepositoryError):
 
 
 class TraceSequenceConflictError(RepositoryError):
-    """同一次运行出现重复的轨迹序号。"""
+    """同一次运行的轨迹序号不是下一个连续序号。"""
+
+
+class InvalidRunTransitionError(RepositoryError):
+    """运行记录发生了不允许的生命周期迁移。"""
 
 
 class RunRepository(Protocol):
@@ -83,4 +87,14 @@ class RunRepository(Protocol):
 
     def get_run_detail(self, run_id: str) -> RunDetail | None:
         """返回运行记录及其全部轨迹。"""
+        ...
+
+    def export_runs_jsonl(
+        self,
+        *,
+        status: RunStatus | None = None,
+        entrypoint: RunEntryPoint | None = None,
+        method_id: str | None = None,
+    ) -> Iterator[str]:
+        """按运行开始时间倒序导出可重新解析的 RunDetail JSONL。"""
         ...
