@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Iterator, Protocol
 
 from src.runtime.models import (
     RunDetail,
     RunEntryPoint,
     RunRecord,
+    RunStatsSummary,
     RunStatus,
     TraceEvent,
 )
@@ -63,6 +65,7 @@ class RunRepository(Protocol):
         status: RunStatus | None = None,
         entrypoint: RunEntryPoint | None = None,
         method_id: str | None = None,
+        started_from: datetime | None = None,
     ) -> list[RunRecord]:
         """分页查询运行记录。"""
         ...
@@ -73,8 +76,20 @@ class RunRepository(Protocol):
         status: RunStatus | None = None,
         entrypoint: RunEntryPoint | None = None,
         method_id: str | None = None,
+        started_from: datetime | None = None,
     ) -> int:
         """统计符合筛选条件的运行数量。"""
+        ...
+
+    def get_stats_summary(
+        self,
+        *,
+        status: RunStatus | None = None,
+        entrypoint: RunEntryPoint | None = None,
+        method_id: str | None = None,
+        started_from: datetime | None = None,
+    ) -> RunStatsSummary:
+        """汇总符合筛选条件的运行状态、验证结果和系统指标。"""
         ...
 
     def append_event(self, event: TraceEvent) -> None:
@@ -95,6 +110,7 @@ class RunRepository(Protocol):
         status: RunStatus | None = None,
         entrypoint: RunEntryPoint | None = None,
         method_id: str | None = None,
+        started_from: datetime | None = None,
     ) -> Iterator[str]:
         """按运行开始时间倒序导出可重新解析的 RunDetail JSONL。"""
         ...

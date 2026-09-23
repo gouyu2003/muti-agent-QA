@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { parseSseBlock } from './api'
+import { describe, expect, it, vi } from 'vitest'
+import { getRuns, getRunsExportUrl, parseSseBlock } from './api'
 
 describe('parseSseBlock', () => {
   it('parses an event and preserves Chinese payload text', () => {
@@ -18,5 +18,32 @@ describe('parseSseBlock', () => {
   it('ignores incomplete blocks', () => {
     expect(parseSseBlock('data: {}')).toBeNull()
     expect(parseSseBlock('event: run_started')).toBeNull()
+  })
+})
+
+describe('history API', () => {
+  it('uses the same filters for the list and JSONL export', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [], total: 0, limit: 10, offset: 0 }),
+    } as Response)
+    const filters = {
+      status: 'completed' as const,
+      entrypoint: 'api' as const,
+      methodId: 'multi_agent_adaptive_v0',
+      startedFrom: '2026-09-22T08:00:00.000Z',
+    }
+
+    try {
+      await getRuns(filters, 10, 20)
+      const listUrl = new URL(fetchMock.mock.calls[0][0] as string, 'http://localhost')
+      const exportUrl = new URL(getRunsExportUrl(filters), 'http://localhost')
+      for (const key of ['status', 'entrypoint', 'method_id', 'started_from']) {
+        expect(listUrl.searchParams.get(key)).toBe(exportUrl.searchParams.get(key))
+      }
+      expect(listUrl.searchParams.get('offset')).toBe('20')
+    } finally {
+      fetchMock.mockRestore()
+    }
   })
 })

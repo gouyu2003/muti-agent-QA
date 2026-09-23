@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Callable
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -16,13 +17,21 @@ from backend.schemas import (
     FlowEdge,
     HealthResponse,
     QuestionRequest,
+    RunListResponse,
     SystemInfoResponse,
 )
 from backend.streaming import stream_qa_events
 from src.config_loader import load_agent_configs, load_protocol_config
 from src.knowledge.hotpotqa_loader import load_fixture
 from src.runtime.context import build_v0_run_context
-from src.runtime.models import RunContext
+from src.runtime.models import (
+    RunContext,
+    RunDetail,
+    RunEntryPoint,
+    RunStatsSummary,
+    RunStatus,
+    TraceEvent,
+)
 from src.runtime.service import RunService
 from src.runtime.sqlite_repository import SQLiteRunRepository
 
@@ -71,6 +80,12 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+
+
+def aware_started_from(started_from: datetime | None = None) -> datetime | None:
+    if started_from is not None and started_from.utcoffset() is None:
+        raise HTTPException(status_code=422, detail="started_from 必须包含时区")
+    return started_from
 
 
 @app.get("/api/v1/health", response_model=HealthResponse)
@@ -138,4 +153,87 @@ def stream_question(body: QuestionRequest, request: Request) -> StreamingRespons
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+@app.get("/api/v1/runs", response_model=RunListResponse)
+def list_runs(
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    status: RunStatus | None = None,
+    entrypoint: RunEntryPoint | None = None,
+    method_id: str | None = Query(default=None, min_length=1),
+    started_from: datetime | None = Depends(aware_started_from),
+) -> RunListResponse:
+    repository = request.app.state.run_service.repository
+    filters = {
+        "status": status,
+        "entrypoint": entrypoint,
+        "method_id": method_id,
+        "started_from": started_from,
+    }
+    return RunListResponse(
+        items=repository.list_runs(limit=limit, offset=offset, **filters),
+        total=repository.count_runs(**filters),
+        limit=limit,
+        offset=offset,
+    )
+
+
+@app.get("/api/v1/runs/{run_id}", response_model=RunDetail)
+def get_run_detail(run_id: str, request: Request) -> RunDetail:
+    detail = request.app.state.run_service.repository.get_run_detail(run_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="运行记录不存在")
+    return detail
+
+
+@app.get("/api/v1/runs/{run_id}/events", response_model=list[TraceEvent])
+def get_run_events(run_id: str, request: Request) -> list[TraceEvent]:
+    repository = request.app.state.run_service.repository
+    if repository.get_run(run_id) is None:
+        raise HTTPException(status_code=404, detail="运行记录不存在")
+    return repository.get_events(run_id)
+
+
+@app.get("/api/v1/stats/summary", response_model=RunStatsSummary)
+def get_stats_summary(
+    request: Request,
+    status: RunStatus | None = None,
+    entrypoint: RunEntryPoint | None = None,
+    method_id: str | None = Query(default=None, min_length=1),
+    started_from: datetime | None = Depends(aware_started_from),
+) -> RunStatsSummary:
+    return request.app.state.run_service.repository.get_stats_summary(
+        status=status, entrypoint=entrypoint, method_id=method_id,
+        started_from=started_from,
+    )
+
+
+@app.get(
+    "/api/v1/exports/runs.jsonl",
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "description": "按筛选条件导出的 UTF-8 JSONL 文件",
+            "content": {"application/x-ndjson": {"schema": {"type": "string"}}},
+        }
+    },
+)
+def export_runs_jsonl(
+    request: Request,
+    status: RunStatus | None = None,
+    entrypoint: RunEntryPoint | None = None,
+    method_id: str | None = Query(default=None, min_length=1),
+    started_from: datetime | None = Depends(aware_started_from),
+) -> StreamingResponse:
+    lines = request.app.state.run_service.repository.export_runs_jsonl(
+        status=status, entrypoint=entrypoint, method_id=method_id,
+        started_from=started_from,
+    )
+    return StreamingResponse(
+        lines,
+        media_type="application/x-ndjson; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="runs.jsonl"'},
     )

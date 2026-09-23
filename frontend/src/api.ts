@@ -1,6 +1,57 @@
-import type { StreamEvent, SystemInfo } from './types'
+import type {
+  RunFilters,
+  RunListResponse,
+  RunStatsSummary,
+  StoredRunDetail,
+  StreamEvent,
+  SystemInfo,
+} from './types'
 
 const API_PREFIX = '/api/v1'
+
+async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(url, { signal })
+  if (!response.ok) {
+    if (response.status === 404) throw new Error('这条运行记录不存在或已被移除。')
+    throw new Error(`运行历史加载失败（HTTP ${response.status}）`)
+  }
+  return response.json() as Promise<T>
+}
+
+function historyQuery(filters: RunFilters): URLSearchParams {
+  const query = new URLSearchParams()
+  if (filters.status) query.set('status', filters.status)
+  if (filters.entrypoint) query.set('entrypoint', filters.entrypoint)
+  if (filters.methodId) query.set('method_id', filters.methodId)
+  if (filters.startedFrom) query.set('started_from', filters.startedFrom)
+  return query
+}
+
+export function getRuns(
+  filters: RunFilters,
+  limit: number,
+  offset: number,
+  signal?: AbortSignal,
+): Promise<RunListResponse> {
+  const query = historyQuery(filters)
+  query.set('limit', String(limit))
+  query.set('offset', String(offset))
+  return getJson(`${API_PREFIX}/runs?${query}`, signal)
+}
+
+export function getRunDetail(runId: string, signal?: AbortSignal): Promise<StoredRunDetail> {
+  return getJson(`${API_PREFIX}/runs/${encodeURIComponent(runId)}`, signal)
+}
+
+export function getRunStats(filters: RunFilters, signal?: AbortSignal): Promise<RunStatsSummary> {
+  const query = historyQuery(filters)
+  return getJson(`${API_PREFIX}/stats/summary?${query}`, signal)
+}
+
+export function getRunsExportUrl(filters: RunFilters): string {
+  const query = historyQuery(filters)
+  return `${API_PREFIX}/exports/runs.jsonl${query.size ? `?${query}` : ''}`
+}
 
 export async function getSystemInfo(signal?: AbortSignal): Promise<SystemInfo> {
   const response = await fetch(`${API_PREFIX}/system`, { signal })

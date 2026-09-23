@@ -1,0 +1,471 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  ArrowRightOutlined,
+  ClockCircleOutlined,
+  DatabaseOutlined,
+  DownloadOutlined,
+  FileSearchOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons'
+import { Alert, Button, Empty, Input, Pagination, Select, Skeleton, Tag, Tooltip } from 'antd'
+import { getRunDetail, getRuns, getRunsExportUrl, getRunStats } from './api'
+import type {
+  RunEntryPoint,
+  RunFilters,
+  RunListResponse,
+  RunResult,
+  RunStatsSummary,
+  StoredRunDetail,
+  StoredRunRecord,
+  StoredRunStatus,
+  StoredTraceEvent,
+} from './types'
+
+const PAGE_SIZE = 10
+type TimeRange = 'all' | 'day' | 'week' | 'month'
+
+const STATUS_LABELS: Record<StoredRunStatus, string> = {
+  running: '运行中',
+  completed: '已完成',
+  failed: '失败',
+  cancelled: '已取消',
+}
+
+const NODE_LABELS: Record<string, string> = {
+  planner_v0: '规划',
+  retriever_v0: '检索',
+  answer_validator_v0: '回答与验证',
+}
+
+const ROUTE_LABELS: Record<string, string> = {
+  planner_v0: '重新规划',
+  retriever_v0: '补充检索',
+  __end__: '结束运行',
+}
+
+function isAbort(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : '运行历史加载失败，请重试。'
+}
+
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).format(new Date(value))
+}
+
+function formatDuration(value: number | null): string {
+  if (value === null) return '—'
+  return value < 1000 ? `${value} ms` : `${(value / 1000).toFixed(1)} s`
+}
+
+function formatPercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`
+}
+
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
+function eventHeading(event: StoredTraceEvent): string {
+  const node = NODE_LABELS[event.node ?? ''] ?? event.node ?? '运行'
+  if (event.event_type === 'node_started') return `${node}开始`
+  if (event.event_type === 'node_completed') return `${node}完成`
+  if (event.event_type === 'route_decided') return '路由决定'
+  if (event.event_type === 'run_started') return '运行开始'
+  if (event.event_type === 'run_completed') return '运行完成'
+  if (event.event_type === 'run_failed') return '运行失败'
+  if (event.event_type === 'run_cancelled') return '运行取消'
+  return event.event_type
+}
+
+function EventBody({ event }: { event: StoredTraceEvent }) {
+  const payload = event.payload
+  if (event.event_type === 'route_decided') {
+    const target = String(payload.target ?? '')
+    return (
+      <p className="history-event-note">
+        <ArrowRightOutlined /> {ROUTE_LABELS[target] ?? target} · {String(payload.reason ?? '无路由说明')}
+      </p>
+    )
+  }
+  if (event.event_type === 'run_failed' || event.event_type === 'run_cancelled') {
+    return <p className="history-event-note">{String(payload.message ?? payload.reason ?? '运行未完成')}</p>
+  }
+  if (event.event_type !== 'node_completed') return null
+
+  const output = asObject(payload.output) as Partial<RunResult>
+  if (event.node === 'planner_v0') {
+    return (
+      <div className="history-event-detail">
+        {(output.sub_questions ?? []).map((item) => (
+          <p key={item.id}><code>{item.id}</code> {item.question}</p>
+        ))}
+        {output.retrieval_strategy ? <small>检索策略：{output.retrieval_strategy}</small> : null}
+      </div>
+    )
+  }
+  if (event.node === 'retriever_v0') {
+    const groups = output.evidence_chunks ?? []
+    const count = groups.reduce((sum, group) => sum + group.chunks.length, 0)
+    return <p className="history-event-note">覆盖 {groups.length} 个子问题 · 返回 {count} 条候选证据</p>
+  }
+  if (event.node === 'answer_validator_v0') {
+    return (
+      <p className="history-event-note">
+        {output.verified ? '验证通过' : `验证未通过：${output.failure_type ?? '原因未记录'}`}
+        {output.verification_note ? ` · ${output.verification_note}` : ''}
+      </p>
+    )
+  }
+  return null
+}
+
+function RunTimeline({ events }: { events: StoredTraceEvent[] }) {
+  return (
+    <section className="history-timeline" aria-label="运行事件时间线">
+      <div className="history-section-title">
+        <span className="section-kicker">EXECUTION TAPE</span>
+        <h3>执行轨迹</h3>
+        <span>{events.length} 个事件</span>
+      </div>
+      {events.length === 0 ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="此运行暂无轨迹事件" />
+      ) : (
+        <ol className="history-events">
+          {events.map((event) => (
+            <li key={event.sequence} className={`history-event history-event--${event.event_type}`}>
+              <span className="history-event-index">{String(event.sequence).padStart(2, '0')}</span>
+              <div>
+                <div className="history-event-topline">
+                  <strong>{eventHeading(event)}</strong>
+                  <span>{formatDate(event.timestamp)}</span>
+                </div>
+                {event.cycle ? <small>第 {event.cycle} 轮</small> : null}
+                {event.duration_ms !== null ? <small> · {formatDuration(event.duration_ms)}</small> : null}
+                <EventBody event={event} />
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  )
+}
+
+function RunEvidence({ result }: { result: RunResult | null }) {
+  const groups = result?.evidence_chunks ?? []
+  const supporting = result?.supporting_evidence ?? []
+  const items = supporting.length
+    ? supporting.map((item, index) => ({
+        id: `${item.sq_id}-${index}`, sqId: item.sq_id,
+        title: item.source_title, text: item.text,
+      }))
+    : groups.flatMap((group) => group.chunks.map((chunk, index) => ({
+        id: `${group.sq_id}-${index}`, sqId: group.sq_id,
+        title: chunk.source_title, text: chunk.text,
+      })))
+
+  return (
+    <section className="history-evidence" aria-label="运行证据">
+      <div className="history-section-title">
+        <span className="section-kicker">EVIDENCE LEDGER</span>
+        <h3>{supporting.length ? '支撑证据' : '检索证据'}</h3>
+        <span>{items.length} 条</span>
+      </div>
+      {items.length ? items.map((item) => (
+        <article key={item.id} className="history-evidence-item">
+          <span><DatabaseOutlined /> {item.sqId} · {item.title}</span>
+          <p>{item.text}</p>
+        </article>
+      )) : <p className="history-muted">此运行没有保存可展示的证据。</p>}
+    </section>
+  )
+}
+
+function RunDetailPanel({ detail }: { detail: StoredRunDetail }) {
+  const { run, events } = detail
+  const result = run.final_state
+  return (
+    <article className="history-detail">
+      <div className="history-detail-head">
+        <span className="section-kicker">RUN / {run.context.run_id}</span>
+        <Tag className={`history-status history-status--${run.status}`}>
+          {STATUS_LABELS[run.status]}
+        </Tag>
+      </div>
+      <h2>{run.context.question}</h2>
+      <div className="history-detail-meta">
+        <span>{formatDate(run.started_at)}</span>
+        <span>{run.context.entrypoint.toUpperCase()}</span>
+        <span>{run.context.method_id}</span>
+        <span>{run.context.model_name}</span>
+      </div>
+      <div className="history-run-facts">
+        <div><span>耗时</span><strong>{formatDuration(run.metrics.duration_ms)}</strong></div>
+        <div><span>节点调用</span><strong>{run.metrics.node_call_count}</strong></div>
+        <div><span>LLM 调用</span><strong>{run.metrics.llm_call_count ?? '—'}</strong></div>
+        <div><span>总 Token</span><strong>{run.metrics.total_tokens ?? '—'}</strong></div>
+      </div>
+      {run.error ? (
+        <Alert type="error" showIcon message={run.error.error_type} description={run.error.message} />
+      ) : null}
+      {run.status === 'cancelled' ? (
+        <Alert type="info" showIcon message="此运行已取消，以下为取消前保存的轨迹。" />
+      ) : null}
+      <section className="history-answer">
+        <div className="history-section-title">
+          <span className="section-kicker">FINAL RESPONSE</span>
+          <h3>最终答案</h3>
+          {run.status === 'completed' ? (
+            <Tag color={result?.verified ? 'success' : 'warning'}>
+              {result?.verified ? '验证通过' : '验证未通过'}
+            </Tag>
+          ) : null}
+        </div>
+        <p className="history-answer-text">{result?.answer || '未生成可用答案'}</p>
+        <p className="history-muted">
+          {result?.verification_note || (run.status === 'running' ? '运行仍在进行中。' : '没有保存验证说明。')}
+        </p>
+        {result?.failure_type && result.failure_type !== 'none' ? (
+          <p className="history-failure-type">失败类型：{result.failure_type}</p>
+        ) : null}
+      </section>
+      <RunTimeline events={events} />
+      <RunEvidence result={result} />
+    </article>
+  )
+}
+
+export default function HistoryView() {
+  const [status, setStatus] = useState<StoredRunStatus | undefined>()
+  const [entrypoint, setEntrypoint] = useState<RunEntryPoint | undefined>()
+  const [timeRange, setTimeRange] = useState<TimeRange>('all')
+  const [methodDraft, setMethodDraft] = useState('')
+  const [methodId, setMethodId] = useState('')
+  const [page, setPage] = useState(1)
+  const [refresh, setRefresh] = useState(0)
+  const [listing, setListing] = useState<RunListResponse>()
+  const [stats, setStats] = useState<RunStatsSummary>()
+  const [selectedId, setSelectedId] = useState<string>()
+  const [detail, setDetail] = useState<StoredRunDetail>()
+  const [loading, setLoading] = useState(true)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [listError, setListError] = useState('')
+  const [detailError, setDetailError] = useState('')
+
+  const startedFrom = useMemo(() => {
+    const hours: Record<Exclude<TimeRange, 'all'>, number> = {
+      day: 24, week: 24 * 7, month: 24 * 30,
+    }
+    return timeRange === 'all' ? undefined : new Date(Date.now() - hours[timeRange] * 3600000).toISOString()
+  }, [timeRange, refresh])
+  const filters = useMemo<RunFilters>(
+    () => ({ status, entrypoint, methodId: methodId || undefined, startedFrom }),
+    [status, entrypoint, methodId, startedFrom],
+  )
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setLoading(true)
+    setListError('')
+    Promise.all([
+      getRuns(filters, PAGE_SIZE, (page - 1) * PAGE_SIZE, controller.signal),
+      getRunStats(filters, controller.signal),
+    ]).then(([runs, summary]) => {
+      setListing(runs)
+      setStats(summary)
+      setSelectedId((current) =>
+        runs.items.some((item) => item.context.run_id === current)
+          ? current : runs.items[0]?.context.run_id,
+      )
+    }).catch((error: unknown) => {
+      if (!isAbort(error)) {
+        setListing(undefined)
+        setStats(undefined)
+        setSelectedId(undefined)
+        setListError(errorText(error))
+      }
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoading(false)
+    })
+    return () => controller.abort()
+  }, [filters, page, refresh])
+
+  useEffect(() => {
+    if (!selectedId) {
+      setDetail(undefined)
+      return
+    }
+    const controller = new AbortController()
+    setDetail(undefined)
+    setDetailError('')
+    setDetailLoading(true)
+    getRunDetail(selectedId, controller.signal)
+      .then(setDetail)
+      .catch((error: unknown) => {
+        if (!isAbort(error)) setDetailError(errorText(error))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setDetailLoading(false)
+      })
+    return () => controller.abort()
+  }, [selectedId, refresh])
+
+  return (
+    <main className="history-workspace">
+      <header className="history-hero">
+        <div>
+          <span className="section-kicker">RUN ARCHIVE / V0</span>
+          <h1>每次运行，都有迹可循</h1>
+          <p>按运行查看问题、答案、节点轨迹与路由原因。API 和 CLI 记录汇入同一份档案。</p>
+        </div>
+        <div className="history-hero-actions">
+          <Button icon={<ReloadOutlined />} onClick={() => setRefresh((value) => value + 1)}>
+            刷新
+          </Button>
+          <Tooltip title="导出当前筛选条件下的全部运行">
+            <Button icon={<DownloadOutlined />} href={getRunsExportUrl(filters)}>
+              导出 JSONL
+            </Button>
+          </Tooltip>
+        </div>
+      </header>
+
+      {listError ? (
+        <Alert
+          type="error" showIcon message="运行历史加载失败" description={listError}
+          action={<Button size="small" onClick={() => setRefresh((value) => value + 1)}>重试</Button>}
+        />
+      ) : null}
+
+      <section className="history-stats" aria-label="运行统计">
+        <div><span>运行总数</span><strong>{loading ? '—' : stats?.total_runs ?? 0}</strong><small>API 与 CLI 记录</small></div>
+        <div><span>完成率</span><strong>{loading ? '—' : formatPercent(stats?.completion_rate ?? 0)}</strong><small>已完成 / 全部运行</small></div>
+        <div><span>验证通过率</span><strong>{loading ? '—' : formatPercent(stats?.verification_pass_rate ?? 0)}</strong><small>已验证 / 已完成，非答案准确率</small></div>
+        <div><span>平均耗时</span><strong>{loading ? '—' : formatDuration(stats?.average_duration_ms ?? null)}</strong><small>有耗时记录的运行</small></div>
+      </section>
+
+      <section className="history-filters" aria-label="筛选运行历史">
+        <div className="history-filter-heading">
+          <FileSearchOutlined />
+          <strong>筛选档案</strong>
+        </div>
+        <Select
+          aria-label="状态筛选" value={status ?? 'all'}
+          onChange={(value) => {
+            setStatus(value === 'all' ? undefined : value as StoredRunStatus)
+            setPage(1)
+          }}
+          options={[
+            { value: 'all', label: '全部状态' },
+            ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
+          ]}
+        />
+        <Select
+          aria-label="入口筛选" value={entrypoint ?? 'all'}
+          onChange={(value) => {
+            setEntrypoint(value === 'all' ? undefined : value as RunEntryPoint)
+            setPage(1)
+          }}
+          options={[
+            { value: 'all', label: '全部入口' },
+            { value: 'api', label: 'API / 前端' },
+            { value: 'cli', label: 'CLI / 终端' },
+            { value: 'batch', label: '批量实验' },
+          ]}
+        />
+        <Select
+          aria-label="时间筛选" value={timeRange}
+          onChange={(value) => { setTimeRange(value); setPage(1) }}
+          options={[
+            { value: 'all', label: '全部时间' },
+            { value: 'day', label: '最近 24 小时' },
+            { value: 'week', label: '最近 7 天' },
+            { value: 'month', label: '最近 30 天' },
+          ]}
+        />
+        <Input.Search
+          aria-label="方法 ID 筛选" placeholder="按方法 ID 筛选" value={methodDraft}
+          onChange={(event) => {
+            setMethodDraft(event.target.value)
+            if (!event.target.value) { setMethodId(''); setPage(1) }
+          }}
+          onSearch={(value) => { setMethodId(value.trim()); setPage(1) }}
+          allowClear enterButton="筛选"
+        />
+      </section>
+
+      <div className="history-main-grid">
+        <section className="history-list-panel" aria-label="历史运行列表">
+          <div className="history-panel-head">
+            <div><span className="section-kicker">RUN INDEX</span><h2>历史运行</h2></div>
+            <span>{loading ? '加载中' : `${listing?.total ?? 0} 条`}</span>
+          </div>
+          {loading ? <Skeleton active paragraph={{ rows: 8 }} /> : null}
+          {!loading && !listError && !listing?.items.length ? (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={stats?.total_runs === 0 && !status && !entrypoint && !methodId && timeRange === 'all'
+                ? '还没有运行记录。先去实时运行发起一次问答。'
+                : '没有符合筛选条件的运行。试试放宽状态、方法或时间范围。'}
+            />
+          ) : null}
+          {!loading && !listError ? (
+            <div className="history-run-list">
+              {listing?.items.map((item: StoredRunRecord) => (
+                <button
+                  key={item.context.run_id} type="button"
+                  className={`history-run-row ${selectedId === item.context.run_id ? 'selected' : ''}`}
+                  onClick={() => setSelectedId(item.context.run_id)}
+                  aria-pressed={selectedId === item.context.run_id}
+                >
+                  <span className="history-run-row-top">
+                    <span className={`history-status-dot history-status-dot--${item.status}`} />
+                    <span>{formatDate(item.started_at)}</span>
+                    <Tag className={`history-status history-status--${item.status}`}>
+                      {STATUS_LABELS[item.status]}
+                    </Tag>
+                  </span>
+                  <strong>{item.context.question}</strong>
+                  <span className="history-run-row-bottom">
+                    {item.context.entrypoint.toUpperCase()} · {item.context.method_id}
+                    <span><ClockCircleOutlined /> {formatDuration(item.metrics.duration_ms)}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {!loading && !listError && (listing?.total ?? 0) > PAGE_SIZE ? (
+            <Pagination
+              className="history-pagination" size="small" current={page}
+              total={listing?.total ?? 0} pageSize={PAGE_SIZE} showSizeChanger={false}
+              onChange={(value) => setPage(value)}
+            />
+          ) : null}
+        </section>
+
+        <section className="history-detail-panel" aria-label="运行详情">
+          {detailLoading || loading ? <Skeleton active paragraph={{ rows: 12 }} /> : null}
+          {detailError && !loading ? (
+            <Alert type="error" showIcon message="运行详情加载失败" description={detailError} />
+          ) : null}
+          {!loading && !detailLoading && !detailError && detail ? <RunDetailPanel detail={detail} /> : null}
+          {!loading && !detailLoading && !detailError && !detail && !listError ? (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="选择一条运行，查看完整轨迹与答案。" />
+          ) : null}
+        </section>
+      </div>
+      <p className="history-footer-note">
+        验证通过率反映当前验证器的结论。答案准确率需接入标准答案后另行计算。
+      </p>
+    </main>
+  )
+}

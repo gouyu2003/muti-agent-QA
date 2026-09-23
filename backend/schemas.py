@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from src.runtime.models import RunRecord
+
 
 class QuestionRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
@@ -64,3 +66,12 @@ class StreamEnvelope(BaseModel):
     run_id: str
     timestamp: str
     payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class RunListResponse(BaseModel):
+    """分页历史列表；total 是筛选后、分页前的记录数。"""
+
+    items: list[RunRecord]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1, le=100)
+    offset: int = Field(ge=0)

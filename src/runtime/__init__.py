@@ -9,6 +9,7 @@ from src.runtime.models import (
     RunError,
     RunMetrics,
     RunRecord,
+    RunStatsSummary,
     TraceEvent,
 )
 from src.runtime.repository import (
@@ -27,6 +28,7 @@ __all__ = [
     "RunError",
     "RunMetrics",
     "RunRecord",
+    "RunStatsSummary",
     "RunService",
     "SQLiteRunRepository",
     "TraceEvent",

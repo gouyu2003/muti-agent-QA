@@ -101,3 +101,83 @@ export interface RunViewState {
   durationMs?: number
   error?: string
 }
+
+export type StoredRunStatus = Exclude<RunStatus, 'idle'>
+export type RunEntryPoint = 'api' | 'cli' | 'batch'
+
+export interface RunFilters {
+  status?: StoredRunStatus
+  entrypoint?: RunEntryPoint
+  methodId?: string
+  startedFrom?: string
+}
+
+export interface StoredRunRecord {
+  context: {
+    run_id: string
+    entrypoint: RunEntryPoint
+    question: string
+    source_id: string | null
+    record_id: string | null
+    workflow_id: string
+    method_id: string
+    model_name: string
+    protocol_id: string
+    code_version: string
+    config_snapshot: Record<string, unknown>
+  }
+  status: StoredRunStatus
+  started_at: string
+  finished_at: string | null
+  final_state: RunResult | null
+  metrics: {
+    duration_ms: number | null
+    node_call_count: number
+    llm_call_count: number | null
+    prompt_tokens: number | null
+    completion_tokens: number | null
+    total_tokens: number | null
+    estimated_cost_usd: number | null
+    plan_retry_count: number
+    retrieval_retry_count: number
+    validation_retry_count: number
+  }
+  error: { error_type: string; message: string } | null
+}
+
+export interface StoredTraceEvent {
+  run_id: string
+  sequence: number
+  event_type: string
+  timestamp: string
+  node: string | null
+  cycle: number | null
+  duration_ms: number | null
+  payload: Record<string, unknown>
+}
+
+export interface StoredRunDetail {
+  run: StoredRunRecord
+  events: StoredTraceEvent[]
+}
+
+export interface RunListResponse {
+  items: StoredRunRecord[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface RunStatsSummary {
+  total_runs: number
+  completed_runs: number
+  failed_runs: number
+  cancelled_runs: number
+  running_runs: number
+  verified_runs: number
+  completion_rate: number
+  verification_pass_rate: number
+  average_duration_ms: number | null
+  average_retry_count: number | null
+  failure_types: Record<string, number>
+}

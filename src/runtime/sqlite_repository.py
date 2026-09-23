@@ -19,6 +19,7 @@ from src.runtime.models import (
     RunError,
     RunMetrics,
     RunRecord,
+    RunStatsSummary,
     RunStatus,
     TraceEvent,
 )
@@ -503,6 +504,7 @@ class SQLiteRunRepository:
         status: RunStatus | None,
         entrypoint: RunEntryPoint | None,
         method_id: str | None,
+        started_from: datetime | None,
     ) -> tuple[str, list[Any]]:
         clauses: list[str] = []
         parameters: list[Any] = []
@@ -515,6 +517,9 @@ class SQLiteRunRepository:
         if method_id is not None:
             clauses.append("method_id = ?")
             parameters.append(method_id)
+        if started_from is not None:
+            clauses.append("julianday(started_at) >= julianday(?)")
+            parameters.append(_datetime_to_text(started_from))
         return (
             (" WHERE " + " AND ".join(clauses)) if clauses else "",
             parameters,
@@ -528,6 +533,7 @@ class SQLiteRunRepository:
         status: RunStatus | None = None,
         entrypoint: RunEntryPoint | None = None,
         method_id: str | None = None,
+        started_from: datetime | None = None,
     ) -> list[RunRecord]:
         if not 1 <= limit <= 100:
             raise ValueError("limit 必须在 1 到 100 之间")
@@ -535,7 +541,8 @@ class SQLiteRunRepository:
             raise ValueError("offset 不能小于 0")
 
         where_sql, parameters = self._build_filters(
-            status=status, entrypoint=entrypoint, method_id=method_id
+            status=status, entrypoint=entrypoint, method_id=method_id,
+            started_from=started_from,
         )
         sql = (
             "SELECT * FROM runs"
@@ -559,9 +566,11 @@ class SQLiteRunRepository:
         status: RunStatus | None = None,
         entrypoint: RunEntryPoint | None = None,
         method_id: str | None = None,
+        started_from: datetime | None = None,
     ) -> int:
         where_sql, parameters = self._build_filters(
-            status=status, entrypoint=entrypoint, method_id=method_id
+            status=status, entrypoint=entrypoint, method_id=method_id,
+            started_from=started_from,
         )
         try:
             with self._connection() as connection:
@@ -572,6 +581,88 @@ class SQLiteRunRepository:
             return int(row["total"])
         except sqlite3.Error as exc:
             raise RepositoryError("统计运行记录失败") from exc
+
+    def get_stats_summary(
+        self,
+        *,
+        status: RunStatus | None = None,
+        entrypoint: RunEntryPoint | None = None,
+        method_id: str | None = None,
+        started_from: datetime | None = None,
+    ) -> RunStatsSummary:
+        where_sql, parameters = self._build_filters(
+            status=status, entrypoint=entrypoint, method_id=method_id,
+            started_from=started_from,
+        )
+        try:
+            with self._connection() as connection:
+                rows = connection.execute(
+                    "SELECT status, final_state_json, error_type, duration_ms, "
+                    "plan_retry_count, retrieval_retry_count FROM runs" + where_sql,
+                    parameters,
+                ).fetchall()
+
+            status_counts = {
+                name: 0 for name in ("running", "completed", "failed", "cancelled")
+            }
+            failure_types: dict[str, int] = {}
+            verified_runs = 0
+            durations: list[int] = []
+            retry_counts: list[int] = []
+            for row in rows:
+                run_status = row["status"]
+                status_counts[run_status] += 1
+                final_state = _load_json(row["final_state_json"], "final_state_json")
+                if final_state is not None and not isinstance(final_state, dict):
+                    raise RepositoryError("数据库字段 final_state_json 必须是对象")
+                if (
+                    run_status == "completed"
+                    and final_state
+                    and final_state.get("verified") is True
+                ):
+                    verified_runs += 1
+
+                if run_status == "failed":
+                    failure_type = row["error_type"]
+                else:
+                    failure_type = final_state.get("failure_type") if final_state else None
+                if (
+                    isinstance(failure_type, str)
+                    and failure_type
+                    and failure_type != "none"
+                ):
+                    failure_types[failure_type] = failure_types.get(failure_type, 0) + 1
+
+                if row["duration_ms"] is not None:
+                    durations.append(row["duration_ms"])
+                if run_status != "running":
+                    retry_counts.append(
+                        row["plan_retry_count"] + row["retrieval_retry_count"]
+                    )
+
+            total = len(rows)
+            completed = status_counts["completed"]
+            return RunStatsSummary(
+                total_runs=total,
+                completed_runs=completed,
+                failed_runs=status_counts["failed"],
+                cancelled_runs=status_counts["cancelled"],
+                running_runs=status_counts["running"],
+                verified_runs=verified_runs,
+                completion_rate=completed / total if total else 0.0,
+                verification_pass_rate=verified_runs / completed if completed else 0.0,
+                average_duration_ms=(
+                    sum(durations) / len(durations) if durations else None
+                ),
+                average_retry_count=(
+                    sum(retry_counts) / len(retry_counts) if retry_counts else None
+                ),
+                failure_types=dict(sorted(failure_types.items())),
+            )
+        except RepositoryError:
+            raise
+        except sqlite3.Error as exc:
+            raise RepositoryError("汇总运行统计失败") from exc
 
     def append_event(self, event: TraceEvent) -> None:
         try:
@@ -668,6 +759,7 @@ class SQLiteRunRepository:
         status: RunStatus | None = None,
         entrypoint: RunEntryPoint | None = None,
         method_id: str | None = None,
+        started_from: datetime | None = None,
     ) -> Iterator[str]:
         """导出每行一个 RunDetail 的 UTF-8 友好 JSON 文本。
 
@@ -676,7 +768,8 @@ class SQLiteRunRepository:
         """
 
         where_sql, parameters = self._build_filters(
-            status=status, entrypoint=entrypoint, method_id=method_id
+            status=status, entrypoint=entrypoint, method_id=method_id,
+            started_from=started_from,
         )
         try:
             with self._connection() as connection:

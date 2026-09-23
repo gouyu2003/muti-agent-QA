@@ -124,3 +124,29 @@ class RunDetail(RuntimeModel):
         if sequences != sorted(sequences) or len(sequences) != len(set(sequences)):
             raise ValueError("轨迹事件 sequence 必须严格递增且不重复")
         return self
+
+
+class RunStatsSummary(RuntimeModel):
+    """运行统计。完成率以全部运行计，验证通过率以已完成运行为分母。"""
+
+    total_runs: int = Field(ge=0)
+    completed_runs: int = Field(ge=0)
+    failed_runs: int = Field(ge=0)
+    cancelled_runs: int = Field(ge=0)
+    running_runs: int = Field(ge=0)
+    verified_runs: int = Field(ge=0)
+    completion_rate: float = Field(
+        ge=0, le=1, description="已完成运行数 / 全部运行数"
+    )
+    verification_pass_rate: float = Field(
+        ge=0, le=1, description="verified=true 的已完成运行数 / 已完成运行数"
+    )
+    average_duration_ms: float | None = Field(
+        default=None, ge=0, description="有耗时记录的运行的平均毫秒数"
+    )
+    average_retry_count: float | None = Field(
+        default=None,
+        ge=0,
+        description="终态运行的平均重规划次数与补充检索次数之和",
+    )
+    failure_types: dict[str, int] = Field(default_factory=dict)

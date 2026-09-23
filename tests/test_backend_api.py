@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from backend.app import app, build_api_run_context
 from backend.schemas import StreamEnvelope
 from backend.streaming import encode_sse, stream_qa_events
-from src.runtime.models import RunContext, TraceEvent
+from src.runtime.models import RunContext, RunError, RunMetrics, RunRecord, TraceEvent
 from src.runtime.service import RunService
 from src.runtime.sqlite_repository import SQLiteRunRepository
 
@@ -247,3 +247,142 @@ def test_trace_event_adapter_preserves_timestamp_and_public_fields():
         "cycle": 2,
         "duration_ms": 15,
     }
+
+
+def _seed_history(repository: SQLiteRunRepository) -> None:
+    started_at = datetime(2026, 9, 23, 8, 0, tzinfo=timezone.utc)
+    for index, (entrypoint, method_id, status, verified, failure_type) in enumerate(
+        [
+            ("api", "multi_agent_adaptive_v0", "completed", True, "none"),
+            ("cli", "multi_agent_adaptive_v0", "completed", False, "insufficient"),
+            ("api", "single_agent_rag", "failed", False, "execution_error"),
+            ("cli", "single_agent_rag", "cancelled", False, "none"),
+        ]
+    ):
+        run_id = f"history-{index}"
+        context = _context(run_id).model_copy(
+            update={"entrypoint": entrypoint, "method_id": method_id}
+        )
+        started = started_at + timedelta(minutes=index)
+        repository.create_run(RunRecord(context=context, status="running", started_at=started))
+        repository.append_event(
+            TraceEvent(
+                run_id=run_id,
+                sequence=0,
+                event_type="run_started",
+                timestamp=started,
+                payload={"说明": "测试记录"},
+            )
+        )
+        repository.update_run(
+            RunRecord(
+                context=context,
+                status=status,
+                started_at=started,
+                finished_at=started + timedelta(seconds=index + 1),
+                final_state={
+                    "answer": "答案" if verified else "",
+                    "verified": verified,
+                    "failure_type": failure_type if status != "failed" else "none",
+                },
+                metrics=RunMetrics(
+                    duration_ms=(index + 1) * 1000,
+                    plan_retry_count=index % 2,
+                    retrieval_retry_count=index // 2,
+                ),
+                error=(
+                    RunError(error_type="execution_error", message="公开错误")
+                    if status == "failed"
+                    else None
+                ),
+            )
+        )
+
+
+def test_history_endpoints_return_ordered_paged_and_filtered_runs(api_client):
+    client, repository = api_client
+    _seed_history(repository)
+
+    response = client.get("/api/v1/runs", params={"limit": 2, "offset": 1})
+    assert response.status_code == 200
+    assert response.json()["total"] == 4
+    assert [item["context"]["run_id"] for item in response.json()["items"]] == [
+        "history-2", "history-1"
+    ]
+
+    filtered = client.get(
+        "/api/v1/runs",
+        params={"status": "completed", "entrypoint": "cli", "method_id": "multi_agent_adaptive_v0"},
+    )
+    assert filtered.json()["total"] == 1
+    assert filtered.json()["items"][0]["context"]["run_id"] == "history-1"
+
+    detail = client.get("/api/v1/runs/history-0")
+    events = client.get("/api/v1/runs/history-0/events")
+    assert detail.status_code == events.status_code == 200
+    assert detail.json()["run"]["context"]["run_id"] == "history-0"
+    assert detail.json()["events"] == events.json()
+    assert events.json()[0]["sequence"] == 0
+    assert client.get("/api/v1/runs/missing").status_code == 404
+    assert client.get("/api/v1/runs/missing/events").status_code == 404
+
+
+def test_summary_distinguishes_verification_from_completion_and_export_is_jsonl(api_client):
+    client, repository = api_client
+    _seed_history(repository)
+
+    summary_response = client.get("/api/v1/stats/summary")
+    assert summary_response.status_code == 200
+    summary = summary_response.json()
+    assert (summary["total_runs"], summary["completed_runs"], summary["verified_runs"]) == (4, 2, 1)
+    assert (summary["failed_runs"], summary["cancelled_runs"], summary["running_runs"]) == (1, 1, 0)
+    assert summary["completion_rate"] == 0.5
+    assert summary["verification_pass_rate"] == 0.5
+    assert summary["average_duration_ms"] == 2500
+    assert summary["average_retry_count"] == 1.0
+    assert summary["failure_types"] == {"execution_error": 1, "insufficient": 1}
+
+    filtered = client.get("/api/v1/stats/summary", params={"entrypoint": "cli"}).json()
+    assert filtered["total_runs"] == 2
+    assert filtered["verified_runs"] == 0
+
+    exported = client.get("/api/v1/exports/runs.jsonl", params={"status": "completed"})
+    assert exported.status_code == 200
+    assert exported.headers["content-disposition"] == 'attachment; filename="runs.jsonl"'
+    assert exported.headers["content-type"].startswith("application/x-ndjson")
+    payloads = [json.loads(line) for line in exported.text.splitlines()]
+    assert [item["run"]["context"]["run_id"] for item in payloads] == [
+        "history-1", "history-0"
+    ]
+    assert payloads[1]["events"][0]["payload"]["说明"] == "测试记录"
+
+
+def test_history_empty_state_and_invalid_filters(api_client):
+    client, _repository = api_client
+    assert client.get("/api/v1/runs").json()["items"] == []
+    summary = client.get("/api/v1/stats/summary").json()
+    assert summary["total_runs"] == 0
+    assert summary["completion_rate"] == summary["verification_pass_rate"] == 0
+    assert summary["average_duration_ms"] is None
+    assert client.get("/api/v1/exports/runs.jsonl").text == ""
+    for params in ({"limit": 0}, {"limit": 101}, {"offset": -1}, {"status": "invalid"}):
+        assert client.get("/api/v1/runs", params=params).status_code == 422
+
+
+def test_time_filter_keeps_list_summary_and_export_in_sync(api_client):
+    client, repository = api_client
+    _seed_history(repository)
+    since = {"started_from": "2026-09-23T08:02:00Z"}
+
+    listing = client.get("/api/v1/runs", params=since).json()
+    summary = client.get("/api/v1/stats/summary", params=since).json()
+    exported = client.get("/api/v1/exports/runs.jsonl", params=since)
+
+    assert listing["total"] == summary["total_runs"] == 2
+    assert [item["context"]["run_id"] for item in listing["items"]] == [
+        "history-3", "history-2"
+    ]
+    assert len(exported.text.splitlines()) == 2
+    assert client.get(
+        "/api/v1/runs", params={"started_from": "2026-09-23T08:02:00"}
+    ).status_code == 422

@@ -8,6 +8,7 @@ import {
   CloseCircleFilled,
   DatabaseOutlined,
   FileSearchOutlined,
+  HistoryOutlined,
   LoadingOutlined,
   PauseCircleOutlined,
   PlayCircleFilled,
@@ -34,6 +35,7 @@ import {
 } from 'antd'
 import type { ReactNode } from 'react'
 import { getSystemInfo, streamQuestion } from './api'
+import HistoryView from './HistoryView'
 import { initialRunState, runReducer } from './runState'
 import type {
   AgentInfo,
@@ -391,6 +393,7 @@ function ResultPanel({ result, durationMs }: { result?: RunResult; durationMs?: 
 }
 
 export default function App() {
+  const [view, setView] = useState<'live' | 'history'>('live')
   const [system, setSystem] = useState<SystemInfo>()
   const [systemError, setSystemError] = useState('')
   const [question, setQuestion] = useState(DEFAULT_QUESTION)
@@ -471,6 +474,22 @@ export default function App() {
             <span>可配置多智能体协同问答系统</span>
           </div>
         </div>
+        <nav className="workspace-nav" aria-label="工作区视图">
+          <button
+            type="button" className={view === 'live' ? 'active' : ''}
+            aria-current={view === 'live' ? 'page' : undefined}
+            onClick={() => setView('live')}
+          >
+            <PlayCircleFilled /> 实时运行
+          </button>
+          <button
+            type="button" className={view === 'history' ? 'active' : ''}
+            aria-current={view === 'history' ? 'page' : undefined}
+            onClick={() => setView('history')}
+          >
+            <HistoryOutlined /> 运行历史
+          </button>
+        </nav>
         <div className="system-badges">
           <Tag variant="filled">{system?.protocol_id ?? 'multi_hop_qa_v0'}</Tag>
           <Tag variant="filled">{system?.model_name ?? 'DeepSeek · Bailian'}</Tag>
@@ -478,7 +497,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="workspace">
+      {view === 'history' ? <HistoryView /> : <main className="workspace">
         <aside className="protocol-column">
           <ProtocolRail agents={agents} activeNode={run.activeNode} steps={run.steps} />
 
@@ -609,7 +628,7 @@ export default function App() {
             </Card>
           </div>
         </div>
-      </main>
+      </main>}
     </div>
   )
 }
