@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
 
-from src.graph import ANSWER_VALIDATOR_NODE, build_graph
+from src.graph import ANSWER_VALIDATOR_NODE, build_graph, default_nodes
+from src.llm_usage import LLMUsageCollector
 from src.router import decide_route
 from src.runtime.models import (
     RunContext,
@@ -21,11 +22,15 @@ from src.runtime.models import (
 from src.runtime.repository import RepositoryError, RunRepository
 
 
-GraphFactory = Callable[[], Any]
+GraphFactory = Callable[[LLMUsageCollector], Any]
 NowFactory = Callable[[], datetime]
 Clock = Callable[[], float]
 
 RECURSION_LIMIT = 30
+
+
+def _build_default_graph(usage_collector: LLMUsageCollector) -> Any:
+    return build_graph(nodes=default_nodes(usage_collector))
 
 NODE_FIELDS: dict[str, tuple[str, ...]] = {
     "planner_v0": ("sub_questions", "retrieval_strategy", "plan_retry_count"),
@@ -103,7 +108,7 @@ class RunService:
         self,
         repository: RunRepository,
         *,
-        graph_factory: GraphFactory = build_graph,
+        graph_factory: GraphFactory = _build_default_graph,
         now: NowFactory = _utc_now,
         clock: Clock = perf_counter,
     ):
@@ -119,11 +124,17 @@ class RunService:
         *,
         started_clock: float,
         node_call_count: int,
+        usage_collector: LLMUsageCollector,
     ) -> RunMetrics:
         duration_ms = max(0, round((self.clock() - started_clock) * 1000))
+        usage = usage_collector.snapshot()
         return RunMetrics(
             duration_ms=duration_ms,
             node_call_count=node_call_count,
+            llm_call_count=usage.call_count,
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            total_tokens=usage.total_tokens,
             plan_retry_count=_counter(state, "plan_retry_count"),
             retrieval_retry_count=_counter(state, "retrieval_retry_count"),
             validation_retry_count=_counter(state, "validation_retry_count"),
@@ -140,6 +151,7 @@ class RunService:
         terminal_persisted = False
         node_cycles: dict[str, int] = {}
         node_started_clocks: dict[tuple[str, int], float] = {}
+        usage_collector = LLMUsageCollector()
 
         self.repository.create_run(
             RunRecord(context=context, status="running", started_at=started_at)
@@ -171,7 +183,7 @@ class RunService:
         yield make_event("run_started", payload={"question": context.question})
 
         try:
-            graph = self.graph_factory()
+            graph = self.graph_factory(usage_collector)
             stream = graph.stream(
                 {"question": context.question},
                 config={
@@ -240,6 +252,7 @@ class RunService:
                 state,
                 started_clock=started_clock,
                 node_call_count=node_call_count,
+                usage_collector=usage_collector,
             )
             final_state = _public_mapping(state, FINAL_FIELDS)
             completed = make_event(
@@ -266,6 +279,7 @@ class RunService:
                 state,
                 started_clock=started_clock,
                 node_call_count=node_call_count,
+                usage_collector=usage_collector,
             )
             cancelled = make_event(
                 "run_cancelled",
@@ -290,6 +304,7 @@ class RunService:
                 state,
                 started_clock=started_clock,
                 node_call_count=node_call_count,
+                usage_collector=usage_collector,
             )
             error = _public_error(exc)
             failed = make_event(

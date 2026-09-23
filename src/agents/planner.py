@@ -9,6 +9,7 @@ from typing import Any,Optional,Protocol
 from src.agents.json_utils import as_list, as_str, extract_json_object
 from src.agents.llm_retry import invoke_text
 from src.config_loader import load_agent_configs
+from src.llm_usage import LLMUsageCollector
 from src.state import AgentState, SubQuestion
 AGENT_ID = "planner_v0"
 ALLOWED_STRATEGIES = ("sequential", "parallel")
@@ -96,14 +97,19 @@ def parse_plan(raw: str, fallback_question: str = "") -> dict[str, Any]:
     return {"sub_questions": sub_questions, "retrieval_strategy": strategy}
 
 
-def planner_fn(state: AgentState, llm: Optional[ChatLike] = None) -> dict[str, Any]:
+def planner_fn(
+    state: AgentState,
+    llm: Optional[ChatLike] = None,
+    *,
+    usage_collector: LLMUsageCollector | None = None,
+) -> dict[str, Any]:
     """LangGraph 节点函数：只返回增量字段，由框架合并回 AgentState。"""
     config = load_agent_configs()[AGENT_ID]
     chat = llm if llm is not None else default_llm()
 
     prompt = build_prompt(state, config["model_config"]["system_prompt"])
     max_retries = config.get("failure_handling", {}).get("max_retries", 2)
-    raw = invoke_text(chat, prompt, max_retries)
+    raw = invoke_text(chat, prompt, max_retries, usage_collector)
     plan = parse_plan(raw, state.get("question", ""))
 
     retry_count = int(state.get("plan_retry_count", 0))

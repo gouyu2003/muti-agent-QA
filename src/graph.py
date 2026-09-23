@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+from functools import partial
 from typing import Any, Callable, Optional
 
 from langgraph.checkpoint.memory import InMemorySaver
@@ -23,6 +24,7 @@ from langgraph.graph import END, StateGraph
 from src.agents.answer_validator import answer_validator_fn
 from src.agents.planner import planner_fn
 from src.agents.retriever import retriever_fn
+from src.llm_usage import LLMUsageCollector
 from src.router import PLANNER_NODE, RETRIEVER_NODE, route_after_validator
 from src.state import AgentState
 
@@ -31,12 +33,16 @@ ANSWER_VALIDATOR_NODE = "answer_validator_v0"
 NodeFn = Callable[[AgentState], dict[str, Any]]
 
 
-def default_nodes() -> dict[str, NodeFn]:
+def default_nodes(
+    usage_collector: LLMUsageCollector | None = None,
+) -> dict[str, NodeFn]:
     """真实节点实现：三个 LangGraph 节点函数。"""
     return {
-        PLANNER_NODE: planner_fn,
+        PLANNER_NODE: partial(planner_fn, usage_collector=usage_collector),
         RETRIEVER_NODE: retriever_fn,
-        ANSWER_VALIDATOR_NODE: answer_validator_fn,
+        ANSWER_VALIDATOR_NODE: partial(
+            answer_validator_fn, usage_collector=usage_collector
+        ),
     }
 
 

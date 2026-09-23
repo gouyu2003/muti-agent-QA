@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from langgraph.graph import END
@@ -136,7 +137,7 @@ def make_service(
     repo = repository(tmp_path)
     service = RunService(
         repo,
-        graph_factory=lambda: graph,
+        graph_factory=lambda _usage_collector: graph,
         now=StepNow(),
         clock=StepClock(),
     )
@@ -175,6 +176,61 @@ def test_success_persists_the_same_ordered_events_and_completed_record(
     assert detail.run.metrics.node_call_count == 3
     assert detail.run.metrics.validation_retry_count == 1
     assert detail.run.metrics.duration_ms is not None
+
+
+def test_service_persists_llm_usage_collected_by_the_graph(tmp_path: Path):
+    graph = FakeGraph(success_parts())
+
+    def graph_factory(usage_collector):
+        class UsageGraph:
+            def stream(self, graph_input, *, config, stream_mode, version):
+                responses = iter(
+                    [
+                        SimpleNamespace(
+                            usage_metadata={
+                                "input_tokens": 10,
+                                "output_tokens": 4,
+                                "total_tokens": 14,
+                            }
+                        ),
+                        SimpleNamespace(
+                            usage_metadata={
+                                "input_tokens": 20,
+                                "output_tokens": 6,
+                                "total_tokens": 26,
+                            }
+                        ),
+                    ]
+                )
+                chat = SimpleNamespace(invoke=lambda _prompt: next(responses))
+                usage_collector.invoke(chat, "planner prompt")
+                usage_collector.invoke(chat, "validator prompt")
+                yield from graph.stream(
+                    graph_input,
+                    config=config,
+                    stream_mode=stream_mode,
+                    version=version,
+                )
+
+        return UsageGraph()
+
+    repo = repository(tmp_path)
+    service = RunService(
+        repo,
+        graph_factory=graph_factory,
+        now=StepNow(),
+        clock=StepClock(),
+    )
+
+    list(service.stream(context("run-usage")))
+    record = repo.get_run("run-usage")
+
+    assert record is not None
+    assert record.metrics.llm_call_count == 2
+    assert record.metrics.prompt_tokens == 30
+    assert record.metrics.completion_tokens == 10
+    assert record.metrics.total_tokens == 40
+    assert record.metrics.estimated_cost_usd is None
 
 
 def test_service_uses_run_id_as_thread_id_and_v2_task_update_stream(

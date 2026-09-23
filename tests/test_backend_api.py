@@ -85,7 +85,7 @@ def _service(
     repository = SQLiteRunRepository(tmp_path / "runs.sqlite3")
     service = RunService(
         repository,
-        graph_factory=lambda: graph or FakeGraph(),
+        graph_factory=lambda _usage_collector: graph or FakeGraph(),
     )
     return service, repository
 
