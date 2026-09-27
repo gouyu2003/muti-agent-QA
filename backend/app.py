@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from datetime import datetime
+import os
 from typing import Callable
 
 from dotenv import load_dotenv
@@ -19,10 +20,12 @@ from backend.schemas import (
     QuestionRequest,
     RunListResponse,
     SystemInfoResponse,
+    SystemOptionsResponse,
+    WorkflowOption,
+    SourceOption,
 )
+from src.config_loader import load_json
 from backend.streaming import stream_qa_events
-from src.config_loader import load_agent_configs, load_protocol_config
-from src.knowledge.hotpotqa_loader import load_fixture
 from src.runtime.context import build_v0_run_context
 from src.runtime.models import (
     RunContext,
@@ -34,6 +37,7 @@ from src.runtime.models import (
 )
 from src.runtime.service import RunService
 from src.runtime.sqlite_repository import SQLiteRunRepository
+from src.runtime.system import DEFAULT_CATALOG_PATH, resolve_system
 
 
 RunServiceFactory = Callable[[], RunService]
@@ -45,13 +49,18 @@ def build_default_run_service() -> RunService:
     return RunService(SQLiteRunRepository())
 
 
-def build_api_run_context(question: str, run_id: str | None = None) -> RunContext:
+def build_api_run_context(
+    question: str, run_id: str | None = None,
+    *, workflow_id: str | None = None, source_id: str | None = None,
+) -> RunContext:
     """根据当前 V0 配置生成一次 API 运行的可复现实验上下文。"""
 
     return build_v0_run_context(
         question,
         entrypoint="api",
         run_id=run_id,
+        workflow_id=workflow_id,
+        source_id=source_id,
     )
 
 
@@ -90,14 +99,20 @@ def aware_started_from(started_from: datetime | None = None) -> datetime | None:
 
 @app.get("/api/v1/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse()
+    system = resolve_system(
+        catalog_path=os.getenv("MAQA_SYSTEM_CONFIG_PATH") or DEFAULT_CATALOG_PATH
+    )
+    return HealthResponse(system_version=system.system_version)
 
 
 @app.get("/api/v1/system", response_model=SystemInfoResponse)
 def system_info() -> SystemInfoResponse:
-    agents = load_agent_configs()
-    protocol = load_protocol_config()
-    fixture = load_fixture()
+    system = resolve_system(
+        catalog_path=os.getenv("MAQA_SYSTEM_CONFIG_PATH") or DEFAULT_CATALOG_PATH
+    )
+    agents = {key: agent.config for key, agent in system.agents.items()}
+    protocol = system.protocol
+    fixture = system.record
 
     agent_items = [
         AgentInfo(
@@ -112,7 +127,7 @@ def system_info() -> SystemInfoResponse:
         FlowEdge(
             source=edge["from"],
             target=edge["to"],
-            condition=edge["condition"],
+            condition=edge.get("condition", edge["route_name"]),
         )
         for edge in protocol["edges"]
     ]
@@ -120,7 +135,7 @@ def system_info() -> SystemInfoResponse:
 
     return SystemInfoResponse(
         name="Multi-Agent QA",
-        version="v0",
+        version=system.system_version,
         protocol_id=protocol["protocol_id"],
         model_name=first_agent["model_config"]["model_name"],
         agents=agent_items,
@@ -130,7 +145,7 @@ def system_info() -> SystemInfoResponse:
             for key, value in protocol["routing_rules"]["max_cycles"].items()
         },
         dataset=DatasetInfo(
-            name="HotpotQA",
+            name=system.source.name,
             record_id=fixture["_id"],
             question_type=fixture["type"],
             level=fixture.get("level", "unknown"),
@@ -141,10 +156,90 @@ def system_info() -> SystemInfoResponse:
     )
 
 
+@app.get("/api/v1/system/options", response_model=SystemOptionsResponse)
+def system_options() -> SystemOptionsResponse:
+    """Expose only validated, display-safe choices from the active catalog."""
+    catalog_path = os.getenv("MAQA_SYSTEM_CONFIG_PATH") or DEFAULT_CATALOG_PATH
+    catalog = load_json(catalog_path)
+    default_workflow_id = catalog.get("default_workflow_id")
+    default_source_id = catalog.get("default_source_id")
+    workflows = catalog.get("workflows")
+    sources = catalog.get("sources")
+    if not isinstance(workflows, dict) or not isinstance(sources, list):
+        raise HTTPException(status_code=503, detail="系统配置不可用")
+    source_ids = [entry.get("source_id") for entry in sources if isinstance(entry, dict)]
+    if (len(source_ids) != len(sources) or not workflows or not sources
+            or any(not isinstance(source_id, str) or not source_id for source_id in source_ids)
+            or len(set(source_ids)) != len(source_ids)
+            or default_workflow_id not in workflows or default_source_id not in source_ids):
+        raise HTTPException(status_code=503, detail="系统配置不可用")
+
+    try:
+        resolved = {
+            (workflow_id, source_id): resolve_system(
+                workflow_id, source_id, catalog_path=catalog_path
+            )
+            for workflow_id in workflows
+            for source_id in source_ids
+        }
+        default = resolved[(default_workflow_id, default_source_id)]
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(status_code=503, detail="系统配置不可用") from exc
+
+    workflow_options = []
+    for workflow_id in workflows:
+        system = resolved[(workflow_id, default_source_id)]
+        spec = system.workflow
+        workflow_options.append(WorkflowOption(
+            workflow_id=workflow_id,
+            name=system.protocol.get("protocol_name", workflow_id),
+            description=system.protocol.get("description", ""),
+            method_id=spec.method_id,
+            entry_node=spec.entry_node,
+            agents=spec.agents,
+            edges=[
+                {"source": edge.source, "target": edge.target,
+                 "route_name": edge.route_name}
+                for edge in spec.edges
+            ],
+            retry_limits=spec.max_cycles,
+        ))
+
+    source_options = []
+    for source_id in source_ids:
+        system = resolved[(default_workflow_id, source_id)]
+        record = system.record
+        source_options.append(SourceOption(
+            source_id=source_id,
+            name=system.source.name,
+            source_type=system.source.source_type,
+            is_demo=system.source.is_demo,
+            record_id=record["_id"],
+            question_type=record["type"],
+            level=record.get("level", "unknown"),
+            context_count=len(record["context"]),
+            supporting_fact_count=len(record["supporting_facts"]),
+            example_question=record["question"],
+        ))
+    return SystemOptionsResponse(
+        system_id=default.system_id,
+        system_version=default.system_version,
+        default_workflow_id=default_workflow_id,
+        default_source_id=default_source_id,
+        workflows=workflow_options,
+        sources=source_options,
+    )
+
+
 @app.post("/api/v1/qa/stream")
 def stream_question(body: QuestionRequest, request: Request) -> StreamingResponse:
     run_service: RunService = request.app.state.run_service
-    context = build_api_run_context(body.question)
+    try:
+        context = build_api_run_context(
+            body.question, workflow_id=body.workflow_id, source_id=body.source_id
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return StreamingResponse(
         stream_qa_events(context, run_service),
         media_type="text/event-stream",

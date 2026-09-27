@@ -13,6 +13,8 @@ from src.graph import (
     default_nodes,
 )
 from src.state import AgentState, EvidenceChunk, EvidenceGroup, SubQuestion
+from src.runtime.specs import WorkflowSpec
+from src.runtime.system import resolve_system
 
 SQ: list[SubQuestion] = [
     {"id": "sq_1", "question": "q1", "keywords": ["k1"], "depends_on": []}
@@ -172,3 +174,29 @@ def test_separate_threads_do_not_share_state():
     assert state_b["answer"] == "A"
     assert fake_a.calls[RETRIEVER_NODE] == 1
     assert fake_b.calls[RETRIEVER_NODE] == 2
+
+
+def test_fixed_workflow_ends_after_one_validation_even_if_evidence_is_insufficient():
+    fake = FakeNodes([INSUFFICIENT])
+    workflow = resolve_system("multi_hop_qa_fixed").workflow
+    graph = build_graph(nodes=fake.as_dict(), workflow=workflow)
+    final = graph.invoke(
+        {"question": "Q"}, config={"configurable": {"thread_id": "fixed"}}
+    )
+    assert final["verified"] is False
+    assert fake.calls == {PLANNER_NODE: 1, RETRIEVER_NODE: 1, ANSWER_VALIDATOR_NODE: 1}
+
+
+def test_feedback_retry_limit_comes_from_workflow_configuration():
+    fake = FakeNodes([INSUFFICIENT])
+    original = resolve_system().workflow
+    raw = original.model_dump(by_alias=True)
+    raw["max_cycles"]["retrieval_retry_count"] = 1
+    workflow = WorkflowSpec.model_validate(raw)
+    graph = build_graph(nodes=fake.as_dict(), workflow=workflow)
+    final = graph.invoke(
+        {"question": "Q"}, config={"configurable": {"thread_id": "one-retry"}}
+    )
+    assert final["retrieval_retry_count"] == 1
+    assert fake.calls[RETRIEVER_NODE] == 2
+    assert fake.calls[ANSWER_VALIDATOR_NODE] == 2

@@ -13,6 +13,7 @@ class EvidenceChunk(TypedDict):
     source_title: str
     source_paragraph: int
     relevance_score: float
+    source_id: NotRequired[str]
 
 
 class EvidenceGroup(TypedDict):
@@ -38,6 +39,7 @@ class SupportingEvidence(TypedDict):
     sq_id: str
     text: str
     source_title: str
+    source_id: NotRequired[str]
 
 
 class AgentState(TypedDict):

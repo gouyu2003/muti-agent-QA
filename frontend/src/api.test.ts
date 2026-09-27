@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { getRuns, getRunsExportUrl, parseSseBlock } from './api'
+import { getRuns, getRunsExportUrl, parseSseBlock, streamQuestion } from './api'
 
 describe('parseSseBlock', () => {
   it('parses an event and preserves Chinese payload text', () => {
@@ -42,6 +42,26 @@ describe('history API', () => {
         expect(listUrl.searchParams.get(key)).toBe(exportUrl.searchParams.get(key))
       }
       expect(listUrl.searchParams.get('offset')).toBe('20')
+    } finally {
+      fetchMock.mockRestore()
+    }
+  })
+})
+
+describe('configured stream API', () => {
+  it('sends the selected workflow and knowledge source IDs', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      body: new ReadableStream({ start(controller) { controller.close() } }),
+    } as Response)
+    try {
+      await streamQuestion('Question?', () => {}, undefined, {
+        workflowId: 'multi_hop_qa_fixed', sourceId: 'demo_fixture_002',
+      })
+      expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/qa/stream')
+      expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+        question: 'Question?', workflow_id: 'multi_hop_qa_fixed', source_id: 'demo_fixture_002',
+      })
     } finally {
       fetchMock.mockRestore()
     }

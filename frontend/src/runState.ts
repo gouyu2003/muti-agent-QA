@@ -7,6 +7,7 @@ export const initialRunState: RunViewState = {
 
 export type RunAction =
   | { type: 'reset' }
+  | { type: 'clear' }
   | { type: 'cancel' }
   | { type: 'client_error'; message: string }
   | { type: 'stream_event'; event: StreamEvent }
@@ -16,6 +17,7 @@ function isNodeId(value: unknown): value is NodeId {
 }
 
 export function runReducer(state: RunViewState, action: RunAction): RunViewState {
+  if (action.type === 'clear') return initialRunState
   if (action.type === 'reset') return { status: 'running', steps: [] }
   if (action.type === 'cancel') {
     return { ...state, status: 'cancelled', activeNode: undefined, error: undefined }

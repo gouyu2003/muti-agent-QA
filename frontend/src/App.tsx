@@ -28,13 +28,14 @@ import {
   Empty,
   Input,
   Progress,
+  Select,
   Skeleton,
   Tag,
   Tooltip,
   Typography,
 } from 'antd'
 import type { ReactNode } from 'react'
-import { getSystemInfo, streamQuestion } from './api'
+import { getSystemInfo, getSystemOptions, streamQuestion } from './api'
 import HistoryView from './HistoryView'
 import { initialRunState, runReducer } from './runState'
 import type {
@@ -44,6 +45,8 @@ import type {
   RunResult,
   RunStatus,
   SystemInfo,
+  SystemOptions,
+  WorkflowOption,
   TraceStep,
 } from './types'
 
@@ -98,14 +101,18 @@ function statusCopy(status: RunStatus) {
 
 function ProtocolRail({
   agents,
+  workflow,
   activeNode,
   steps,
 }: {
   agents: AgentInfo[]
+  workflow?: WorkflowOption
   activeNode?: NodeId
   steps: TraceStep[]
 }) {
   const agentMap = new Map(agents.map((agent) => [agent.agent_id, agent]))
+  const feedbackEdges = workflow?.edges.filter((edge) =>
+    edge.route_name === 'insufficient_retry' || edge.route_name === 'conflict_retry') ?? []
 
   return (
     <section className="protocol-rail" aria-label="三智能体协同协议">
@@ -115,7 +122,7 @@ function ProtocolRail({
           <h2>协同协议轨道</h2>
         </div>
         <Tag variant="filled" className="version-tag">
-          V0 固定流程
+          {workflow?.name ?? '选择协作流程'}
         </Tag>
       </div>
 
@@ -167,17 +174,19 @@ function ProtocolRail({
       </div>
 
       <div className="feedback-routes">
-        <div>
-          <ReloadOutlined />
-          <span>证据不足</span>
-          <strong>返回检索</strong>
-        </div>
-        <div>
-          <BranchesOutlined />
-          <span>证据冲突</span>
-          <strong>重新规划</strong>
-        </div>
+        {feedbackEdges.length ? feedbackEdges.map((edge) => (
+          <div key={edge.route_name}>
+            {edge.route_name === 'insufficient_retry' ? <ReloadOutlined /> : <BranchesOutlined />}
+            <span>{edge.route_name === 'insufficient_retry' ? '证据不足' : '证据冲突'}</span>
+            <strong>{edge.route_name === 'insufficient_retry' ? '返回检索' : '重新规划'}</strong>
+          </div>
+        )) : <p>固定顺序执行一次，验证后结束。</p>}
       </div>
+      {workflow && Object.keys(workflow.retry_limits).length > 0 ? (
+        <p className="protocol-limits">
+          重试上限：{Object.entries(workflow.retry_limits).map(([key, value]) => `${key} ${value}`).join(' · ')}
+        </p>
+      ) : null}
     </section>
   )
 }
@@ -395,17 +404,32 @@ function ResultPanel({ result, durationMs }: { result?: RunResult; durationMs?: 
 export default function App() {
   const [view, setView] = useState<'live' | 'history'>('live')
   const [system, setSystem] = useState<SystemInfo>()
+  const [options, setOptions] = useState<SystemOptions>()
+  const [workflowId, setWorkflowId] = useState('')
+  const [sourceId, setSourceId] = useState('')
+  const [submittedSelection, setSubmittedSelection] = useState<{ workflowId: string; sourceId: string }>()
   const [systemError, setSystemError] = useState('')
   const [question, setQuestion] = useState(DEFAULT_QUESTION)
+  const questionTouchedRef = useRef(false)
   const [run, dispatch] = useReducer(runReducer, initialRunState)
   const abortRef = useRef<AbortController | undefined>(undefined)
 
   useEffect(() => {
     const controller = new AbortController()
-    getSystemInfo(controller.signal)
-      .then((info) => {
+    Promise.all([getSystemInfo(controller.signal), getSystemOptions(controller.signal)])
+      .then(([info, choices]) => {
+        if (!choices.workflows.some((item) => item.workflow_id === choices.default_workflow_id)
+          || !choices.sources.some((item) => item.source_id === choices.default_source_id)) {
+          throw new Error('默认流程或知识源不在可选配置中。')
+        }
         setSystem(info)
-        setQuestion(info.dataset.default_question)
+        setOptions(choices)
+        setWorkflowId(choices.default_workflow_id)
+        setSourceId(choices.default_source_id)
+        if (!questionTouchedRef.current) {
+          const source = choices.sources.find((item) => item.source_id === choices.default_source_id)
+          setQuestion(source?.example_question ?? info.dataset.default_question)
+        }
         setSystemError('')
       })
       .catch((error: unknown) => {
@@ -426,6 +450,26 @@ export default function App() {
       })),
     [system],
   )
+  const currentWorkflow = options?.workflows.find((item) => item.workflow_id === workflowId)
+  const currentSource = options?.sources.find((item) => item.source_id === sourceId)
+  const shownWorkflow = submittedSelection && run.status !== 'idle'
+    ? options?.workflows.find((item) => item.workflow_id === submittedSelection.workflowId)
+    : currentWorkflow
+  const shownSource = submittedSelection && run.status !== 'idle'
+    ? options?.sources.find((item) => item.source_id === submittedSelection.sourceId)
+    : currentSource
+
+  function selectWorkflow(value: string) {
+    setWorkflowId(value)
+    setSubmittedSelection(undefined)
+    dispatch({ type: 'clear' })
+  }
+
+  function selectSource(value: string) {
+    setSourceId(value)
+    setSubmittedSelection(undefined)
+    dispatch({ type: 'clear' })
+  }
 
   async function handleRun() {
     const normalized = question.trim()
@@ -433,10 +477,16 @@ export default function App() {
       dispatch({ type: 'client_error', message: '请输入问题后再运行。' })
       return
     }
+    if (!currentWorkflow || !currentSource) {
+      dispatch({ type: 'client_error', message: '所选流程或知识源不可用，请重新加载配置。' })
+      return
+    }
 
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
+    const selection = { workflowId: currentWorkflow.workflow_id, sourceId: currentSource.source_id }
+    setSubmittedSelection(selection)
     dispatch({ type: 'reset' })
 
     try {
@@ -444,6 +494,7 @@ export default function App() {
         normalized,
         (event) => dispatch({ type: 'stream_event', event }),
         controller.signal,
+        selection,
       )
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return
@@ -491,15 +542,15 @@ export default function App() {
           </button>
         </nav>
         <div className="system-badges">
-          <Tag variant="filled">{system?.protocol_id ?? 'multi_hop_qa_v0'}</Tag>
+          <Tag variant="filled">{shownWorkflow?.workflow_id ?? '等待配置'}</Tag>
           <Tag variant="filled">{system?.model_name ?? 'DeepSeek · Bailian'}</Tag>
-          <Badge status={systemError ? 'error' : system ? 'success' : 'processing'} text={systemError ? '后端未连接' : system ? '服务正常' : '正在连接'} />
+          <Badge status={systemError ? 'error' : options ? 'success' : 'processing'} text={systemError ? '配置不可用' : options ? '服务正常' : '正在连接'} />
         </div>
       </header>
 
       {view === 'history' ? <HistoryView /> : <main className="workspace">
         <aside className="protocol-column">
-          <ProtocolRail agents={agents} activeNode={run.activeNode} steps={run.steps} />
+          <ProtocolRail agents={agents} workflow={shownWorkflow} activeNode={run.activeNode} steps={run.steps} />
 
           <Card className="dataset-card" variant="borderless">
             <div className="dataset-icon">
@@ -507,12 +558,14 @@ export default function App() {
             </div>
             <div>
               <span className="section-kicker">KNOWLEDGE SOURCE</span>
-              <strong>{system?.dataset.name ?? 'HotpotQA'}</strong>
+              <strong>{shownSource?.name ?? '等待知识源'}</strong>
+              {shownSource?.is_demo ? <Tag color="orange">演示材料</Tag> : null}
               <p>
-                {system
-                  ? `${system.dataset.level} · ${system.dataset.question_type} · ${system.dataset.context_count} 个上下文`
-                  : '本地多跳问答证据集'}
+                {shownSource
+                  ? `${shownSource.level} · ${shownSource.question_type} · ${shownSource.context_count} 个上下文 · ${shownSource.supporting_fact_count} 条支撑事实`
+                  : '正在加载本地知识源'}
               </p>
+              {shownSource ? <small>来源：{shownSource.source_id} · 记录：{shownSource.record_id} · 类型：{shownSource.source_type}</small> : null}
             </div>
           </Card>
         </aside>
@@ -523,7 +576,7 @@ export default function App() {
               <span className="section-kicker">QUESTION TO EVIDENCE</span>
               <Title level={1}>观察一次真实的多智能体协作</Title>
               <Paragraph>
-                系统会拆解问题、逐跳检索本地证据，并在答案通过验证前主动补检索或重新规划。
+                系统会拆解问题、检索所选知识源，并按照选定的协作流程作答与验证。
               </Paragraph>
             </div>
             <div className="run-summary">
@@ -546,22 +599,54 @@ export default function App() {
             <Alert
               type="error"
               showIcon
-              message="无法连接 FastAPI 后端"
-              description="请确认后端已在 127.0.0.1:8000 启动，然后刷新页面。"
+              message="系统配置加载失败"
+              description={systemError}
             />
           ) : null}
 
           <Card className="question-card" variant="borderless">
+            <div className="configuration-controls">
+              <label>
+                <span>协作流程</span>
+                <Select
+                  aria-label="协作流程"
+                  value={workflowId || undefined}
+                  options={options?.workflows.map((item) => ({ value: item.workflow_id, label: item.name })) ?? []}
+                  onChange={selectWorkflow}
+                  disabled={isRunning || !options}
+                  placeholder="选择协作流程"
+                />
+              </label>
+              <label>
+                <span>知识源</span>
+                <Select
+                  aria-label="知识源"
+                  value={sourceId || undefined}
+                  options={options?.sources.map((item) => ({ value: item.source_id, label: item.is_demo ? `${item.name}（演示）` : item.name })) ?? []}
+                  onChange={selectSource}
+                  disabled={isRunning || !options}
+                  placeholder="选择知识源"
+                />
+              </label>
+            </div>
+            {currentWorkflow ? (
+              <div className="configuration-preview">
+                <strong>{currentWorkflow.name}</strong>
+                <span>方法：{currentWorkflow.method_id} · 入口：{currentWorkflow.entry_node}</span>
+                {currentWorkflow.description ? <p>{currentWorkflow.description}</p> : null}
+                <p>连线：{currentWorkflow.edges.map((edge) => `${edge.source} → ${edge.target}（${edge.route_name}）`).join('；')}</p>
+              </div>
+            ) : null}
             <div className="question-card-heading">
               <div>
                 <RobotOutlined />
                 <strong>输入复杂多跳问题</strong>
               </div>
-              <Text type="secondary">V0 使用英文问题与本地英文语料</Text>
+              <Text type="secondary">当前知识源使用英文问题与本地英文语料</Text>
             </div>
             <TextArea
               value={question}
-              onChange={(event) => setQuestion(event.target.value)}
+              onChange={(event) => { questionTouchedRef.current = true; setQuestion(event.target.value) }}
               autoSize={{ minRows: 3, maxRows: 6 }}
               maxLength={2000}
               disabled={isRunning}
@@ -569,6 +654,10 @@ export default function App() {
             />
             <div className="question-actions">
               <Text type="secondary">{question.length} / 2000</Text>
+              <Button
+                onClick={() => { if (currentSource) { questionTouchedRef.current = true; setQuestion(currentSource.example_question) } }}
+                disabled={isRunning || !currentSource}
+              >填入示例问题</Button>
               {isRunning ? (
                 <Button icon={<StopOutlined />} onClick={handleStop} danger>
                   停止运行
@@ -578,13 +667,17 @@ export default function App() {
                   type="primary"
                   icon={<PlayCircleFilled />}
                   onClick={handleRun}
-                  disabled={Boolean(systemError) || !question.trim()}
+                  disabled={Boolean(systemError) || !options || !currentWorkflow || !currentSource || !question.trim()}
                 >
                   开始协同问答
                 </Button>
               )}
             </div>
           </Card>
+
+          {submittedSelection && run.status !== 'idle' ? (
+            <p className="run-selection">本次运行：{shownWorkflow?.name ?? submittedSelection.workflowId} · {shownSource?.name ?? submittedSelection.sourceId}</p>
+          ) : null}
 
           {run.error ? <Alert type="error" showIcon message="运行未完成" description={run.error} /> : null}
           {run.status === 'cancelled' ? (

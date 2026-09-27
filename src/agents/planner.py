@@ -18,9 +18,9 @@ class ChatLike(Protocol):
     """最小依赖：只需一个 invoke(prompt: str) -> 带 .content 的对象。"""
     def invoke(self,prompt:str) -> Any:...
 
-def default_llm() -> ChatLike:
+def default_llm(agent_config: dict[str, Any] | None = None) -> ChatLike:
     from src.llm import build_chat_model  # 延迟导入，离线测试不依赖环境变量
-    return build_chat_model(load_agent_configs()[AGENT_ID])
+    return build_chat_model(agent_config or load_agent_configs()[AGENT_ID])
 
 def build_prompt(state:AgentState,system_prompt:str) -> str:
     parts = [system_prompt,"",f"原始问题:{state['question']}",""]
@@ -102,10 +102,11 @@ def planner_fn(
     llm: Optional[ChatLike] = None,
     *,
     usage_collector: LLMUsageCollector | None = None,
+    agent_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """LangGraph 节点函数：只返回增量字段，由框架合并回 AgentState。"""
-    config = load_agent_configs()[AGENT_ID]
-    chat = llm if llm is not None else default_llm()
+    config = agent_config or load_agent_configs()[AGENT_ID]
+    chat = llm if llm is not None else default_llm(config)
 
     prompt = build_prompt(state, config["model_config"]["system_prompt"])
     max_retries = config.get("failure_handling", {}).get("max_retries", 2)

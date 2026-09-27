@@ -1,0 +1,14 @@
+{
+  "protocol_id": "multi_hop_qa_fixed",
+  "method_id": "multi_agent_fixed",
+  "protocol_name": "固定三节点问答流程",
+  "version": "0.1.0",
+  "agents": ["planner_v0", "retriever_v0", "answer_validator_v0"],
+  "entry_node": "planner_v0",
+  "edges": [
+    {"edge_id": "e1", "from": "planner_v0", "to": "retriever_v0", "route_name": "always"},
+    {"edge_id": "e2", "from": "retriever_v0", "to": "answer_validator_v0", "route_name": "always"},
+    {"edge_id": "e3", "from": "answer_validator_v0", "to": "END", "route_name": "always"}
+  ],
+  "routing_rules": {"max_cycles": {}}
+}

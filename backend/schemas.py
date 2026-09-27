@@ -11,6 +11,8 @@ from src.runtime.models import RunRecord
 
 class QuestionRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
+    workflow_id: str | None = Field(default=None, min_length=1)
+    source_id: str | None = Field(default=None, min_length=1)
 
     @field_validator("question")
     @classmethod
@@ -23,7 +25,7 @@ class QuestionRequest(BaseModel):
 
 class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
-    system_version: str = "v0"
+    system_version: str
 
 
 class AgentInfo(BaseModel):
@@ -58,6 +60,39 @@ class SystemInfoResponse(BaseModel):
     flow: list[FlowEdge]
     retry_limits: dict[str, int]
     dataset: DatasetInfo
+
+
+class WorkflowOption(BaseModel):
+    workflow_id: str
+    name: str
+    description: str
+    method_id: str
+    entry_node: str
+    agents: list[str]
+    edges: list[dict[str, str]]
+    retry_limits: dict[str, int]
+
+
+class SourceOption(BaseModel):
+    source_id: str
+    name: str
+    source_type: str
+    is_demo: bool
+    record_id: str
+    question_type: str
+    level: str
+    context_count: int
+    supporting_fact_count: int
+    example_question: str
+
+
+class SystemOptionsResponse(BaseModel):
+    system_id: str
+    system_version: str
+    default_workflow_id: str
+    default_source_id: str
+    workflows: list[WorkflowOption]
+    sources: list[SourceOption]
 
 
 class StreamEnvelope(BaseModel):

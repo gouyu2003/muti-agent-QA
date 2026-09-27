@@ -20,7 +20,7 @@ Planner → Retriever → Answer-Validator
 HotpotQA fixture + local BM25
 ```
 
-前后端只负责展示和传输，三个智能体及路由逻辑仍位于 `src/`。现有命令行入口 `python main.py` 保持可用。
+前后端只负责展示和传输，智能体及路由逻辑位于 `src/`。API 与命令行共用 `RunService`，运行记录和有序轨迹持久化到 SQLite。现有命令行入口 `python main.py` 保持可用。
 
 ## 环境要求
 
@@ -73,6 +73,20 @@ npm run dev
 
 后端交互文档位于 <http://127.0.0.1:8000/docs>。
 
+## 选择流程与知识源（阶段 2）
+
+系统清单位于 `system-design/systems/default.json`。默认流程 `multi_hop_qa_v0` 保留反馈重试；`multi_hop_qa_fixed` 在一次验证后结束。默认知识源 `hotpotqa_fixture` 使用真实 V0 样本；`demo_fixture_002` 是用于验证知识源切换的**合成演示材料**，不能用于论文评测。
+
+命令行可以选择流程和知识源：
+
+```powershell
+.\venv\Scripts\python.exe main.py --workflow-id multi_hop_qa_fixed --source-id demo_fixture_002 "Which city contains Westhaven University?"
+```
+
+`POST /api/v1/qa/stream` 的 JSON 请求可以增加可选的 `workflow_id` 和 `source_id`；只传 `question` 仍使用原 V0 默认值。也可通过 `MAQA_SYSTEM_CONFIG_PATH` 指向另一份系统清单，命令行还支持 `--system-config`。清单中的文件路径相对于清单所在目录解析。未知流程、知识源、组件或非法连线会在开始运行前报错。
+
+运行历史、详情、统计和 JSONL 导出分别通过 `/api/v1/runs`、`/api/v1/runs/{run_id}`、`/api/v1/stats/summary` 和 `/api/v1/exports/runs.jsonl` 访问。
+
 ## 验证
 
 后端与现有核心测试：
@@ -96,6 +110,6 @@ npm run build
 .\venv\Scripts\python.exe -m pytest -m integration -v
 ```
 
-## V0 边界
+## 当前边界
 
-当前演示版不包含配置编辑、知识库上传、算法切换、运行历史、用户登录、数据库和公网部署。协同协议 JSON 当前用于定义与校验，LangGraph 节点和边仍由 Python 构建；协议配置驱动建图属于后续 V1。
+当前支持已注册的三类智能体、两种流程模板以及单条 HotpotQA 格式记录的本地 BM25 检索。前端仍是 V0 实时演示和运行历史，没有配置编辑、用户材料上传或拖拽式设计器。系统包导出、异机启动和稳定的非流式对外问答 API 属于后续阶段。

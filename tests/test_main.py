@@ -85,6 +85,28 @@ def test_parse_args_accepts_run_id_and_legacy_thread_id_alias():
     assert parse_args(["q", "--thread-id", "legacy"]).run_id == "legacy"
 
 
+def test_cli_selects_configured_workflow_and_source():
+    args = parse_args([
+        "Which city?", "--workflow-id", "multi_hop_qa_fixed",
+        "--source-id", "demo_fixture_002",
+    ])
+    assert args.workflow_id == "multi_hop_qa_fixed"
+    assert args.source_id == "demo_fixture_002"
+
+    class RecordingService:
+        context = None
+
+        def run(self, context):
+            self.context = context
+            return _detail()
+
+    service = RecordingService()
+    run("Which city?", run_service=service,
+        workflow_id=args.workflow_id, source_id=args.source_id)
+    assert service.context.workflow_id == "multi_hop_qa_fixed"
+    assert service.context.source_id == "demo_fixture_002"
+
+
 def test_run_builds_cli_context_and_uses_injected_service():
     class RecordingService:
         def __init__(self):

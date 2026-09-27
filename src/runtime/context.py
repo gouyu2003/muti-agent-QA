@@ -1,18 +1,16 @@
-"""为 API、CLI 和后续批处理构造统一的 V0 运行上下文。"""
+"""Resolve a selected system once for API, CLI, and future batch runs."""
 
 from __future__ import annotations
 
 import os
 from uuid import uuid4
 
-from src.config_loader import load_agent_configs, load_protocol_config
-from src.knowledge.hotpotqa_loader import load_fixture
 from src.runtime.models import RunContext, RunEntryPoint
+from src.runtime.specs import RuntimeRequest
+from src.runtime.system import DEFAULT_CATALOG_PATH, resolve_system
 
 
 SYSTEM_VERSION = "v0"
-METHOD_ID = "multi_agent_adaptive_v0"
-FIXTURE_SOURCE_ID = "hotpotqa_fixture"
 
 
 def build_v0_run_context(
@@ -20,32 +18,29 @@ def build_v0_run_context(
     *,
     entrypoint: RunEntryPoint,
     run_id: str | None = None,
+    workflow_id: str | None = None,
+    source_id: str | None = None,
+    catalog_path: str | None = None,
 ) -> RunContext:
-    """根据当前静态配置生成一次可持久化、可复现的运行上下文。"""
+    """Build a run context from one validated system and source snapshot."""
 
-    agents = load_agent_configs()
-    protocol = load_protocol_config()
-    fixture = load_fixture()
-    first_agent = next(iter(agents.values()))
+    request = RuntimeRequest(question=question, workflow_id=workflow_id, source_id=source_id)
+    system = resolve_system(
+        request.workflow_id, request.source_id,
+        catalog_path=catalog_path or os.getenv("MAQA_SYSTEM_CONFIG_PATH") or DEFAULT_CATALOG_PATH,
+    )
+    first_agent = next(iter(system.agents.values())).config
 
     return RunContext(
         run_id=run_id or str(uuid4()),
         entrypoint=entrypoint,
-        question=question,
-        source_id=FIXTURE_SOURCE_ID,
-        record_id=fixture["_id"],
-        workflow_id=protocol["protocol_id"],
-        method_id=METHOD_ID,
+        question=request.question,
+        source_id=system.source.source_id,
+        record_id=system.record["_id"],
+        workflow_id=system.workflow.protocol_id,
+        method_id=system.workflow.method_id,
         model_name=first_agent["model_config"]["model_name"],
-        protocol_id=protocol["protocol_id"],
+        protocol_id=system.workflow.protocol_id,
         code_version=os.getenv("MAQA_CODE_VERSION", SYSTEM_VERSION),
-        config_snapshot={
-            "agents": agents,
-            "protocol": protocol,
-            "dataset": {
-                "name": "HotpotQA",
-                "source_id": FIXTURE_SOURCE_ID,
-                "record_id": fixture["_id"],
-            },
-        },
+        config_snapshot=system.snapshot(),
     )

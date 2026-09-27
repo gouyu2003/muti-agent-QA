@@ -36,6 +36,10 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
             "--thread-id 作为旧参数名兼容保留"
         ),
     )
+    parser.add_argument("--workflow-id", default=None)
+    parser.add_argument("--source-id", default=None)
+    parser.add_argument("--system-config", default=None,
+                        help="系统清单 JSON 路径；默认使用内置系统")
     return parser.parse_args(argv)
 
 
@@ -50,6 +54,9 @@ def run(
     run_id: str | None = None,
     *,
     run_service: RunService | None = None,
+    workflow_id: str | None = None,
+    source_id: str | None = None,
+    catalog_path: str | None = None,
 ) -> RunDetail:
     """通过统一 RunService 执行一次 CLI 运行并返回持久化详情。"""
 
@@ -58,6 +65,9 @@ def run(
         question,
         entrypoint="cli",
         run_id=run_id,
+        workflow_id=workflow_id,
+        source_id=source_id,
+        catalog_path=catalog_path,
     )
     return service.run(context)
 
@@ -110,7 +120,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     question = " ".join(args.question).strip() or DEFAULT_QUESTION
 
     try:
-        detail = run(question, run_id=args.run_id)
+        options = {}
+        if args.workflow_id is not None:
+            options["workflow_id"] = args.workflow_id
+        if args.source_id is not None:
+            options["source_id"] = args.source_id
+        if args.system_config is not None:
+            options["catalog_path"] = args.system_config
+        detail = run(question, run_id=args.run_id, **options)
     except Exception as exc:
         print(f"运行失败：{type(exc).__name__}: {exc}")
         return 1

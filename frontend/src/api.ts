@@ -5,6 +5,7 @@ import type {
   StoredRunDetail,
   StreamEvent,
   SystemInfo,
+  SystemOptions,
 } from './types'
 
 const API_PREFIX = '/api/v1'
@@ -61,6 +62,12 @@ export async function getSystemInfo(signal?: AbortSignal): Promise<SystemInfo> {
   return response.json() as Promise<SystemInfo>
 }
 
+export async function getSystemOptions(signal?: AbortSignal): Promise<SystemOptions> {
+  const response = await fetch(`${API_PREFIX}/system/options`, { signal })
+  if (!response.ok) throw new Error(`配置选项加载失败（HTTP ${response.status}）`)
+  return response.json() as Promise<SystemOptions>
+}
+
 export function parseSseBlock(block: string): StreamEvent | null {
   let eventType = ''
   const dataLines: string[] = []
@@ -83,16 +90,21 @@ export async function streamQuestion(
   question: string,
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal,
+  selection?: { workflowId: string; sourceId: string },
 ): Promise<void> {
   const response = await fetch(`${API_PREFIX}/qa/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, workflow_id: selection?.workflowId, source_id: selection?.sourceId }),
     signal,
   })
 
   if (!response.ok) {
-    if (response.status === 422) throw new Error('请输入有效的问题后再运行。')
+    if (response.status === 422) {
+      const data = await response.json().catch(() => null) as { detail?: unknown } | null
+      const detail = typeof data?.detail === 'string' ? data.detail : '问题或所选配置无效。'
+      throw new Error(detail)
+    }
     throw new Error(`问答服务请求失败（HTTP ${response.status}）`)
   }
   if (!response.body) throw new Error('浏览器未收到可读取的流式响应。')

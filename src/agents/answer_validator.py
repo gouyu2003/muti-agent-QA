@@ -54,10 +54,10 @@ class ChatLike(Protocol):
     def invoke(self, prompt: str) -> Any: ...
 
 
-def default_llm() -> ChatLike:
+def default_llm(agent_config: dict[str, Any] | None = None) -> ChatLike:
     from src.llm import build_chat_model
 
-    return build_chat_model(load_agent_configs()[AGENT_ID])
+    return build_chat_model(agent_config or load_agent_configs()[AGENT_ID])
 
 
 def build_prompt(state: AgentState, system_prompt: str) -> str:
@@ -104,12 +104,13 @@ def parse_verification(raw: str, state: AgentState) -> dict[str, Any]:
 
     data = extract_json_object(raw)
 
-    known_texts = {
-        normalize_text(chunk["text"]): chunk["text"]
+    known_entries = [
+        (group["sq_id"], chunk)
         for group in state.get("evidence_chunks", [])
         for chunk in group.get("chunks", [])
         if isinstance(chunk.get("text"), str)
-    }
+    ]
+    known_texts = {normalize_text(chunk["text"]): chunk["text"] for _, chunk in known_entries}
 
     answer = as_str(data, "answer").strip()
     verified = as_bool(data, "verified", False)
@@ -145,9 +146,22 @@ def parse_verification(raw: str, state: AgentState) -> dict[str, Any]:
             continue
         matched = match_evidence(as_str(item, "text"), known_texts)
         if matched:
+            candidates = [
+                chunk for sq_id, chunk in known_entries
+                if sq_id == as_str(item, "sq_id")
+                and normalize_text(chunk["text"]) == normalize_text(matched)
+            ]
+            if not candidates:
+                continue
+            chunk = next(
+                (candidate for candidate in candidates
+                 if candidate["source_title"] == as_str(item, "source_title")),
+                candidates[0],
+            )
             supporting_evidence.append(
                 {"sq_id": as_str(item, "sq_id"), "text": matched,
-                 "source_title": as_str(item, "source_title")}
+                 "source_title": chunk["source_title"],
+                 **({"source_id": chunk["source_id"]} if chunk.get("source_id") else {})}
             )
 
     result: dict[str, Any] = {
@@ -193,9 +207,10 @@ def answer_validator_fn(
     llm: Optional[ChatLike] = None,
     *,
     usage_collector: LLMUsageCollector | None = None,
+    agent_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    config = load_agent_configs()[AGENT_ID]
-    chat = llm if llm is not None else default_llm()
+    config = agent_config or load_agent_configs()[AGENT_ID]
+    chat = llm if llm is not None else default_llm(config)
 
     prompt = build_prompt(state, config["model_config"]["system_prompt"])
     max_retries = config.get("failure_handling", {}).get("max_retries", 2)

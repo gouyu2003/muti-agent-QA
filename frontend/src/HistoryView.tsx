@@ -193,6 +193,8 @@ function RunEvidence({ result }: { result: RunResult | null }) {
 function RunDetailPanel({ detail }: { detail: StoredRunDetail }) {
   const { run, events } = detail
   const result = run.final_state
+  const snapshot = asObject(run.context.config_snapshot)
+  const systemVersion = typeof snapshot.system_version === 'string' ? snapshot.system_version : '未记录'
   return (
     <article className="history-detail">
       <div className="history-detail-head">
@@ -207,6 +209,13 @@ function RunDetailPanel({ detail }: { detail: StoredRunDetail }) {
         <span>{run.context.entrypoint.toUpperCase()}</span>
         <span>{run.context.method_id}</span>
         <span>{run.context.model_name}</span>
+      </div>
+      <div className="history-config-facts" aria-label="生效配置">
+        <div><span>协作流程</span><strong>{run.context.workflow_id}</strong></div>
+        <div><span>方法</span><strong>{run.context.method_id}</strong></div>
+        <div><span>知识源</span><strong>{run.context.source_id ?? '未记录'}</strong></div>
+        <div><span>材料记录</span><strong>{run.context.record_id ?? '未记录'}</strong></div>
+        <div><span>系统配置版本</span><strong>{systemVersion}</strong></div>
       </div>
       <div className="history-run-facts">
         <div><span>耗时</span><strong>{formatDuration(run.metrics.duration_ms)}</strong></div>

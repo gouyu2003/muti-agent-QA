@@ -61,7 +61,8 @@ def _iter_sentence_docs(context: list[Any]) -> list[dict[str, Any]]:
 class BM25Retriever:
     """对单条 HotpotQA 记录（record = load_fixture() 的返回值）建句子级索引。"""
 
-    def __init__(self, record: dict[str, Any]):
+    def __init__(self, record: dict[str, Any], source_id: str | None = None):
+        self.source_id = source_id
         context = record["context"]
         self._docs = _iter_sentence_docs(context)
 
@@ -104,6 +105,7 @@ class BM25Retriever:
                 "source_title": self._docs[index]["source_title"],
                 "source_paragraph": self._docs[index]["source_paragraph"],
                 "relevance_score": float(scores[index]),
+                **({"source_id": self.source_id} if self.source_id else {}),
             }
             for index in ranked
         ]

@@ -1,5 +1,6 @@
 {
   "protocol_id": "multi_hop_qa_v0",
+  "method_id": "multi_agent_adaptive_v0",
   "protocol_name": "复杂多跳问答协同协议",
   "version": "0.1.0",
   "domain": "multi_hop_qa",
@@ -39,6 +40,7 @@
       "from": "planner_v0",
       "to": "retriever_v0",
       "condition": "always",
+      "route_name": "always",
       "description": "规划完成后，无条件进入检索节点"
     },
     {
@@ -46,34 +48,39 @@
       "from": "retriever_v0",
       "to": "answer_validator_v0",
       "condition": "always",
+      "route_name": "always",
       "description": "检索完成后，无条件进入验证节点"
     },
     {
       "edge_id": "e3_pass",
       "from": "answer_validator_v0",
       "to": "END",
-      "condition": "state.verified == true",
+      "condition": "verified",
+      "route_name": "verified",
       "description": "验证通过：证据充分且无冲突，输出最终结果"
     },
     {
       "edge_id": "e3_insufficient",
       "from": "answer_validator_v0",
       "to": "retriever_v0",
-      "condition": "state.failure_type == 'insufficient' AND state.retrieval_retry_count < 3",
-      "description": "证据不足：触发补充检索，回到 Retriever（最多 3 次）"
+      "condition": "insufficient_retry (uses routing_rules.max_cycles.retrieval_retry_count)",
+      "route_name": "insufficient_retry",
+      "description": "证据不足且未到配置的重试上限：回到 Retriever"
     },
     {
       "edge_id": "e3_conflict",
       "from": "answer_validator_v0",
       "to": "planner_v0",
-      "condition": "state.failure_type == 'conflict' AND state.plan_retry_count < 2",
-      "description": "证据冲突：触发重规划，回到 Planner（最多 2 次）"
+      "condition": "conflict_retry (uses routing_rules.max_cycles.plan_retry_count)",
+      "route_name": "conflict_retry",
+      "description": "证据冲突且未到配置的重试上限：回到 Planner"
     },
     {
       "edge_id": "e3_max_retry",
       "from": "answer_validator_v0",
       "to": "END",
-      "condition": "(state.failure_type == 'insufficient' AND state.retrieval_retry_count >= 3) OR (state.failure_type == 'conflict' AND state.plan_retry_count >= 2)",
+      "condition": "fallback",
+      "route_name": "fallback",
       "description": "超过最大重试次数：强制输出当前最佳答案（可能不完整）"
     }
   ],

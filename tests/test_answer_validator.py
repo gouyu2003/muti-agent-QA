@@ -76,6 +76,24 @@ def test_drops_hallucinated_supporting_evidence():
     assert answer_validator_fn(STATE, llm=FakeLLM(payload))["supporting_evidence"] == []
 
 
+def test_duplicate_evidence_uses_matching_source_title_and_id():
+    state = dict(STATE)
+    state["evidence_chunks"] = [{
+        "sq_id": "sq_1", "sufficiency": "sufficient", "insufficiency_note": "",
+        "chunks": [
+            {"text": "Same fact", "source_title": "First", "source_paragraph": 0,
+             "relevance_score": 1.0, "source_id": "source-a"},
+            {"text": "Same fact", "source_title": "Second", "source_paragraph": 0,
+             "relevance_score": 0.9, "source_id": "source-b"},
+        ],
+    }]
+    payload = dict(PASS, supporting_evidence=[
+        {"sq_id": "sq_1", "text": "Same fact", "source_title": "First"}
+    ])
+    item = parse_verification(json.dumps(payload), state)["supporting_evidence"][0]
+    assert (item["source_title"], item["source_id"]) == ("First", "source-a")
+
+
 def test_inconsistent_verified_is_normalized():
     out = parse_verification(json.dumps({"answer": "A", "verified": True, "failure_type": "conflict"}), STATE)
     assert out["failure_type"] == "conflict" and out["verified"] is False

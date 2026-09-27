@@ -10,6 +10,8 @@ from typing import Any
 from src.graph import ANSWER_VALIDATOR_NODE, build_graph, default_nodes
 from src.llm_usage import LLMUsageCollector
 from src.router import decide_route
+from src.runtime.specs import WorkflowSpec
+from src.runtime.system import retriever_from_snapshot
 from src.runtime.models import (
     RunContext,
     RunDetail,
@@ -29,8 +31,14 @@ Clock = Callable[[], float]
 RECURSION_LIMIT = 30
 
 
-def _build_default_graph(usage_collector: LLMUsageCollector) -> Any:
-    return build_graph(nodes=default_nodes(usage_collector))
+def _build_default_graph(context: RunContext, usage_collector: LLMUsageCollector) -> Any:
+    snapshot = context.config_snapshot
+    workflow = WorkflowSpec.model_validate(snapshot["workflow_spec"])
+    retriever = retriever_from_snapshot(snapshot)
+    return build_graph(
+        nodes=default_nodes(usage_collector, snapshot["agents"], retriever),
+        workflow=workflow,
+    )
 
 NODE_FIELDS: dict[str, tuple[str, ...]] = {
     "planner_v0": ("sub_questions", "retrieval_strategy", "plan_retry_count"),
@@ -108,7 +116,7 @@ class RunService:
         self,
         repository: RunRepository,
         *,
-        graph_factory: GraphFactory = _build_default_graph,
+        graph_factory: GraphFactory | None = None,
         now: NowFactory = _utc_now,
         clock: Clock = perf_counter,
     ):
@@ -183,7 +191,14 @@ class RunService:
         yield make_event("run_started", payload={"question": context.question})
 
         try:
-            graph = self.graph_factory(usage_collector)
+            workflow = (
+                WorkflowSpec.model_validate(context.config_snapshot["workflow_spec"])
+                if "workflow_spec" in context.config_snapshot else None
+            )
+            graph = (
+                self.graph_factory(usage_collector) if self.graph_factory is not None
+                else _build_default_graph(context, usage_collector)
+            )
             stream = graph.stream(
                 {"question": context.question},
                 config={
@@ -237,7 +252,7 @@ class RunService:
                     )
 
                     if node == ANSWER_VALIDATOR_NODE:
-                        decision = decide_route(state)
+                        decision = decide_route(state, workflow)
                         yield make_event(
                             "route_decided",
                             node=node,

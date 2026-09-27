@@ -10,16 +10,16 @@
 
   "knowledge_sources": [
     {
-      "source_id": "hotpotqa_local",
-      "source_type": "local_dataset",
-      "path_or_endpoint": "data/hotpotqa/hotpot_dev_distractor_v1.json",
-      "description": "HotpotQA 本地数据集（干扰文档集），V0 阶段使用此数据集模拟检索"
+      "source_id": "hotpotqa_fixture",
+      "source_type": "hotpotqa_record",
+      "path_or_endpoint": "data/hotpotqa/fixture_001.json",
+      "description": "V0 使用的单条 HotpotQA 本地记录"
     },
     {
-      "source_id": "vector_store_faiss",
-      "source_type": "vector_store",
-      "path_or_endpoint": "data/index/faiss_hotpotqa",
-      "description": "基于 FAISS 的向量索引，用于语义检索；V0 阶段可选，若未构建则退回 BM25"
+      "source_id": "demo_fixture_002",
+      "source_type": "hotpotqa_record",
+      "path_or_endpoint": "data/hotpotqa/demo_fixture_002.json",
+      "description": "阶段 2 用于测试知识源切换的独立演示材料"
     }
   ],
 

@@ -1,0 +1,13 @@
+{
+  "_id": "demo_fixture_002",
+  "question": "Which city contains the university where Ada Example studied?",
+  "answer": "Bristol",
+  "type": "bridge",
+  "level": "easy",
+  "supporting_facts": [["Ada Example", 0], ["Westhaven University", 0]],
+  "context": [
+    ["Ada Example", ["Ada Example studied at Westhaven University."]],
+    ["Westhaven University", ["Westhaven University is located in Bristol."]],
+    ["Other institution", ["Northbridge College is located in York."]]
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "system_id": "multi_agent_qa_demo",
+  "system_version": "0.2.0",
+  "default_workflow_id": "multi_hop_qa_v0",
+  "default_source_id": "hotpotqa_fixture",
+  "agents": [
+    {"agent_id": "planner_v0", "agent_type": "planner", "path": "../agents/planner.json"},
+    {"agent_id": "retriever_v0", "agent_type": "retriever", "path": "../agents/retriever.json"},
+    {"agent_id": "answer_validator_v0", "agent_type": "answer_validator", "path": "../agents/answer_validator.json"}
+  ],
+  "workflows": {
+    "multi_hop_qa_v0": "../protocols/multi_hop_qa.json",
+    "multi_hop_qa_fixed": "../protocols/multi_hop_qa_fixed.json"
+  },
+  "sources": [
+    {"source_id": "hotpotqa_fixture", "source_type": "hotpotqa_record", "path": "../../data/hotpotqa/fixture_001.json", "name": "HotpotQA"},
+    {"source_id": "demo_fixture_002", "source_type": "hotpotqa_record", "path": "../../data/hotpotqa/demo_fixture_002.json", "name": "Stage 2 demonstration corpus", "is_demo": true}
+  ]
+}

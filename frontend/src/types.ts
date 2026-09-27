@@ -27,6 +27,39 @@ export interface SystemInfo {
   }
 }
 
+export interface WorkflowOption {
+  workflow_id: string
+  name: string
+  description: string
+  method_id: string
+  entry_node: string
+  agents: string[]
+  edges: Array<{ source: string; target: string; route_name: string }>
+  retry_limits: Record<string, number>
+}
+
+export interface SourceOption {
+  source_id: string
+  name: string
+  source_type: string
+  is_demo: boolean
+  record_id: string
+  question_type: string
+  level: string
+  context_count: number
+  supporting_fact_count: number
+  example_question: string
+}
+
+export interface SystemOptions {
+  system_id: string
+  system_version: string
+  default_workflow_id: string
+  default_source_id: string
+  workflows: WorkflowOption[]
+  sources: SourceOption[]
+}
+
 export interface SubQuestion {
   id: string
   question: string

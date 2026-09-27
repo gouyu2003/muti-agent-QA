@@ -1,11 +1,12 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { getRunDetail, getRuns, getRunStats, getSystemInfo } from './api'
-import type { RunStatsSummary, StoredRunDetail, StoredRunRecord, SystemInfo } from './types'
+import { getRunDetail, getRuns, getRunStats, getSystemInfo, getSystemOptions, streamQuestion } from './api'
+import type { RunStatsSummary, StoredRunDetail, StoredRunRecord, SystemInfo, SystemOptions } from './types'
 
 vi.mock('./api', () => ({
   getSystemInfo: vi.fn(),
+  getSystemOptions: vi.fn(),
   streamQuestion: vi.fn(),
   getRuns: vi.fn(),
   getRunStats: vi.fn(),
@@ -19,7 +20,7 @@ const archivedRun: StoredRunRecord = {
     source_id: 'hotpotqa_fixture', record_id: 'fixture_001',
     workflow_id: 'multi_hop_qa_v0', method_id: 'multi_agent_adaptive_v0',
     model_name: 'deepseek-v4-flash-0731', protocol_id: 'multi_hop_qa_v0',
-    code_version: 'test-commit', config_snapshot: {},
+    code_version: 'test-commit', config_snapshot: { system_version: '0.2.0' },
   },
   status: 'completed',
   started_at: '2026-09-23T08:00:00+00:00',
@@ -88,12 +89,40 @@ const systemInfo: SystemInfo = {
   },
 }
 
+const systemOptions: SystemOptions = {
+  system_id: 'multi_agent_qa_demo', system_version: '0.2.0',
+  default_workflow_id: 'multi_hop_qa_v0', default_source_id: 'hotpotqa_fixture',
+  workflows: [
+    { workflow_id: 'multi_hop_qa_v0', name: '反馈重试流程', description: '可补检索与重新规划',
+      method_id: 'multi_agent_adaptive_v0', entry_node: 'planner_v0',
+      agents: ['planner_v0', 'retriever_v0', 'answer_validator_v0'],
+      edges: [
+        { source: 'planner_v0', target: 'retriever_v0', route_name: 'always' },
+        { source: 'answer_validator_v0', target: 'retriever_v0', route_name: 'insufficient_retry' },
+      ], retry_limits: { retrieval_retry_count: 3 } },
+    { workflow_id: 'multi_hop_qa_fixed', name: '固定三节点流程', description: '',
+      method_id: 'multi_agent_fixed', entry_node: 'planner_v0',
+      agents: ['planner_v0', 'retriever_v0', 'answer_validator_v0'],
+      edges: [{ source: 'answer_validator_v0', target: 'END', route_name: 'always' }], retry_limits: {} },
+  ],
+  sources: [
+    { source_id: 'hotpotqa_fixture', name: 'HotpotQA', source_type: 'hotpotqa_record',
+      is_demo: false, record_id: 'fixture_001', question_type: 'bridge', level: 'hard',
+      context_count: 10, supporting_fact_count: 3, example_question: 'A multi-hop question?' },
+    { source_id: 'demo_fixture_002', name: '演示语料', source_type: 'hotpotqa_record',
+      is_demo: true, record_id: 'demo_fixture_002', question_type: 'bridge', level: 'easy',
+      context_count: 2, supporting_fact_count: 2, example_question: 'Demo question?' },
+  ],
+}
+
 describe('App', () => {
   afterEach(cleanup)
 
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(getSystemInfo).mockResolvedValue(systemInfo)
+    vi.mocked(getSystemOptions).mockResolvedValue(systemOptions)
+    vi.mocked(streamQuestion).mockResolvedValue()
     vi.mocked(getRuns).mockResolvedValue({ items: [archivedRun], total: 1, limit: 10, offset: 0 })
     vi.mocked(getRunStats).mockResolvedValue(archivedStats)
     vi.mocked(getRunDetail).mockResolvedValue(archivedDetail)
@@ -106,7 +135,7 @@ describe('App', () => {
     expect(await screen.findByText('服务正常')).toBeInTheDocument()
     expect(screen.getByDisplayValue('A multi-hop question?')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /开始协同问答/ })).toBeEnabled()
-    expect(screen.getByText('hard · bridge · 10 个上下文')).toBeInTheDocument()
+    expect(screen.getByText('hard · bridge · 10 个上下文 · 3 条支撑事实')).toBeInTheDocument()
   })
 
   it('shows persisted runs, timeline, evidence and export in the history view', async () => {
@@ -115,6 +144,8 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: '历史运行' })).toBeInTheDocument()
     expect(await screen.findByText('Chief of Protocol')).toBeInTheDocument()
+    expect(screen.getByText('0.2.0')).toBeInTheDocument()
+    expect(screen.getByText('fixture_001')).toBeInTheDocument()
     expect(screen.getByText(/Evidence text/)).toBeInTheDocument()
     expect(screen.getByText(/结束运行 · verified/)).toBeInTheDocument()
     expect(screen.getAllByText('100.0%')).toHaveLength(2)
@@ -137,5 +168,67 @@ describe('App', () => {
     expect(await screen.findByText('还没有运行记录。先去实时运行发起一次问答。')).toBeInTheDocument()
     expect(screen.getByText('选择一条运行，查看完整轨迹与答案。')).toBeInTheDocument()
     expect(getRunDetail).not.toHaveBeenCalled()
+  })
+
+  it('shows the default selection and records its IDs in the stream request', async () => {
+    render(<App />)
+    expect(await screen.findByText('服务正常')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
+    expect(streamQuestion).toHaveBeenCalledWith(
+      'A multi-hop question?', expect.any(Function), expect.any(AbortSignal),
+      { workflowId: 'multi_hop_qa_v0', sourceId: 'hotpotqa_fixture' },
+    )
+  })
+
+  it('disables running when configuration choices cannot be loaded', async () => {
+    vi.mocked(getSystemOptions).mockRejectedValue(new Error('配置选项加载失败'))
+    render(<App />)
+    expect(await screen.findByText('配置不可用')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /开始协同问答/ })).toBeDisabled()
+  })
+
+  it('switches source without overwriting a typed question', async () => {
+    render(<App />)
+    await screen.findByText('服务正常')
+    fireEvent.change(screen.getByRole('textbox', { name: '多跳问答问题' }), { target: { value: 'My own question?' } })
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '知识源' }))
+    fireEvent.click(await screen.findByText('演示语料（演示）', { selector: '.ant-select-item-option-content' }))
+
+    expect(screen.getByDisplayValue('My own question?')).toBeInTheDocument()
+    expect(screen.getByText('演示材料')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
+    await waitFor(() => expect(streamQuestion).toHaveBeenCalledWith(
+      'My own question?', expect.any(Function), expect.any(AbortSignal),
+      { workflowId: 'multi_hop_qa_v0', sourceId: 'demo_fixture_002' },
+    ))
+  })
+
+  it('switches to the fixed workflow without showing feedback routes', async () => {
+    render(<App />)
+    await screen.findByText('服务正常')
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '协作流程' }))
+    fireEvent.click(await screen.findByText('固定三节点流程', { selector: '.ant-select-item-option-content' }))
+    expect(screen.getByText('固定顺序执行一次，验证后结束。')).toBeInTheDocument()
+    expect(screen.queryByText('返回检索')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
+    await waitFor(() => expect(streamQuestion).toHaveBeenCalledWith(
+      'A multi-hop question?', expect.any(Function), expect.any(AbortSignal),
+      { workflowId: 'multi_hop_qa_fixed', sourceId: 'hotpotqa_fixture' },
+    ))
+  })
+
+  it('locks configuration selectors while the selected run is active', async () => {
+    let finish: (() => void) | undefined
+    vi.mocked(streamQuestion).mockImplementation((_question, onEvent) => {
+      onEvent({ type: 'run_started', run_id: 'run-active', timestamp: 'now', payload: {} })
+      return new Promise<void>((resolve) => { finish = resolve })
+    })
+    render(<App />)
+    await screen.findByText('服务正常')
+    fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
+    expect(await screen.findByText(/本次运行：反馈重试流程/)).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '协作流程' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: '知识源' })).toBeDisabled()
+    finish?.()
   })
 })

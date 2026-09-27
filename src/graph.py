@@ -1,17 +1,4 @@
-"""V0 的 LangGraph 状态图：接线层，不含任何业务判断。
-
-图结构（与 system-design/protocols/multi_hop_qa.json 的 edges 一致）：
-
-    START → planner_v0 → retriever_v0 → answer_validator_v0
-                                          ├─ verified            → END
-                                          ├─ insufficient（<3 次）→ retriever_v0
-                                          └─ conflict（<2 次）    → planner_v0
-
-职责边界：
-- 本模块只负责"接线"：注册节点、固定边、把 route_after_validator 挂成条件边；
-- 路由判定全部在 src/router.py，本模块不复制任何判断逻辑；
-- nodes / checkpointer 均可注入，测试用 fake 节点，全程离线、零 API 成本。
-"""
+"""Build the supported LangGraph nodes and edges from a validated workflow."""
 
 from __future__ import annotations
 
@@ -26,6 +13,7 @@ from src.agents.planner import planner_fn
 from src.agents.retriever import retriever_fn
 from src.llm_usage import LLMUsageCollector
 from src.router import PLANNER_NODE, RETRIEVER_NODE, route_after_validator
+from src.runtime.specs import WorkflowSpec
 from src.state import AgentState
 
 ANSWER_VALIDATOR_NODE = "answer_validator_v0"
@@ -35,13 +23,19 @@ NodeFn = Callable[[AgentState], dict[str, Any]]
 
 def default_nodes(
     usage_collector: LLMUsageCollector | None = None,
+    agent_configs: dict[str, dict[str, Any]] | None = None,
+    retriever: Any | None = None,
 ) -> dict[str, NodeFn]:
     """真实节点实现：三个 LangGraph 节点函数。"""
     return {
-        PLANNER_NODE: partial(planner_fn, usage_collector=usage_collector),
-        RETRIEVER_NODE: retriever_fn,
+        PLANNER_NODE: partial(
+            planner_fn, usage_collector=usage_collector,
+            agent_config=agent_configs[PLANNER_NODE] if agent_configs else None,
+        ),
+        RETRIEVER_NODE: partial(retriever_fn, retriever=retriever),
         ANSWER_VALIDATOR_NODE: partial(
-            answer_validator_fn, usage_collector=usage_collector
+            answer_validator_fn, usage_collector=usage_collector,
+            agent_config=agent_configs[ANSWER_VALIDATOR_NODE] if agent_configs else None,
         ),
     }
 
@@ -49,33 +43,35 @@ def default_nodes(
 def build_graph(
     nodes: Optional[dict[str, NodeFn]] = None,
     checkpointer: Optional[Any] = None,
+    workflow: WorkflowSpec | None = None,
 ):
-    """构建并编译 V0 状态图。
+    """Compile the selected workflow; fake nodes keep graph tests offline."""
+    if workflow is None:
+        from src.config_loader import load_protocol_config
+        from src.runtime.system import _workflow
 
-    nodes 为 None 时使用真实节点；传入 fake 节点即可离线验证图与路由。
-    checkpointer 默认为 InMemorySaver（内存级，支持 thread_id 多轮调试）。
-    """
+        workflow = _workflow(load_protocol_config())
     impl = nodes if nodes is not None else default_nodes()
+    missing = set(workflow.agents) - set(impl)
+    if missing:
+        raise ValueError(f"缺少已注册节点: {', '.join(sorted(missing))}")
 
     graph = StateGraph(AgentState)
 
-    graph.add_node(PLANNER_NODE, impl[PLANNER_NODE])
-    graph.add_node(RETRIEVER_NODE, impl[RETRIEVER_NODE])
-    graph.add_node(ANSWER_VALIDATOR_NODE, impl[ANSWER_VALIDATOR_NODE])
-
-    graph.set_entry_point(PLANNER_NODE)
-    graph.add_edge(PLANNER_NODE, RETRIEVER_NODE)
-    graph.add_edge(RETRIEVER_NODE, ANSWER_VALIDATOR_NODE)
-
-    graph.add_conditional_edges(
-        ANSWER_VALIDATOR_NODE,
-        route_after_validator,
-        {
-            RETRIEVER_NODE: RETRIEVER_NODE,
-            PLANNER_NODE: PLANNER_NODE,
-            END: END,
-        },
-    )
+    for node in workflow.agents:
+        graph.add_node(node, impl[node])
+    graph.set_entry_point(workflow.entry_node)
+    for node in workflow.agents:
+        edges = [edge for edge in workflow.edges if edge.source == node]
+        if len(edges) == 1 and edges[0].route_name == "always":
+            graph.add_edge(node, END if edges[0].target == "END" else edges[0].target)
+        else:
+            targets = {END if edge.target == "END" else edge.target for edge in edges}
+            graph.add_conditional_edges(
+                node,
+                partial(route_after_validator, workflow=workflow, source=node),
+                {target: target for target in targets},
+            )
 
     return graph.compile(
         checkpointer=checkpointer if checkpointer is not None else InMemorySaver()

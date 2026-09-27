@@ -10,11 +10,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import app, build_api_run_context
+from backend.app import system_info
 from backend.schemas import StreamEnvelope
 from backend.streaming import encode_sse, stream_qa_events
 from src.runtime.models import RunContext, RunError, RunMetrics, RunRecord, TraceEvent
 from src.runtime.service import RunService
 from src.runtime.sqlite_repository import SQLiteRunRepository
+from src.runtime.system import resolve_system
 
 
 class FakeGraph:
@@ -124,16 +126,76 @@ def test_health_and_system_info(api_client):
     system = client.get("/api/v1/system")
 
     assert health.status_code == 200
-    assert health.json() == {"status": "ok", "system_version": "v0"}
+    assert health.json() == {
+        "status": "ok", "system_version": resolve_system().system_version
+    }
     assert system.status_code == 200
     assert len(system.json()["agents"]) == 3
     assert system.json()["dataset"]["name"] == "HotpotQA"
+
+
+def test_system_options_are_validated_and_expose_only_display_metadata(api_client):
+    client, _repository = api_client
+    response = client.get("/api/v1/system/options")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["default_workflow_id"] == "multi_hop_qa_v0"
+    assert body["default_source_id"] == "hotpotqa_fixture"
+    assert {item["workflow_id"] for item in body["workflows"]} == {
+        "multi_hop_qa_v0", "multi_hop_qa_fixed"
+    }
+    fixed = next(item for item in body["workflows"] if item["workflow_id"] == "multi_hop_qa_fixed")
+    assert fixed["retry_limits"] == {}
+    assert not any(edge["route_name"].endswith("retry") for edge in fixed["edges"])
+    demo = next(item for item in body["sources"] if item["source_id"] == "demo_fixture_002")
+    assert demo["is_demo"] is True
+    assert demo["example_question"]
+    assert "path" not in str(body)
+    assert "resolved_path" not in str(body)
+
+
+def test_system_info_accepts_a_fixed_workflow_without_condition_text(monkeypatch):
+    monkeypatch.setattr(
+        "backend.app.resolve_system",
+        lambda **_kwargs: resolve_system("multi_hop_qa_fixed"),
+    )
+    info = system_info()
+    assert info.protocol_id == "multi_hop_qa_fixed"
+    assert info.flow[-1].condition == "always"
 
 
 def test_question_validation_rejects_blank_question(api_client):
     client, _repository = api_client
     response = client.post("/api/v1/qa/stream", json={"question": "   "})
     assert response.status_code == 422
+
+
+def test_api_selects_workflow_and_source_before_streaming(api_client):
+    client, repository = api_client
+    response = client.post(
+        "/api/v1/qa/stream",
+        json={"question": "Which city?", "workflow_id": "multi_hop_qa_fixed",
+              "source_id": "demo_fixture_002"},
+    )
+    assert response.status_code == 200
+    events = _parse_sse_text(response.text)
+    run_id = events[0][1]["run_id"]
+    detail = repository.get_run_detail(run_id)
+    assert detail is not None
+    assert detail.run.context.workflow_id == "multi_hop_qa_fixed"
+    assert detail.run.context.source_id == "demo_fixture_002"
+    assert detail.run.context.config_snapshot["source"]["sha256"]
+    route = next(event for event in detail.events if event.event_type == "route_decided")
+    assert route.payload == {"target": "__end__", "reason": "always"}
+
+
+def test_api_rejects_unknown_workflow_before_creating_run(api_client):
+    client, repository = api_client
+    response = client.post(
+        "/api/v1/qa/stream", json={"question": "Q", "workflow_id": "unknown"}
+    )
+    assert response.status_code == 422
+    assert repository.count_runs() == 0
 
 
 def test_stream_emits_compatible_sse_and_persists_the_same_run(tmp_path: Path):
