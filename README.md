@@ -86,6 +86,7 @@ npm run dev
 `POST /api/v1/qa/stream` 的 JSON 请求可以增加可选的 `workflow_id` 和 `source_id`；只传 `question` 仍使用原 V0 默认值。也可通过 `MAQA_SYSTEM_CONFIG_PATH` 指向另一份系统清单，命令行还支持 `--system-config`。清单中的文件路径相对于清单所在目录解析。未知流程、知识源、组件或非法连线会在开始运行前报错。
 
 运行历史、详情、统计和 JSONL 导出分别通过 `/api/v1/runs`、`/api/v1/runs/{run_id}`、`/api/v1/stats/summary` 和 `/api/v1/exports/runs.jsonl` 访问。
+每条运行记录保存实际执行的流程与知识源配置快照、配置 SHA-256 和知识文件 SHA-256。`code_version` 默认包含 Git 提交和当前 Python 运行时代码的 SHA-256；即使代码尚未提交，指纹也会随代码内容变化。无 Git 仓库时仍记录源码指纹；部署构建也可通过 `MAQA_CODE_VERSION` 增加构建标识，源码指纹始终保留。历史详情页展示这些标识，便于核对运行所用版本。
 
 ## 验证
 
@@ -109,6 +110,8 @@ npm run build
 ```powershell
 .\venv\Scripts\python.exe -m pytest -m integration -v
 ```
+
+该测试分别通过流式 API 和实际 CLI 进程执行一题，使用独立临时数据库，核对答案、相同 `run_id` 的 SSE/轨迹/历史详情，以及两个流程模板和两个本地知识源。缺少模型连接配置时测试会跳过；跳过不代表完成真实模型验收。
 
 ## 当前边界
 

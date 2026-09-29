@@ -8,9 +8,7 @@ from uuid import uuid4
 from src.runtime.models import RunContext, RunEntryPoint
 from src.runtime.specs import RuntimeRequest
 from src.runtime.system import DEFAULT_CATALOG_PATH, resolve_system
-
-
-SYSTEM_VERSION = "v0"
+from src.runtime.version import code_version
 
 
 def build_v0_run_context(
@@ -41,6 +39,6 @@ def build_v0_run_context(
         method_id=system.workflow.method_id,
         model_name=first_agent["model_config"]["model_name"],
         protocol_id=system.workflow.protocol_id,
-        code_version=os.getenv("MAQA_CODE_VERSION", SYSTEM_VERSION),
+        code_version=code_version(),
         config_snapshot=system.snapshot(),
     )

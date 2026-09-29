@@ -20,14 +20,17 @@ const archivedRun: StoredRunRecord = {
     source_id: 'hotpotqa_fixture', record_id: 'fixture_001',
     workflow_id: 'multi_hop_qa_v0', method_id: 'multi_agent_adaptive_v0',
     model_name: 'deepseek-v4-flash-0731', protocol_id: 'multi_hop_qa_v0',
-    code_version: 'test-commit', config_snapshot: { system_version: '0.2.0' },
+    code_version: 'test-commit', config_snapshot: {
+      system_version: '0.2.0', config_sha256: 'a'.repeat(64),
+      source: { sha256: 'b'.repeat(64) },
+    },
   },
   status: 'completed',
   started_at: '2026-09-23T08:00:00+00:00',
   finished_at: '2026-09-23T08:00:02+00:00',
   final_state: {
     answer: 'Chief of Protocol', verified: true, failure_type: 'none',
-    supporting_evidence: [{ sq_id: 'sq_1', text: 'Evidence text', source_title: 'Source A' }],
+    supporting_evidence: [{ sq_id: 'sq_1', text: 'Evidence text', source_title: 'Source A', source_id: 'hotpotqa_fixture' }],
   },
   metrics: {
     duration_ms: 2000, node_call_count: 3, llm_call_count: 2,
@@ -145,6 +148,9 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: '历史运行' })).toBeInTheDocument()
     expect(await screen.findByText('Chief of Protocol')).toBeInTheDocument()
     expect(screen.getByText('0.2.0')).toBeInTheDocument()
+    expect(screen.getByText('test-commit')).toBeInTheDocument()
+    expect(screen.getByText('a'.repeat(64))).toBeInTheDocument()
+    expect(screen.getByText('b'.repeat(64))).toBeInTheDocument()
     expect(screen.getByText('fixture_001')).toBeInTheDocument()
     expect(screen.getByText(/Evidence text/)).toBeInTheDocument()
     expect(screen.getByText(/结束运行 · verified/)).toBeInTheDocument()

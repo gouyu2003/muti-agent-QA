@@ -241,6 +241,7 @@ textarea {
 .history-config-facts div { display: grid; gap: 3px; min-width: 120px; overflow-wrap: anywhere; }
 .history-config-facts span { color: var(--muted); font-size: 11px; }
 .history-config-facts strong { font-size: 12px; }
+.history-config-facts code { font-size: 11px; overflow-wrap: anywhere; }
 
 @media (max-width: 700px) {
   .configuration-controls { grid-template-columns: 1fr; }

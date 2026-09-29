@@ -72,6 +72,7 @@ export interface EvidenceChunk {
   source_title: string
   source_paragraph: number
   relevance_score: number
+  source_id?: string
 }
 
 export interface EvidenceGroup {
@@ -85,6 +86,7 @@ export interface SupportingEvidence {
   sq_id: string
   text: string
   source_title: string
+  source_id?: string
 }
 
 export interface RunResult {

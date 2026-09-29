@@ -166,11 +166,11 @@ function RunEvidence({ result }: { result: RunResult | null }) {
   const items = supporting.length
     ? supporting.map((item, index) => ({
         id: `${item.sq_id}-${index}`, sqId: item.sq_id,
-        title: item.source_title, text: item.text,
+        title: item.source_title, text: item.text, sourceId: item.source_id,
       }))
     : groups.flatMap((group) => group.chunks.map((chunk, index) => ({
         id: `${group.sq_id}-${index}`, sqId: group.sq_id,
-        title: chunk.source_title, text: chunk.text,
+        title: chunk.source_title, text: chunk.text, sourceId: chunk.source_id,
       })))
 
   return (
@@ -182,7 +182,7 @@ function RunEvidence({ result }: { result: RunResult | null }) {
       </div>
       {items.length ? items.map((item) => (
         <article key={item.id} className="history-evidence-item">
-          <span><DatabaseOutlined /> {item.sqId} · {item.title}</span>
+          <span><DatabaseOutlined /> {item.sqId} · {item.title}{item.sourceId ? ` · ${item.sourceId}` : ''}</span>
           <p>{item.text}</p>
         </article>
       )) : <p className="history-muted">此运行没有保存可展示的证据。</p>}
@@ -194,7 +194,10 @@ function RunDetailPanel({ detail }: { detail: StoredRunDetail }) {
   const { run, events } = detail
   const result = run.final_state
   const snapshot = asObject(run.context.config_snapshot)
+  const sourceSnapshot = asObject(snapshot.source)
   const systemVersion = typeof snapshot.system_version === 'string' ? snapshot.system_version : '未记录'
+  const configHash = typeof snapshot.config_sha256 === 'string' ? snapshot.config_sha256 : '未记录'
+  const sourceHash = typeof sourceSnapshot.sha256 === 'string' ? sourceSnapshot.sha256 : '未记录'
   return (
     <article className="history-detail">
       <div className="history-detail-head">
@@ -216,6 +219,9 @@ function RunDetailPanel({ detail }: { detail: StoredRunDetail }) {
         <div><span>知识源</span><strong>{run.context.source_id ?? '未记录'}</strong></div>
         <div><span>材料记录</span><strong>{run.context.record_id ?? '未记录'}</strong></div>
         <div><span>系统配置版本</span><strong>{systemVersion}</strong></div>
+        <div><span>代码版本</span><code>{run.context.code_version}</code></div>
+        <div><span>配置摘要 SHA-256</span><code>{configHash}</code></div>
+        <div><span>知识源 SHA-256</span><code>{sourceHash}</code></div>
       </div>
       <div className="history-run-facts">
         <div><span>耗时</span><strong>{formatDuration(run.metrics.duration_ms)}</strong></div>
