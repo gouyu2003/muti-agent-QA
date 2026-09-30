@@ -37,6 +37,8 @@ import {
 import type { ReactNode } from 'react'
 import { getSystemInfo, getSystemOptions, streamQuestion } from './api'
 import HistoryView from './HistoryView'
+import KnowledgeView from './KnowledgeView'
+import EvidenceLocation from './EvidenceLocation'
 import { initialRunState, runReducer } from './runState'
 import type {
   AgentInfo,
@@ -47,6 +49,7 @@ import type {
   SystemInfo,
   SystemOptions,
   WorkflowOption,
+  SourceOption,
   TraceStep,
 } from './types'
 
@@ -341,11 +344,12 @@ function EvidenceLedger({ groups }: { groups: EvidenceGroup[] }) {
                 <div className="evidence-source">
                   <DatabaseOutlined />
                   <span>{chunk.source_title}</span>
-                  <code>sentence #{chunk.source_paragraph}</code>
+                  {!chunk.filename ? <code>sentence #{chunk.source_paragraph}</code> : null}
                   <Tooltip title="BM25 相对相关性得分">
                     <Tag variant="filled">score {chunk.relevance_score.toFixed(2)}</Tag>
                   </Tooltip>
                 </div>
+                <EvidenceLocation evidence={chunk} />
                 <p>{chunk.text}</p>
               </article>
             ))}
@@ -397,17 +401,25 @@ function ResultPanel({ result, durationMs }: { result?: RunResult; durationMs?: 
         <Tag>{result.evidence_chunks?.reduce((sum, group) => sum + group.chunks.length, 0) ?? 0} 条</Tag>
       </div>
       <EvidenceLedger groups={result.evidence_chunks ?? []} />
+      {result.supporting_evidence?.length ? <section className="supporting-evidence">
+        <h3>最终支撑证据</h3>
+        {result.supporting_evidence.map((evidence, index) => <article key={`${evidence.sq_id}-${evidence.chunk_id ?? index}-${index}`}>
+          <strong>{evidence.source_title}</strong><EvidenceLocation evidence={evidence} /><p>{evidence.text}</p>
+        </article>)}
+      </section> : null}
     </div>
   )
 }
 
 export default function App() {
-  const [view, setView] = useState<'live' | 'history'>('live')
+  const [view, setView] = useState<'live' | 'history' | 'knowledge'>('live')
   const [system, setSystem] = useState<SystemInfo>()
   const [options, setOptions] = useState<SystemOptions>()
   const [workflowId, setWorkflowId] = useState('')
   const [sourceId, setSourceId] = useState('')
-  const [submittedSelection, setSubmittedSelection] = useState<{ workflowId: string; sourceId: string }>()
+  const [sourceVersion, setSourceVersion] = useState<number>()
+  const [submittedSelection, setSubmittedSelection] = useState<{ workflowId: string; sourceId: string; sourceVersion?: number }>()
+  const [submittedSource, setSubmittedSource] = useState<SourceOption>()
   const [systemError, setSystemError] = useState('')
   const [question, setQuestion] = useState(DEFAULT_QUESTION)
   const questionTouchedRef = useRef(false)
@@ -426,6 +438,7 @@ export default function App() {
         setOptions(choices)
         setWorkflowId(choices.default_workflow_id)
         setSourceId(choices.default_source_id)
+        setSourceVersion(choices.sources.find((item) => item.source_id === choices.default_source_id)?.version ?? undefined)
         if (!questionTouchedRef.current) {
           const source = choices.sources.find((item) => item.source_id === choices.default_source_id)
           setQuestion(source?.example_question ?? info.dataset.default_question)
@@ -451,12 +464,14 @@ export default function App() {
     [system],
   )
   const currentWorkflow = options?.workflows.find((item) => item.workflow_id === workflowId)
-  const currentSource = options?.sources.find((item) => item.source_id === sourceId)
+  const sourceOption = options?.sources.find((item) => item.source_id === sourceId)
+  const versionInfo = sourceOption?.version_details?.find((item) => item.version === sourceVersion)
+  const currentSource = sourceOption ? { ...sourceOption, ...(versionInfo ?? {}) } : undefined
   const shownWorkflow = submittedSelection && run.status !== 'idle'
     ? options?.workflows.find((item) => item.workflow_id === submittedSelection.workflowId)
     : currentWorkflow
   const shownSource = submittedSelection && run.status !== 'idle'
-    ? options?.sources.find((item) => item.source_id === submittedSelection.sourceId)
+    ? submittedSource
     : currentSource
 
   function selectWorkflow(value: string) {
@@ -467,8 +482,27 @@ export default function App() {
 
   function selectSource(value: string) {
     setSourceId(value)
+    setSourceVersion(options?.sources.find((item) => item.source_id === value)?.version ?? undefined)
     setSubmittedSelection(undefined)
     dispatch({ type: 'clear' })
+  }
+
+  async function refreshOptions() {
+    try {
+      setOptions(await getSystemOptions())
+      setSystemError('')
+    } catch (reason) {
+      setSystemError(reason instanceof Error ? reason.message : '配置选项加载失败')
+      throw reason
+    }
+  }
+
+  function useKnowledge(value: string, version: number) {
+    setSourceId(value)
+    setSourceVersion(version)
+    setSubmittedSelection(undefined)
+    dispatch({ type: 'clear' })
+    setView('live')
   }
 
   async function handleRun() {
@@ -485,8 +519,10 @@ export default function App() {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
-    const selection = { workflowId: currentWorkflow.workflow_id, sourceId: currentSource.source_id }
+    const selection = { workflowId: currentWorkflow.workflow_id, sourceId: currentSource.source_id,
+      ...(sourceVersion !== undefined ? { sourceVersion } : {}) }
     setSubmittedSelection(selection)
+    setSubmittedSource(currentSource)
     dispatch({ type: 'reset' })
 
     try {
@@ -540,6 +576,10 @@ export default function App() {
           >
             <HistoryOutlined /> 运行历史
           </button>
+          <button type="button" className={view === 'knowledge' ? 'active' : ''}
+            aria-current={view === 'knowledge' ? 'page' : undefined} onClick={() => setView('knowledge')}>
+            <DatabaseOutlined /> 知识源
+          </button>
         </nav>
         <div className="system-badges">
           <Tag variant="filled">{shownWorkflow?.workflow_id ?? '等待配置'}</Tag>
@@ -548,7 +588,9 @@ export default function App() {
         </div>
       </header>
 
-      {view === 'history' ? <HistoryView /> : <main className="workspace">
+      {view === 'history' ? <HistoryView /> : view === 'knowledge' ? (
+        <KnowledgeView disabled={isRunning} onChanged={refreshOptions} onUse={useKnowledge} />
+      ) : <main className="workspace">
         <aside className="protocol-column">
           <ProtocolRail agents={agents} workflow={shownWorkflow} activeNode={run.activeNode} steps={run.steps} />
 
@@ -561,11 +603,13 @@ export default function App() {
               <strong>{shownSource?.name ?? '等待知识源'}</strong>
               {shownSource?.is_demo ? <Tag color="orange">演示材料</Tag> : null}
               <p>
-                {shownSource
+                {shownSource?.source_type === 'document_corpus'
+                  ? `版本 ${shownSource.version} · ${shownSource.file_count} 个文件 · ${shownSource.chunk_count} 个片段`
+                  : shownSource
                   ? `${shownSource.level} · ${shownSource.question_type} · ${shownSource.context_count} 个上下文 · ${shownSource.supporting_fact_count} 条支撑事实`
                   : '正在加载本地知识源'}
               </p>
-              {shownSource ? <small>来源：{shownSource.source_id} · 记录：{shownSource.record_id} · 类型：{shownSource.source_type}</small> : null}
+              {shownSource ? <small>来源：{shownSource.source_id}{shownSource.record_id ? ` · 记录：${shownSource.record_id}` : ''}</small> : null}
             </div>
           </Card>
         </aside>
@@ -628,6 +672,13 @@ export default function App() {
                   placeholder="选择知识源"
                 />
               </label>
+              {currentSource?.source_type === 'document_corpus' ? <label>
+                <span>知识源版本</span>
+                <Select aria-label="知识源版本" value={sourceVersion}
+                  options={currentSource.versions?.map((version) => ({ value: version, label: `版本 ${version}` }))}
+                  disabled={isRunning}
+                  onChange={(version) => { setSourceVersion(version); setSubmittedSelection(undefined); dispatch({ type: 'clear' }) }} />
+              </label> : null}
             </div>
             {currentWorkflow ? (
               <div className="configuration-preview">
@@ -655,8 +706,8 @@ export default function App() {
             <div className="question-actions">
               <Text type="secondary">{question.length} / 2000</Text>
               <Button
-                onClick={() => { if (currentSource) { questionTouchedRef.current = true; setQuestion(currentSource.example_question) } }}
-                disabled={isRunning || !currentSource}
+                onClick={() => { if (currentSource?.example_question) { questionTouchedRef.current = true; setQuestion(currentSource.example_question) } }}
+                disabled={isRunning || !currentSource?.example_question}
               >填入示例问题</Button>
               {isRunning ? (
                 <Button icon={<StopOutlined />} onClick={handleStop} danger>
@@ -676,7 +727,7 @@ export default function App() {
           </Card>
 
           {submittedSelection && run.status !== 'idle' ? (
-            <p className="run-selection">本次运行：{shownWorkflow?.name ?? submittedSelection.workflowId} · {shownSource?.name ?? submittedSelection.sourceId}</p>
+            <p className="run-selection">本次运行：{shownWorkflow?.name ?? submittedSelection.workflowId} · {shownSource?.name ?? submittedSelection.sourceId}{submittedSelection.sourceVersion ? ` · 版本 ${submittedSelection.sourceVersion}` : ''}</p>
           ) : null}
 
           {run.error ? <Alert type="error" showIcon message="运行未完成" description={run.error} /> : null}

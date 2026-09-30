@@ -13,6 +13,7 @@ class QuestionRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     workflow_id: str | None = Field(default=None, min_length=1)
     source_id: str | None = Field(default=None, min_length=1)
+    source_version: int | None = Field(default=None, ge=1, strict=True)
 
     @field_validator("question")
     @classmethod
@@ -78,12 +79,17 @@ class SourceOption(BaseModel):
     name: str
     source_type: str
     is_demo: bool
-    record_id: str
-    question_type: str
-    level: str
-    context_count: int
-    supporting_fact_count: int
-    example_question: str
+    record_id: str | None = None
+    question_type: str | None = None
+    level: str | None = None
+    context_count: int | None = None
+    supporting_fact_count: int | None = None
+    example_question: str | None = None
+    version: int | None = None
+    versions: list[int] = Field(default_factory=list)
+    file_count: int | None = None
+    chunk_count: int | None = None
+    version_details: list[dict[str, int]] = Field(default_factory=list)
 
 
 class SystemOptionsResponse(BaseModel):

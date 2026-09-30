@@ -42,7 +42,7 @@ python -m pip install --timeout 120 --retries 10 -r requirements-api.txt
 Copy-Item .env.example .env
 ```
 
-`requirements-api.txt` 会继承现有核心依赖，并增加 FastAPI 与 Uvicorn。现有 `requirements.txt` 保持不变。
+`requirements-api.txt` 会继承现有核心依赖，并增加 FastAPI、Uvicorn 与 multipart 文件上传依赖。
 
 ### 前端
 
@@ -88,6 +88,54 @@ npm run dev
 运行历史、详情、统计和 JSONL 导出分别通过 `/api/v1/runs`、`/api/v1/runs/{run_id}`、`/api/v1/stats/summary` 和 `/api/v1/exports/runs.jsonl` 访问。
 每条运行记录保存实际执行的流程与知识源配置快照、配置 SHA-256 和知识文件 SHA-256。`code_version` 默认包含 Git 提交和当前 Python 运行时代码的 SHA-256；即使代码尚未提交，指纹也会随代码内容变化。无 Git 仓库时仍记录源码指纹；部署构建也可通过 `MAQA_CODE_VERSION` 增加构建标识，源码指纹始终保留。历史详情页展示这些标识，便于核对运行所用版本。
 
+## 导入用户材料（阶段 3）
+
+在“知识源”页面填写名称并上传英文 UTF-8（可带 BOM）的 `.txt`、`.md` 文件。
+一份知识源可以包含多个文件：最多 10 个文件，单文件 2 MiB，总计 10 MiB，最多 20,000 个片段。
+导入完成后可查看文件清单和带行号的片段预览，点击“用于问答”选择该知识源及版本。
+材料无需包含题目、标准答案或支撑事实；实时页会展示文件数和片段数，不生成 HotpotQA 指标或示例题。
+
+TXT 按空行分段，Markdown 保留标题层级并把正文作为普通文本处理，不执行 HTML、不读取链接。
+长段落在空白边界切分，每片段最多 600 字符，不重叠；单个超长词按字符切分。
+行号从 1 开始；字符位置基于去除 BOM、统一换行后的文本，采用起始包含、结束不包含的区间。
+原始文件同时保留，证据正文始终从实际索引片段回填。
+
+更新知识源时选择“导入新版本”，上传整套材料。旧版本保留；失败版本不能运行，上一个成功版本继续可用。
+问答开始前固定所选版本，实时证据和运行历史显示知识源版本、文件、标题位置和行号。
+普通文档使用本地 BM25；为了支持很小的语料，普通文档的非正 IDF 使用正数下限，HotpotQA 评分不变。
+`verified` 是模型的内部验证结果，不能代替标准答案准确率。
+
+CLI 使用同一个导入服务。在项目根目录执行：
+
+```powershell
+$knowledgeImport = .\venv\Scripts\python.exe -m src.knowledge.cli create --name "Cedar Institute notes" data/examples/stage3/people.md data/examples/stage3/institute.txt | ConvertFrom-Json
+$knowledgeImport.source_id
+.\venv\Scripts\python.exe -m src.knowledge.cli list
+.\venv\Scripts\python.exe main.py --workflow-id multi_hop_qa_fixed --source-id $knowledgeImport.source_id --source-version 1 "Which city hosts the institute founded by Mara Vale?"
+.\venv\Scripts\python.exe -m src.knowledge.cli add-version $knowledgeImport.source_id data/examples/stage3/people.md data/examples/stage3/institute.txt
+```
+
+上述材料是自建合成演示语料。预期多跳答案为 Northbridge，开设年份为 2008，材料没有提供 Mara Vale 的配偶信息。
+
+默认存储为 `data/knowledge/knowledge.sqlite3` 和 `data/knowledge/<source_id>/<version>/`，已加入 Git 忽略规则。
+可用 `MAQA_KNOWLEDGE_DIR` 指定目录；CLI 导入也支持全局 `--knowledge-dir` 和 `--system-config`。
+自定义目录时，问答 API/CLI 需使用同一个 `MAQA_KNOWLEDGE_DIR`。
+支持本地单用户、单后端进程；导入为同步操作，重启后中断的导入标记为失败，可重新导入。
+
+HTTP 接口：
+
+| 接口 | 用途 |
+| --- | --- |
+| `POST /api/v1/knowledge/sources` | multipart 字段 `name`、多个 `files`，创建知识源 |
+| `GET /api/v1/knowledge/sources` | 查看知识源列表 |
+| `GET /api/v1/knowledge/sources/{source_id}` | 查看版本、文件概况和错误 |
+| `POST /api/v1/knowledge/sources/{source_id}/versions` | multipart 多个 `files`，导入整套材料的新版本 |
+| `GET /api/v1/knowledge/sources/{source_id}/versions/{version}/chunks` | 使用 `limit`、`offset` 分页预览片段 |
+
+导入失败返回 HTTP 422，`detail` 包含知识源 ID、失败版本、错误码和说明（名称校验等创建前错误没有版本 ID）。
+问答请求可增加 `source_version`；省略时使用最新可用版本。预置 HotpotQA 记录不使用此字段。
+`/api/v1/system/options` 返回已绑定且可用的文档源和版本；普通文档的题型、标准支撑事实与示例题为 `null`。
+
 ## 验证
 
 后端与现有核心测试：
@@ -115,4 +163,6 @@ npm run build
 
 ## 当前边界
 
-当前支持已注册的三类智能体、两种流程模板以及单条 HotpotQA 格式记录的本地 BM25 检索。前端仍是 V0 实时演示和运行历史，没有配置编辑、用户材料上传或拖拽式设计器。系统包导出、异机启动和稳定的非流式对外问答 API 属于后续阶段。
+当前支持已注册的三类智能体、两种流程模板、HotpotQA 单条记录和英文 TXT/MD 多文件知识源。
+前端提供实时问答、运行历史和知识源导入、版本查看。DOCX/PDF、中文检索、OCR、向量检索和多知识源联合检索尚未实现。
+系统包导出、异机启动、智能体配置编辑、拖拽式设计器和稳定的非流式对外问答 API 属于后续阶段。

@@ -237,4 +237,24 @@ describe('App', () => {
     expect(screen.getByRole('combobox', { name: '知识源' })).toBeDisabled()
     finish?.()
   })
+
+  it('sends an explicitly selected document version and shows document counts', async () => {
+    vi.mocked(getSystemOptions).mockResolvedValue({ ...systemOptions, sources: [...systemOptions.sources, {
+      source_id: 'user_notes', name: 'User notes', source_type: 'document_corpus', is_demo: false,
+      record_id: null, question_type: null, level: null, context_count: null, supporting_fact_count: null,
+      example_question: null, version: 2, versions: [2, 1], file_count: 2, chunk_count: 4,
+      version_details: [{ version: 1, file_count: 1, chunk_count: 3 }, { version: 2, file_count: 2, chunk_count: 4 }],
+    }] })
+    render(<App />)
+    await screen.findByText('服务正常')
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '知识源' }))
+    fireEvent.click(await screen.findByText('User notes', { selector: '.ant-select-item-option-content' }))
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '知识源版本' }))
+    fireEvent.click(await screen.findByText('版本 1', { selector: '.ant-select-item-option-content' }))
+    expect(screen.getByText('版本 1 · 1 个文件 · 3 个片段')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /填入示例问题/ })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
+    expect(streamQuestion).toHaveBeenCalledWith('A multi-hop question?', expect.any(Function), expect.any(AbortSignal),
+      { workflowId: 'multi_hop_qa_v0', sourceId: 'user_notes', sourceVersion: 1 })
+  })
 })

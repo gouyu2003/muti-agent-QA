@@ -70,7 +70,9 @@ def build_prompt(state: AgentState, system_prompt: str) -> str:
         lines.append(f"[{group['sq_id']}] sufficiency={group.get('sufficiency')}")
         for chunk in group.get("chunks", []):
             text = chunk["text"][:MAX_EVIDENCE_CHARS]
-            lines.append(f"  - ({chunk['source_title']} #{chunk['source_paragraph']}) {text}")
+            location = (f"chunk_id={chunk['chunk_id']}; lines {chunk['line_start']}-{chunk['line_end']}"
+                        if chunk.get("chunk_id") else f"#{chunk.get('source_paragraph', '?')}")
+            lines.append(f"  - ({chunk['source_title']} {location}) {text}")
         if not group.get("chunks"):
             lines.append(f"  - 无证据：{group.get('insufficiency_note', '')}")
 
@@ -78,12 +80,14 @@ def build_prompt(state: AgentState, system_prompt: str) -> str:
         "",
         "只输出一个 JSON 对象，字段：answer, verified, failure_type(none/insufficient/conflict),"
         " insufficient_sq_ids, conflict_flag, conflict_note, conflict_pairs, "
-        "supporting_evidence[{sq_id,text,source_title}], verification_note",
+        "supporting_evidence[{sq_id,text,source_title,chunk_id}], verification_note。"
+        "证据有 chunk_id 时支撑证据可只返回 {sq_id,chunk_id}，必须原样返回该 ID；"
+        "只引用提供的证据，材料无答案时 verified=false。",
     ]
     return "\n".join(lines)
 
 
-def parse_verification(raw: str, state: AgentState) -> dict[str, Any]:
+def parse_verification(raw: str, state: AgentState, *, require_citations: bool = False) -> dict[str, Any]:
     """纯函数：解析并规整验证结果，处理脏输出与字段缺失。
 
     raw 为空（推理 token 耗尽导致 content 为空）时不抛异常，
@@ -144,6 +148,15 @@ def parse_verification(raw: str, state: AgentState) -> dict[str, Any]:
     for item in as_list(data, "supporting_evidence"):
         if not isinstance(item, dict):
             continue
+        if item.get("chunk_id"):
+            candidates = [chunk for sq_id, chunk in known_entries
+                          if sq_id == as_str(item, "sq_id") and chunk.get("chunk_id") == item["chunk_id"]]
+            if len(candidates) != 1:
+                continue
+            chunk = candidates[0]
+            supporting_evidence.append({"sq_id": as_str(item, "sq_id"), "text": chunk["text"],
+                                        "source_title": chunk["source_title"], **_provenance(chunk)})
+            continue
         matched = match_evidence(as_str(item, "text"), known_texts)
         if matched:
             candidates = [
@@ -153,6 +166,8 @@ def parse_verification(raw: str, state: AgentState) -> dict[str, Any]:
             ]
             if not candidates:
                 continue
+            if any(candidate.get("chunk_id") for candidate in candidates) and len(candidates) != 1:
+                continue
             chunk = next(
                 (candidate for candidate in candidates
                  if candidate["source_title"] == as_str(item, "source_title")),
@@ -161,8 +176,13 @@ def parse_verification(raw: str, state: AgentState) -> dict[str, Any]:
             supporting_evidence.append(
                 {"sq_id": as_str(item, "sq_id"), "text": matched,
                  "source_title": chunk["source_title"],
-                 **({"source_id": chunk["source_id"]} if chunk.get("source_id") else {})}
+                 **_provenance(chunk)}
             )
+
+    if verified and (require_citations or any(chunk.get("chunk_id") for _, chunk in known_entries)) and not supporting_evidence:
+        verified = False
+        failure_type = "insufficient"
+        conflict_flag = False
 
     result: dict[str, Any] = {
         "answer": answer,
@@ -195,6 +215,12 @@ def parse_verification(raw: str, state: AgentState) -> dict[str, Any]:
     return result
 
 
+def _provenance(chunk: dict[str, Any]) -> dict[str, Any]:
+    fields = ("source_id", "source_version", "document_id", "chunk_id", "filename",
+              "heading_path", "line_start", "line_end", "char_start", "char_end")
+    return {key: chunk[key] for key in fields if key in chunk}
+
+
 def _keywords_for(state: AgentState, sq_id: str) -> list[str]:
     for sq in state.get("sub_questions", []):
         if sq["id"] == sq_id:
@@ -208,6 +234,7 @@ def answer_validator_fn(
     *,
     usage_collector: LLMUsageCollector | None = None,
     agent_config: dict[str, Any] | None = None,
+    require_citations: bool = False,
 ) -> dict[str, Any]:
     config = agent_config or load_agent_configs()[AGENT_ID]
     chat = llm if llm is not None else default_llm(config)
@@ -216,6 +243,6 @@ def answer_validator_fn(
     max_retries = config.get("failure_handling", {}).get("max_retries", 2)
     raw = invoke_text(chat, prompt, max_retries, usage_collector)
 
-    result = parse_verification(raw, state)
+    result = parse_verification(raw, state, require_citations=require_citations)
     result["validation_retry_count"] = int(state.get("validation_retry_count", 0)) + 1
     return result

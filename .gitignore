@@ -13,3 +13,7 @@ data/runtime/*.sqlite3-wal
 
 # pytest 临时目录
 .pytest-tmp*/
+.pytest-live*/
+
+# User documents, immutable knowledge versions and local indices
+data/knowledge/

@@ -19,7 +19,7 @@ class AgentSpec(StrictSpec):
 
 class KnowledgeSourceSpec(StrictSpec):
     source_id: str = Field(min_length=1)
-    source_type: Literal["hotpotqa_record"]
+    source_type: Literal["hotpotqa_record", "document_corpus"]
     path: str = Field(min_length=1)
     name: str = Field(min_length=1)
     is_demo: bool = False
@@ -92,3 +92,4 @@ class RuntimeRequest(StrictSpec):
     question: str = Field(min_length=1, max_length=2000)
     workflow_id: str | None = Field(default=None, min_length=1)
     source_id: str | None = Field(default=None, min_length=1)
+    source_version: StrictInt | None = Field(default=None, ge=1)

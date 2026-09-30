@@ -6,6 +6,8 @@ import type {
   StreamEvent,
   SystemInfo,
   SystemOptions,
+  KnowledgeSource,
+  ChunkPage,
 } from './types'
 
 const API_PREFIX = '/api/v1'
@@ -68,6 +70,49 @@ export async function getSystemOptions(signal?: AbortSignal): Promise<SystemOpti
   return response.json() as Promise<SystemOptions>
 }
 
+export class KnowledgeImportError extends Error {
+  sourceId?: string
+  version?: number
+  constructor(message: string, sourceId?: string, version?: number) {
+    super(message)
+    this.sourceId = sourceId
+    this.version = version
+  }
+}
+
+async function knowledgeJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, init)
+  const data = await response.json()
+  if (!response.ok) {
+    const detail = data.detail
+    throw new KnowledgeImportError(
+      typeof detail === 'object' && detail?.message ? detail.message : `知识源请求失败（HTTP ${response.status}）`,
+      detail?.source_id, detail?.version,
+    )
+  }
+  return data as T
+}
+
+export function getKnowledgeSources(signal?: AbortSignal): Promise<{ items: KnowledgeSource[] }> {
+  return knowledgeJson(`${API_PREFIX}/knowledge/sources`, { signal })
+}
+
+export function getKnowledgeSource(sourceId: string, signal?: AbortSignal): Promise<KnowledgeSource> {
+  return knowledgeJson(`${API_PREFIX}/knowledge/sources/${encodeURIComponent(sourceId)}`, { signal })
+}
+
+export function getKnowledgeChunks(sourceId: string, version: number, offset = 0, signal?: AbortSignal): Promise<ChunkPage> {
+  return knowledgeJson(`${API_PREFIX}/knowledge/sources/${encodeURIComponent(sourceId)}/versions/${version}/chunks?limit=10&offset=${offset}`, { signal })
+}
+
+export function importKnowledge(name: string, files: File[], sourceId?: string): Promise<KnowledgeSource> {
+  const body = new FormData()
+  if (!sourceId) body.append('name', name)
+  files.forEach((file) => body.append('files', file))
+  const suffix = sourceId ? `/${encodeURIComponent(sourceId)}/versions` : ''
+  return knowledgeJson(`${API_PREFIX}/knowledge/sources${suffix}`, { method: 'POST', body })
+}
+
 export function parseSseBlock(block: string): StreamEvent | null {
   let eventType = ''
   const dataLines: string[] = []
@@ -90,12 +135,12 @@ export async function streamQuestion(
   question: string,
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal,
-  selection?: { workflowId: string; sourceId: string },
+  selection?: { workflowId: string; sourceId: string; sourceVersion?: number },
 ): Promise<void> {
   const response = await fetch(`${API_PREFIX}/qa/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, workflow_id: selection?.workflowId, source_id: selection?.sourceId }),
+    body: JSON.stringify({ question, workflow_id: selection?.workflowId, source_id: selection?.sourceId, source_version: selection?.sourceVersion }),
     signal,
   })
 

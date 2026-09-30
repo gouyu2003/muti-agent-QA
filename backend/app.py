@@ -26,6 +26,9 @@ from backend.schemas import (
 )
 from src.config_loader import load_json
 from backend.streaming import stream_qa_events
+from backend.knowledge_api import router as knowledge_router
+from src.knowledge.store import KnowledgeStore
+from src.knowledge.corpus import ImportFailure
 from src.runtime.context import build_v0_run_context
 from src.runtime.models import (
     RunContext,
@@ -52,6 +55,7 @@ def build_default_run_service() -> RunService:
 def build_api_run_context(
     question: str, run_id: str | None = None,
     *, workflow_id: str | None = None, source_id: str | None = None,
+    source_version: int | None = None,
 ) -> RunContext:
     """根据当前 V0 配置生成一次 API 运行的可复现实验上下文。"""
 
@@ -61,6 +65,7 @@ def build_api_run_context(
         run_id=run_id,
         workflow_id=workflow_id,
         source_id=source_id,
+        **({"source_version": source_version} if source_version is not None else {}),
     )
 
 
@@ -69,10 +74,13 @@ async def lifespan(app: FastAPI):
     # 应用入口负责加载本地环境变量，不输出其中的值。
     load_dotenv()
     app.state.run_service = app.state.run_service_factory()
+    app.state.knowledge_store = KnowledgeStore()
+    app.state.knowledge_store.recover_interrupted()
     try:
         yield
     finally:
         del app.state.run_service
+        del app.state.knowledge_store
 
 
 app = FastAPI(
@@ -81,6 +89,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.state.run_service_factory = build_default_run_service
+app.include_router(knowledge_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -221,6 +230,22 @@ def system_options() -> SystemOptionsResponse:
             supporting_fact_count=len(record["supporting_facts"]),
             example_question=record["question"],
         ))
+    store = KnowledgeStore()
+    for item in store.list_sources(default.system_id):
+        if item["current_version"] is None:
+            continue
+        try:
+            store.resolve(default.system_id, item["source_id"])
+        except ImportFailure:
+            continue
+        source_options.append(SourceOption(
+            source_id=item["source_id"], name=item["name"], source_type="document_corpus", is_demo=False,
+            version=item["current_version"],
+            versions=[v["version"] for v in item["versions"] if v["status"] == "ready"],
+            file_count=item["file_count"], chunk_count=item["chunk_count"],
+            version_details=[{"version": v["version"], "file_count": v["file_count"], "chunk_count": v["chunk_count"]}
+                             for v in item["versions"] if v["status"] == "ready"],
+        ))
     return SystemOptionsResponse(
         system_id=default.system_id,
         system_version=default.system_version,
@@ -236,7 +261,8 @@ def stream_question(body: QuestionRequest, request: Request) -> StreamingRespons
     run_service: RunService = request.app.state.run_service
     try:
         context = build_api_run_context(
-            body.question, workflow_id=body.workflow_id, source_id=body.source_id
+            body.question, workflow_id=body.workflow_id, source_id=body.source_id,
+            **({"source_version": body.source_version} if body.source_version is not None else {}),
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

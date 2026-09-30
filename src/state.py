@@ -11,9 +11,18 @@ class SubQuestion(TypedDict):
 class EvidenceChunk(TypedDict):
     text: str
     source_title: str
-    source_paragraph: int
+    source_paragraph: NotRequired[int]
     relevance_score: float
     source_id: NotRequired[str]
+    source_version: NotRequired[int]
+    document_id: NotRequired[str]
+    chunk_id: NotRequired[str]
+    filename: NotRequired[str]
+    heading_path: NotRequired[list[str]]
+    line_start: NotRequired[int]
+    line_end: NotRequired[int]
+    char_start: NotRequired[int]
+    char_end: NotRequired[int]
 
 
 class EvidenceGroup(TypedDict):
@@ -40,6 +49,15 @@ class SupportingEvidence(TypedDict):
     text: str
     source_title: str
     source_id: NotRequired[str]
+    source_version: NotRequired[int]
+    document_id: NotRequired[str]
+    chunk_id: NotRequired[str]
+    filename: NotRequired[str]
+    heading_path: NotRequired[list[str]]
+    line_start: NotRequired[int]
+    line_end: NotRequired[int]
+    char_start: NotRequired[int]
+    char_end: NotRequired[int]
 
 
 class AgentState(TypedDict):

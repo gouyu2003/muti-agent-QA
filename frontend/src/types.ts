@@ -43,12 +43,70 @@ export interface SourceOption {
   name: string
   source_type: string
   is_demo: boolean
-  record_id: string
-  question_type: string
-  level: string
-  context_count: number
-  supporting_fact_count: number
-  example_question: string
+  record_id: string | null
+  question_type: string | null
+  level: string | null
+  context_count: number | null
+  supporting_fact_count: number | null
+  example_question: string | null
+  version?: number | null
+  versions?: number[]
+  file_count?: number | null
+  chunk_count?: number | null
+  version_details?: Array<{ version: number; file_count: number; chunk_count: number }>
+}
+
+export interface KnowledgeChunk {
+  text: string
+  document_id: string
+  chunk_id: string
+  filename: string
+  heading_path: string[]
+  line_start: number
+  line_end: number
+  char_start: number
+  char_end: number
+}
+
+export interface KnowledgeVersion {
+  version: number
+  status: 'importing' | 'ready' | 'failed'
+  created_at: string
+  file_count?: number
+  chunk_count?: number
+  parser_version?: string
+  index_version?: string
+  files?: Array<{ filename: string; size_bytes: number; sha256: string }>
+  error: { code: string; message: string } | null
+}
+
+export interface KnowledgeSource {
+  source_id: string
+  name: string
+  status: 'importing' | 'ready' | 'failed'
+  current_version: number | null
+  file_count: number
+  chunk_count: number
+  versions: KnowledgeVersion[]
+}
+
+export interface ChunkPage {
+  items: KnowledgeChunk[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface EvidenceLocation {
+  source_version?: number
+  document_id?: string
+  chunk_id?: string
+  filename?: string
+  heading_path?: string[]
+  line_start?: number
+  line_end?: number
+  char_start?: number
+  char_end?: number
 }
 
 export interface SystemOptions {
@@ -67,10 +125,10 @@ export interface SubQuestion {
   depends_on: string[]
 }
 
-export interface EvidenceChunk {
+export interface EvidenceChunk extends EvidenceLocation {
   text: string
   source_title: string
-  source_paragraph: number
+  source_paragraph?: number
   relevance_score: number
   source_id?: string
 }
@@ -82,7 +140,7 @@ export interface EvidenceGroup {
   insufficiency_note: string
 }
 
-export interface SupportingEvidence {
+export interface SupportingEvidence extends EvidenceLocation {
   sq_id: string
   text: string
   source_title: string

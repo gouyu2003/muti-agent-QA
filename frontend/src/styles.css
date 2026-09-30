@@ -15,6 +15,58 @@
   --danger: #c44444;
 }
 
+.knowledge-workspace {
+  width: min(1440px, 100%);
+  margin: 0 auto;
+  padding: 28px;
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  gap: 24px;
+}
+
+.knowledge-import, .knowledge-library {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 24px;
+  min-width: 0;
+  align-self: start;
+}
+
+.knowledge-import h1 { margin: 8px 0; }
+.knowledge-import p, .knowledge-import small { color: var(--muted); line-height: 1.7; }
+.knowledge-import label { display: grid; gap: 8px; margin: 18px 0; font-size: 13px; font-weight: 600; }
+.knowledge-import .ant-select { width: 100%; }
+.knowledge-import > .ant-btn { display: block; margin: 20px 0; }
+.knowledge-import .ant-alert { margin-top: 14px; }
+.knowledge-source-list { display: grid; gap: 10px; }
+.knowledge-source-list button {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8fafd;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+}
+.knowledge-source-list button.active { border-color: var(--planner); background: #eff3ff; }
+.knowledge-source-list button:focus-visible { outline: 3px solid #3157d566; }
+.knowledge-source-list strong { margin-right: 10px; }
+.knowledge-source-list span:last-child { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; }
+.knowledge-detail { margin-top: 24px; padding-top: 8px; border-top: 1px solid var(--line); }
+.knowledge-detail > .ant-select { min-width: 180px; margin: 0 12px 12px 0; }
+.knowledge-detail ul, .knowledge-import ul { padding-left: 22px; font-size: 13px; line-height: 1.8; }
+.knowledge-chunk, .supporting-evidence article { padding: 14px; margin: 12px 0; border: 1px solid var(--line); border-radius: 10px; }
+.knowledge-chunk strong, .knowledge-chunk small, .evidence-location { display: block; overflow-wrap: anywhere; }
+.knowledge-chunk small, .evidence-location { color: var(--muted); margin-top: 6px; font-size: 12px; }
+.knowledge-chunk p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+.question-actions { flex-wrap: wrap; gap: 10px; }
+.dataset-card small { overflow-wrap: anywhere; }
+
+@media (max-width: 850px) {
+  .knowledge-workspace { grid-template-columns: 1fr; padding: 16px; }
+}
+
 * {
   box-sizing: border-box;
 }

@@ -63,6 +63,7 @@ class BM25Retriever:
 
     def __init__(self, record: dict[str, Any], source_id: str | None = None):
         self.source_id = source_id
+        self.is_document_corpus = False
         context = record["context"]
         self._docs = _iter_sentence_docs(context)
 
@@ -75,6 +76,19 @@ class BM25Retriever:
             for doc in self._docs
         ]
         self._bm25 = BM25Okapi(tokenized_docs)
+
+    @classmethod
+    def from_documents(cls, documents: list[dict[str, Any]], *,
+                       tokens: list[list[str]]) -> "BM25Retriever":
+        """Build an ordinary document index without changing fixture scoring."""
+        instance = cls.__new__(cls)
+        instance.source_id = None
+        instance.is_document_corpus = True
+        instance._docs = documents
+        instance._bm25 = BM25Okapi(tokens)
+        # Very small user corpora can otherwise have negative IDF for every word.
+        instance._bm25.idf = {word: max(score, 1e-6) for word, score in instance._bm25.idf.items()}
+        return instance
 
     def search(
         self, query: str, top_k: int = 3, min_score: float = MIN_SCORE
@@ -101,9 +115,7 @@ class BM25Retriever:
 
         return [
             {
-                "text": self._docs[index]["text"],
-                "source_title": self._docs[index]["source_title"],
-                "source_paragraph": self._docs[index]["source_paragraph"],
+                **self._docs[index],
                 "relevance_score": float(scores[index]),
                 **({"source_id": self.source_id} if self.source_id else {}),
             }

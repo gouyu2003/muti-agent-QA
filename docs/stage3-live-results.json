@@ -1,0 +1,228 @@
+{
+  "date": "2026-09-30",
+  "timezone": "Asia/Shanghai",
+  "workflow_id": "multi_hop_qa_fixed",
+  "source_version": 1,
+  "materials": [
+    "data/examples/stage3/people.md",
+    "data/examples/stage3/institute.txt"
+  ],
+  "cases": [
+    {
+      "question": "In what year did Cedar Institute open?",
+      "run_id": "2bd99cde-d26d-439c-9d0f-ab61e87b736d",
+      "status": "completed",
+      "answer": "2008",
+      "verified": true,
+      "failure_type": "none",
+      "verification_note": "Both subquestions are sufficiently supported by evidence stating Cedar Institute opened in 2008; no conflicts found.",
+      "supporting_evidence": [
+        {
+          "char_end": 109,
+          "char_start": 0,
+          "chunk_id": "fc8f2ff8c5b88c63a06540765db267cf92b73d2751bbbbabeb63961d276a63c5",
+          "document_id": "f6257b317f656b106bd83c460404dd8a369b55bb2b32552a088cb4b24be55699",
+          "filename": "institute.txt",
+          "heading_path": [],
+          "line_end": 1,
+          "line_start": 1,
+          "source_id": "user_0bbebd5b187548a8adc94031498aa325",
+          "source_title": "institute.txt",
+          "source_version": 1,
+          "sq_id": "sq_1",
+          "text": "Cedar Institute is located in Northbridge. The institute opened in 2008 and conducts marine science research."
+        },
+        {
+          "char_end": 109,
+          "char_start": 0,
+          "chunk_id": "fc8f2ff8c5b88c63a06540765db267cf92b73d2751bbbbabeb63961d276a63c5",
+          "document_id": "f6257b317f656b106bd83c460404dd8a369b55bb2b32552a088cb4b24be55699",
+          "filename": "institute.txt",
+          "heading_path": [],
+          "line_end": 1,
+          "line_start": 1,
+          "source_id": "user_0bbebd5b187548a8adc94031498aa325",
+          "source_title": "institute.txt",
+          "source_version": 1,
+          "sq_id": "sq_2",
+          "text": "Cedar Institute is located in Northbridge. The institute opened in 2008 and conducts marine science research."
+        }
+      ],
+      "metrics": {
+        "duration_ms": 12141,
+        "node_call_count": 3,
+        "llm_call_count": 2,
+        "prompt_tokens": 1093,
+        "completion_tokens": 517,
+        "total_tokens": 1610,
+        "estimated_cost_usd": null,
+        "plan_retry_count": 0,
+        "retrieval_retry_count": 0,
+        "validation_retry_count": 1
+      }
+    },
+    {
+      "question": "Which city hosts the institute founded by Mara Vale?",
+      "run_id": "358835d4-22d6-41e9-943a-f1a0fddb171b",
+      "status": "completed",
+      "answer": "Northbridge hosts Cedar Institute, founded by marine biologist Mara Vale.",
+      "verified": true,
+      "failure_type": "none",
+      "verification_note": "Evidence is sufficient and consistent; Cedar Institute is explicitly located in Northbridge.",
+      "supporting_evidence": [
+        {
+          "char_end": 139,
+          "char_start": 43,
+          "chunk_id": "900c2ff3dadf9b378a1d849f12406e45efdf583367491b608f2b4ed65c3cef19",
+          "document_id": "9c0eb5379d1aa7a9c28fdedb9b735a5bd878f80194a45ec9062629b227b3f931",
+          "filename": "people.md",
+          "heading_path": [
+            "People at Cedar Institute",
+            "Mara Vale"
+          ],
+          "line_end": 5,
+          "line_start": 5,
+          "source_id": "user_0bbebd5b187548a8adc94031498aa325",
+          "source_title": "people.md",
+          "source_version": 1,
+          "sq_id": "sq_1",
+          "text": "Mara Vale founded Cedar Institute. She works as a marine biologist and studies coastal habitats."
+        },
+        {
+          "char_end": 139,
+          "char_start": 43,
+          "chunk_id": "900c2ff3dadf9b378a1d849f12406e45efdf583367491b608f2b4ed65c3cef19",
+          "document_id": "9c0eb5379d1aa7a9c28fdedb9b735a5bd878f80194a45ec9062629b227b3f931",
+          "filename": "people.md",
+          "heading_path": [
+            "People at Cedar Institute",
+            "Mara Vale"
+          ],
+          "line_end": 5,
+          "line_start": 5,
+          "source_id": "user_0bbebd5b187548a8adc94031498aa325",
+          "source_title": "people.md",
+          "source_version": 1,
+          "sq_id": "sq_2",
+          "text": "Mara Vale founded Cedar Institute. She works as a marine biologist and studies coastal habitats."
+        },
+        {
+          "char_end": 109,
+          "char_start": 0,
+          "chunk_id": "fc8f2ff8c5b88c63a06540765db267cf92b73d2751bbbbabeb63961d276a63c5",
+          "document_id": "f6257b317f656b106bd83c460404dd8a369b55bb2b32552a088cb4b24be55699",
+          "filename": "institute.txt",
+          "heading_path": [],
+          "line_end": 1,
+          "line_start": 1,
+          "source_id": "user_0bbebd5b187548a8adc94031498aa325",
+          "source_title": "institute.txt",
+          "source_version": 1,
+          "sq_id": "sq_3",
+          "text": "Cedar Institute is located in Northbridge. The institute opened in 2008 and conducts marine science research."
+        }
+      ],
+      "metrics": {
+        "duration_ms": 19785,
+        "node_call_count": 3,
+        "llm_call_count": 2,
+        "prompt_tokens": 1330,
+        "completion_tokens": 1653,
+        "total_tokens": 2983,
+        "estimated_cost_usd": null,
+        "plan_retry_count": 0,
+        "retrieval_retry_count": 0,
+        "validation_retry_count": 1
+      }
+    },
+    {
+      "question": "Who is Mara Vale's spouse?",
+      "run_id": "58fa26b4-823c-41c9-9119-d91a55527080",
+      "status": "completed",
+      "answer": "The provided evidence does not state who Mara Vale’s spouse is; no spouse is mentioned.",
+      "verified": false,
+      "failure_type": "insufficient",
+      "verification_note": "Evidence identifies Mara Vale and Cedar Institute but does not mention any spouse, so sq_2 cannot be answered.",
+      "supporting_evidence": [
+        {
+          "char_end": 139,
+          "char_start": 43,
+          "chunk_id": "900c2ff3dadf9b378a1d849f12406e45efdf583367491b608f2b4ed65c3cef19",
+          "document_id": "9c0eb5379d1aa7a9c28fdedb9b735a5bd878f80194a45ec9062629b227b3f931",
+          "filename": "people.md",
+          "heading_path": [
+            "People at Cedar Institute",
+            "Mara Vale"
+          ],
+          "line_end": 5,
+          "line_start": 5,
+          "source_id": "user_0bbebd5b187548a8adc94031498aa325",
+          "source_title": "people.md",
+          "source_version": 1,
+          "sq_id": "sq_1",
+          "text": "Mara Vale founded Cedar Institute. She works as a marine biologist and studies coastal habitats."
+        },
+        {
+          "char_end": 348,
+          "char_start": 252,
+          "chunk_id": "fbd64b105964b5e80dade727786050e03b6b9fe30473e117737e959ca25bafff",
+          "document_id": "f6257b317f656b106bd83c460404dd8a369b55bb2b32552a088cb4b24be55699",
+          "filename": "institute.txt",
+          "heading_path": [],
+          "line_end": 5,
+          "line_start": 5,
+          "source_id": "user_0bbebd5b187548a8adc94031498aa325",
+          "source_title": "institute.txt",
+          "source_version": 1,
+          "sq_id": "sq_1",
+          "text": "The institute is independent of Alder College, which is located in Westhaven and opened in 1995."
+        },
+        {
+          "char_end": 109,
+          "char_start": 0,
+          "chunk_id": "fc8f2ff8c5b88c63a06540765db267cf92b73d2751bbbbabeb63961d276a63c5",
+          "document_id": "f6257b317f656b106bd83c460404dd8a369b55bb2b32552a088cb4b24be55699",
+          "filename": "institute.txt",
+          "heading_path": [],
+          "line_end": 1,
+          "line_start": 1,
+          "source_id": "user_0bbebd5b187548a8adc94031498aa325",
+          "source_title": "institute.txt",
+          "source_version": 1,
+          "sq_id": "sq_1",
+          "text": "Cedar Institute is located in Northbridge. The institute opened in 2008 and conducts marine science research."
+        },
+        {
+          "char_end": 256,
+          "char_start": 156,
+          "chunk_id": "002f795b7e36e3a513a54ba3cb5f9adfb93ff164256c1e85765280a2d07b6d05",
+          "document_id": "9c0eb5379d1aa7a9c28fdedb9b735a5bd878f80194a45ec9062629b227b3f931",
+          "filename": "people.md",
+          "heading_path": [
+            "People at Cedar Institute",
+            "Jonas Reed"
+          ],
+          "line_end": 9,
+          "line_start": 9,
+          "source_id": "user_0bbebd5b187548a8adc94031498aa325",
+          "source_title": "people.md",
+          "source_version": 1,
+          "sq_id": "sq_2",
+          "text": "Jonas Reed leads the public education programme at Cedar Institute. He joined the institute in 2012."
+        }
+      ],
+      "metrics": {
+        "duration_ms": 23692,
+        "node_call_count": 3,
+        "llm_call_count": 2,
+        "prompt_tokens": 1094,
+        "completion_tokens": 2057,
+        "total_tokens": 3151,
+        "estimated_cost_usd": null,
+        "plan_retry_count": 0,
+        "retrieval_retry_count": 0,
+        "validation_retry_count": 1
+      }
+    }
+  ]
+}

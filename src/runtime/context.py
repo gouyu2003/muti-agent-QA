@@ -18,13 +18,15 @@ def build_v0_run_context(
     run_id: str | None = None,
     workflow_id: str | None = None,
     source_id: str | None = None,
+    source_version: int | None = None,
     catalog_path: str | None = None,
 ) -> RunContext:
     """Build a run context from one validated system and source snapshot."""
 
-    request = RuntimeRequest(question=question, workflow_id=workflow_id, source_id=source_id)
+    request = RuntimeRequest(question=question, workflow_id=workflow_id, source_id=source_id, source_version=source_version)
     system = resolve_system(
         request.workflow_id, request.source_id,
+        **({"source_version": request.source_version} if request.source_version is not None else {}),
         catalog_path=catalog_path or os.getenv("MAQA_SYSTEM_CONFIG_PATH") or DEFAULT_CATALOG_PATH,
     )
     first_agent = next(iter(system.agents.values())).config
@@ -34,7 +36,7 @@ def build_v0_run_context(
         entrypoint=entrypoint,
         question=request.question,
         source_id=system.source.source_id,
-        record_id=system.record["_id"],
+        record_id=system.record.get("_id"),
         workflow_id=system.workflow.protocol_id,
         method_id=system.workflow.method_id,
         model_name=first_agent["model_config"]["model_name"],

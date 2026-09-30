@@ -11,15 +11,19 @@ from typing import Any, Callable
 from src.config_loader import REQUIRED_AGENT_FIELDS, load_json, validate_required_fields
 from src.knowledge.bm25_retriever import BM25Retriever
 from src.knowledge.hotpotqa_loader import load_fixture
+from src.knowledge.corpus import load_corpus, corpus_retriever
+from src.knowledge.store import KnowledgeStore, retriever_from_corpus_snapshot
 from src.runtime.specs import AgentSpec, KnowledgeSourceSpec, WorkflowSpec
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CATALOG_PATH = PROJECT_ROOT / "system-design" / "systems" / "default.json"
 SOURCE_LOADERS: dict[str, Callable[[Path], dict[str, Any]]] = {
     "hotpotqa_record": load_fixture,
+    "document_corpus": load_corpus,
 }
 RETRIEVER_FACTORIES: dict[str, Callable[[dict[str, Any], str], BM25Retriever]] = {
     "hotpotqa_record": lambda record, source_id: BM25Retriever(record, source_id=source_id),
+    "document_corpus": corpus_retriever,
 }
 
 
@@ -35,15 +39,25 @@ class ResolvedSystem:
     source_digest: str
     record: dict[str, Any]
     catalog_path: Path
+    source_metadata: dict[str, Any] | None = None
 
     def snapshot(self) -> dict[str, Any]:
+        agent_configs = {key: agent.config for key, agent in self.agents.items()}
+        if self.source_metadata:
+            agent_configs["retriever_v0"] = {
+                **agent_configs["retriever_v0"],
+                "knowledge_sources": [{"source_id": self.source.source_id, "source_type": "document_corpus",
+                                       "source_version": self.source_metadata["version"]}],
+            }
         effective = {
             "system_id": self.system_id,
             "system_version": self.system_version,
-            "agents": {key: agent.config for key, agent in self.agents.items()},
+            "agents": agent_configs,
             "workflow_spec": self.workflow.model_dump(by_alias=True),
             "source_id": self.source.source_id,
             "source_sha256": self.source_digest,
+            **({"source_version": self.source_metadata["version"],
+                "index_sha256": self.source_metadata["index_sha256"]} if self.source_metadata else {}),
         }
         config_digest = hashlib.sha256(
             json.dumps(effective, sort_keys=True, ensure_ascii=False).encode("utf-8")
@@ -53,7 +67,7 @@ class ResolvedSystem:
             "config_sha256": config_digest,
             "system_id": self.system_id,
             "system_version": self.system_version,
-            "agents": {key: agent.config for key, agent in self.agents.items()},
+            "agents": agent_configs,
             "agent_types": {key: agent.agent_type for key, agent in self.agents.items()},
             "protocol": self.protocol,
             "workflow_spec": self.workflow.model_dump(by_alias=True),
@@ -61,11 +75,12 @@ class ResolvedSystem:
                 **self.source.model_dump(),
                 "resolved_path": str(self.source_path),
                 "sha256": self.source_digest,
+                **(self.source_metadata or {}),
             },
             "dataset": {
                 "name": self.source.name,
                 "source_id": self.source.source_id,
-                "record_id": self.record["_id"],
+                "record_id": self.record.get("_id"),
             },
         }
 
@@ -101,6 +116,7 @@ def resolve_system(
     workflow_id: str | None = None,
     source_id: str | None = None,
     *,
+    source_version: int | None = None,
     catalog_path: Path | str = DEFAULT_CATALOG_PATH,
 ) -> ResolvedSystem:
     catalog_file = Path(catalog_path).resolve()
@@ -124,16 +140,28 @@ def resolve_system(
     if not all(isinstance(entry, dict) for entry in sources):
         raise ValueError("系统 sources 的每个条目必须是对象")
     selected = [entry for entry in sources if entry.get("source_id") == source_id]
-    if len(selected) != 1:
-        raise ValueError(f"未知或重复的 source_id: {source_id}")
-    source = KnowledgeSourceSpec.model_validate(selected[0])
-    source_path = _path(catalog_file.parent, source.path)
-    if not source_path.is_file():
-        raise ValueError(f"知识源文件不存在: {source.path}")
-    source_digest = _sha256(source_path)
-    record = SOURCE_LOADERS[source.source_type](source_path)
-    if _sha256(source_path) != source_digest:
-        raise ValueError(f"知识源读取期间发生变化: {source_id}")
+    source_metadata = None
+    if len(selected) > 1:
+        raise ValueError(f"重复的 source_id: {source_id}")
+    if selected:
+        source = KnowledgeSourceSpec.model_validate(selected[0])
+        if source.source_type != "hotpotqa_record" or source_version is not None:
+            raise ValueError("预置知识源仅支持原有 HotpotQA 记录；用户文档需通过导入服务注册。")
+        source_path = _path(catalog_file.parent, source.path)
+        if not source_path.is_file():
+            raise ValueError(f"知识源文件不存在: {source.path}")
+        source_digest = _sha256(source_path)
+        record = SOURCE_LOADERS[source.source_type](source_path)
+        if _sha256(source_path) != source_digest:
+            raise ValueError(f"知识源读取期间发生变化: {source_id}")
+    else:
+        source_metadata = KnowledgeStore().resolve(catalog["system_id"], source_id, source_version)
+        source_path = Path(source_metadata["resolved_path"])
+        source = KnowledgeSourceSpec(source_id=source_id, source_type="document_corpus",
+                                    path=f"{source_id}/{source_metadata['version']}/corpus.json",
+                                    name=source_metadata["name"])
+        source_digest = source_metadata["sha256"]
+        record = SOURCE_LOADERS["document_corpus"](source_path)
     protocol = load_json(_path(catalog_file.parent, workflows[workflow_id]))
     workflow = _workflow(protocol)
     if workflow.protocol_id != workflow_id:
@@ -171,7 +199,7 @@ def resolve_system(
     if not isinstance(bindings, list) or not all(isinstance(item, dict) for item in bindings):
         raise ValueError("retriever_v0.knowledge_sources 必须是对象列表")
     bound = {item.get("source_id") for item in bindings}
-    if source_id not in bound:
+    if source_id not in bound and source_metadata is None:
         raise ValueError(f"知识源 {source_id} 未绑定到 retriever_v0")
     return ResolvedSystem(
         system_id=str(catalog["system_id"]),
@@ -184,11 +212,14 @@ def resolve_system(
         source_digest=source_digest,
         record=record,
         catalog_path=catalog_file,
+        source_metadata=source_metadata,
     )
 
 
 def retriever_from_snapshot(snapshot: dict[str, Any]) -> BM25Retriever:
     source = snapshot["source"]
+    if source["source_type"] == "document_corpus":
+        return retriever_from_corpus_snapshot(source)
     factory = RETRIEVER_FACTORIES.get(source["source_type"])
     if factory is None:
         raise ValueError(f"未知 source_type: {source['source_type']}")

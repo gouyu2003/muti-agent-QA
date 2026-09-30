@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { getRuns, getRunsExportUrl, parseSseBlock, streamQuestion } from './api'
+import { getRuns, getRunsExportUrl, parseSseBlock, streamQuestion, importKnowledge } from './api'
 
 describe('parseSseBlock', () => {
   it('parses an event and preserves Chinese payload text', () => {
@@ -65,5 +65,17 @@ describe('configured stream API', () => {
     } finally {
       fetchMock.mockRestore()
     }
+  })
+
+  it('uploads files as multipart without forcing a JSON content type', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, json: async () => ({ source_id: 'user_a' }) } as Response)
+    try {
+      const file = new File(['English'], 'a.txt')
+      await importKnowledge('Notes', [file])
+      const init = fetchMock.mock.calls[0][1] as RequestInit
+      expect(init.headers).toBeUndefined()
+      expect((init.body as FormData).get('name')).toBe('Notes')
+      expect((init.body as FormData).getAll('files')).toHaveLength(1)
+    } finally { fetchMock.mockRestore() }
   })
 })

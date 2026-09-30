@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons'
 import { Alert, Button, Empty, Input, Pagination, Select, Skeleton, Tag, Tooltip } from 'antd'
 import { getRunDetail, getRuns, getRunsExportUrl, getRunStats } from './api'
+import EvidenceLocation from './EvidenceLocation'
 import type {
   RunEntryPoint,
   RunFilters,
@@ -166,11 +167,11 @@ function RunEvidence({ result }: { result: RunResult | null }) {
   const items = supporting.length
     ? supporting.map((item, index) => ({
         id: `${item.sq_id}-${index}`, sqId: item.sq_id,
-        title: item.source_title, text: item.text, sourceId: item.source_id,
+        title: item.source_title, text: item.text, sourceId: item.source_id, evidence: item,
       }))
     : groups.flatMap((group) => group.chunks.map((chunk, index) => ({
         id: `${group.sq_id}-${index}`, sqId: group.sq_id,
-        title: chunk.source_title, text: chunk.text, sourceId: chunk.source_id,
+        title: chunk.source_title, text: chunk.text, sourceId: chunk.source_id, evidence: chunk,
       })))
 
   return (
@@ -183,6 +184,7 @@ function RunEvidence({ result }: { result: RunResult | null }) {
       {items.length ? items.map((item) => (
         <article key={item.id} className="history-evidence-item">
           <span><DatabaseOutlined /> {item.sqId} · {item.title}{item.sourceId ? ` · ${item.sourceId}` : ''}</span>
+          <EvidenceLocation evidence={item.evidence} />
           <p>{item.text}</p>
         </article>
       )) : <p className="history-muted">此运行没有保存可展示的证据。</p>}
@@ -217,7 +219,8 @@ function RunDetailPanel({ detail }: { detail: StoredRunDetail }) {
         <div><span>协作流程</span><strong>{run.context.workflow_id}</strong></div>
         <div><span>方法</span><strong>{run.context.method_id}</strong></div>
         <div><span>知识源</span><strong>{run.context.source_id ?? '未记录'}</strong></div>
-        <div><span>材料记录</span><strong>{run.context.record_id ?? '未记录'}</strong></div>
+        {typeof sourceSnapshot.version === 'number' ? <div><span>知识源版本</span><strong>{sourceSnapshot.version}</strong></div> : null}
+        {run.context.record_id ? <div><span>材料记录</span><strong>{run.context.record_id}</strong></div> : null}
         <div><span>系统配置版本</span><strong>{systemVersion}</strong></div>
         <div><span>代码版本</span><code>{run.context.code_version}</code></div>
         <div><span>配置摘要 SHA-256</span><code>{configHash}</code></div>

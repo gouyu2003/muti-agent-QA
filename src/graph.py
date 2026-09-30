@@ -35,6 +35,7 @@ def default_nodes(
         RETRIEVER_NODE: partial(retriever_fn, retriever=retriever),
         ANSWER_VALIDATOR_NODE: partial(
             answer_validator_fn, usage_collector=usage_collector,
+            require_citations=bool(getattr(retriever, "is_document_corpus", False)),
             agent_config=agent_configs[ANSWER_VALIDATOR_NODE] if agent_configs else None,
         ),
     }

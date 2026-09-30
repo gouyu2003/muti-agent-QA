@@ -116,3 +116,40 @@ def test_real_api_and_cli_share_runtime_and_persist_matching_history(
                 == cli_detail["run"]["context"]["code_version"])
         assert (api_detail["run"]["context"]["config_snapshot"]["config_sha256"]
                 != cli_detail["run"]["context"]["config_snapshot"]["config_sha256"])
+
+
+@pytest.mark.skipif(not _env_ready(), reason="缺少真实模型连接配置")
+def test_real_document_source_single_multi_hop_and_missing_answer(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAQA_KNOWLEDGE_DIR", str(tmp_path / "knowledge"))
+    monkeypatch.setenv("MAQA_RUN_DB_PATH", str(tmp_path / "runs.sqlite3"))
+    example = PROJECT_ROOT / "data" / "examples" / "stage3"
+    files = [("files", (path.name, path.read_bytes())) for path in sorted(example.iterdir())]
+    reports = []
+    with TestClient(app) as client:
+        imported = client.post("/api/v1/knowledge/sources", data={"name": "Stage 3 live smoke"}, files=files)
+        assert imported.status_code == 200
+        source_id = imported.json()["source_id"]
+        for question, expected in [
+            ("In what year did Cedar Institute open?", "2008"),
+            ("Which city hosts the institute founded by Mara Vale?", "Northbridge"),
+            ("Who is Mara Vale's spouse?", None),
+        ]:
+            response = client.post("/api/v1/qa/stream", json={"question": question,
+                                   "source_id": source_id, "source_version": 1, "workflow_id": "multi_hop_qa_fixed"})
+            assert response.status_code == 200
+            envelope = json.loads(next(line[6:] for line in response.text.splitlines() if line.startswith("data: ")))
+            detail = client.get(f"/api/v1/runs/{envelope['run_id']}").json()
+            run = detail["run"]
+            reports.append({"question": question, "run_id": envelope["run_id"], "status": run["status"],
+                            "result": run["final_state"], "error": run["error"], "metrics": run["metrics"]})
+            (tmp_path / "stage3-live-results.json").write_text(json.dumps(reports, ensure_ascii=False, indent=2), encoding="utf-8")
+            assert run["status"] == "completed", run["error"]
+            result = run["final_state"]
+            if expected is None:
+                assert result["verified"] is False
+            else:
+                assert expected.lower() in result["answer"].lower()
+                assert result["verified"] is True
+                assert result["supporting_evidence"]
+            assert all(item["source_version"] == 1 and item["filename"] and item["chunk_id"]
+                       for item in result.get("supporting_evidence", []))

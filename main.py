@@ -38,6 +38,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument("--workflow-id", default=None)
     parser.add_argument("--source-id", default=None)
+    parser.add_argument("--source-version", type=int, default=None)
     parser.add_argument("--system-config", default=None,
                         help="系统清单 JSON 路径；默认使用内置系统")
     return parser.parse_args(argv)
@@ -56,6 +57,7 @@ def run(
     run_service: RunService | None = None,
     workflow_id: str | None = None,
     source_id: str | None = None,
+    source_version: int | None = None,
     catalog_path: str | None = None,
 ) -> RunDetail:
     """通过统一 RunService 执行一次 CLI 运行并返回持久化详情。"""
@@ -67,6 +69,7 @@ def run(
         run_id=run_id,
         workflow_id=workflow_id,
         source_id=source_id,
+        **({"source_version": source_version} if source_version is not None else {}),
         catalog_path=catalog_path,
     )
     return service.run(context)
@@ -117,7 +120,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     load_dotenv()  # 只在入口加载 .env，不打印或回显其中的值。
 
     args = parse_args(argv)
-    question = " ".join(args.question).strip() or DEFAULT_QUESTION
+    question = " ".join(args.question).strip()
+    if not question and args.source_id and args.source_id.startswith("user_"):
+        print("用户知识源需要明确提供英文问题。")
+        return 1
+    question = question or DEFAULT_QUESTION
 
     try:
         options = {}
@@ -125,6 +132,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             options["workflow_id"] = args.workflow_id
         if args.source_id is not None:
             options["source_id"] = args.source_id
+        if args.source_version is not None:
+            options["source_version"] = args.source_version
         if args.system_config is not None:
             options["catalog_path"] = args.system_config
         detail = run(question, run_id=args.run_id, **options)
