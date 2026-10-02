@@ -16,6 +16,7 @@ import type {
   RunListResponse,
   RunResult,
   RunStatsSummary,
+  SourceOption,
   StoredRunDetail,
   StoredRunRecord,
   StoredRunStatus,
@@ -161,7 +162,7 @@ function RunTimeline({ events }: { events: StoredTraceEvent[] }) {
   )
 }
 
-function RunEvidence({ result }: { result: RunResult | null }) {
+function RunEvidence({ result, source }: { result: RunResult | null; source?: Pick<SourceOption, 'source_id' | 'name'> }) {
   const groups = result?.evidence_chunks ?? []
   const supporting = result?.supporting_evidence ?? []
   const items = supporting.length
@@ -183,8 +184,8 @@ function RunEvidence({ result }: { result: RunResult | null }) {
       </div>
       {items.length ? items.map((item) => (
         <article key={item.id} className="history-evidence-item">
-          <span><DatabaseOutlined /> {item.sqId} · {item.title}{item.sourceId ? ` · ${item.sourceId}` : ''}</span>
-          <EvidenceLocation evidence={item.evidence} />
+          <span><DatabaseOutlined /> {item.sqId} · {item.title}{item.sourceId ? ` · ${source?.source_id === item.sourceId ? source.name : item.sourceId}` : ''}</span>
+          <EvidenceLocation evidence={item.evidence} source={source} />
           <p>{item.text}</p>
         </article>
       )) : <p className="history-muted">此运行没有保存可展示的证据。</p>}
@@ -197,6 +198,9 @@ function RunDetailPanel({ detail }: { detail: StoredRunDetail }) {
   const result = run.final_state
   const snapshot = asObject(run.context.config_snapshot)
   const sourceSnapshot = asObject(snapshot.source)
+  const sourceId = run.context.source_id ?? (typeof sourceSnapshot.source_id === 'string' ? sourceSnapshot.source_id : undefined)
+  const sourceName = typeof sourceSnapshot.name === 'string' ? sourceSnapshot.name.trim() : ''
+  const source = sourceId && sourceName ? { source_id: sourceId, name: sourceName } : undefined
   const systemVersion = typeof snapshot.system_version === 'string' ? snapshot.system_version : '未记录'
   const configHash = typeof snapshot.config_sha256 === 'string' ? snapshot.config_sha256 : '未记录'
   const sourceHash = typeof sourceSnapshot.sha256 === 'string' ? sourceSnapshot.sha256 : '未记录'
@@ -218,7 +222,8 @@ function RunDetailPanel({ detail }: { detail: StoredRunDetail }) {
       <div className="history-config-facts" aria-label="生效配置">
         <div><span>协作流程</span><strong>{run.context.workflow_id}</strong></div>
         <div><span>方法</span><strong>{run.context.method_id}</strong></div>
-        <div><span>知识源</span><strong>{run.context.source_id ?? '未记录'}</strong></div>
+        <div><span>知识源</span><strong>{sourceName || sourceId || '未记录'}</strong></div>
+        {sourceId ? <div><span>知识源 ID</span><code>{sourceId}</code></div> : null}
         {typeof sourceSnapshot.version === 'number' ? <div><span>知识源版本</span><strong>{sourceSnapshot.version}</strong></div> : null}
         {run.context.record_id ? <div><span>材料记录</span><strong>{run.context.record_id}</strong></div> : null}
         <div><span>系统配置版本</span><strong>{systemVersion}</strong></div>
@@ -257,7 +262,7 @@ function RunDetailPanel({ detail }: { detail: StoredRunDetail }) {
         ) : null}
       </section>
       <RunTimeline events={events} />
-      <RunEvidence result={result} />
+      <RunEvidence result={result} source={source} />
     </article>
   )
 }

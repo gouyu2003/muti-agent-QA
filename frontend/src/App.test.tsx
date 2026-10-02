@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { getRunDetail, getRuns, getRunStats, getSystemInfo, getSystemOptions, streamQuestion } from './api'
@@ -152,6 +152,9 @@ describe('App', () => {
     expect(screen.getByText('a'.repeat(64))).toBeInTheDocument()
     expect(screen.getByText('b'.repeat(64))).toBeInTheDocument()
     expect(screen.getByText('fixture_001')).toBeInTheDocument()
+    const configuration = within(screen.getByLabelText('生效配置'))
+    expect(configuration.getByText('知识源').parentElement).toHaveTextContent('hotpotqa_fixture')
+    expect(configuration.getByText('知识源 ID').parentElement).toHaveTextContent('hotpotqa_fixture')
     expect(screen.getByText(/Evidence text/)).toBeInTheDocument()
     expect(screen.getByText(/结束运行 · verified/)).toBeInTheDocument()
     expect(screen.getAllByText('100.0%')).toHaveLength(2)
@@ -238,6 +241,41 @@ describe('App', () => {
     finish?.()
   })
 
+  it('uses the archived source name for document details and evidence instead of current options', async () => {
+    const run: StoredRunRecord = {
+      ...archivedRun,
+      context: {
+        ...archivedRun.context, source_id: 'user_notes', record_id: null,
+        config_snapshot: { source: { source_id: 'user_notes', name: '阶段3测试—Aurora Institute', version: 1 } },
+      },
+      final_state: {
+        ...archivedRun.final_state,
+        supporting_evidence: [{ sq_id: 'sq_1', source_id: 'user_notes', source_version: 1,
+          source_title: 'notes.md', filename: 'notes.md', chunk_id: 'chunk-1',
+          line_start: 8, line_end: 10, text: 'Elena Brooks founded Aurora Institute.' }],
+      },
+    }
+    vi.mocked(getRuns).mockResolvedValue({ items: [run], total: 1, limit: 10, offset: 0 })
+    vi.mocked(getRunDetail).mockResolvedValue({ ...archivedDetail, run })
+    vi.mocked(getSystemOptions).mockResolvedValue({ ...systemOptions, sources: [...systemOptions.sources, {
+      source_id: 'user_notes', name: 'Renamed current source', source_type: 'document_corpus', is_demo: false,
+      record_id: null, question_type: null, level: null, context_count: null,
+      supporting_fact_count: null, example_question: null,
+    }] })
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /运行历史/ }))
+    await screen.findByText('Elena Brooks founded Aurora Institute.')
+
+    const configuration = within(screen.getByLabelText('生效配置'))
+    expect(configuration.getByText('知识源').parentElement).toHaveTextContent('阶段3测试—Aurora Institute')
+    expect(configuration.getByText('知识源 ID').parentElement).toHaveTextContent('user_notes')
+    expect(configuration.getByText('知识源版本').parentElement).toHaveTextContent('1')
+    const evidence = within(screen.getByLabelText('运行证据'))
+    expect(evidence.getByTitle('知识源 ID：user_notes')).toHaveTextContent('阶段3测试—Aurora Institute')
+    expect(evidence.getByText(/第 8–10 行/)).toHaveTextContent('版本 1 · notes.md')
+    expect(screen.queryByText('Renamed current source')).not.toBeInTheDocument()
+  })
+
   it('sends an explicitly selected document version and shows document counts', async () => {
     vi.mocked(getSystemOptions).mockResolvedValue({ ...systemOptions, sources: [...systemOptions.sources, {
       source_id: 'user_notes', name: 'User notes', source_type: 'document_corpus', is_demo: false,
@@ -245,6 +283,15 @@ describe('App', () => {
       example_question: null, version: 2, versions: [2, 1], file_count: 2, chunk_count: 4,
       version_details: [{ version: 1, file_count: 1, chunk_count: 3 }, { version: 2, file_count: 2, chunk_count: 4 }],
     }] })
+    vi.mocked(streamQuestion).mockImplementation(async (_question, onEvent) => {
+      onEvent({ type: 'run_completed', run_id: 'doc-run', timestamp: 'now', payload: {
+        duration_ms: 1000, result: { answer: 'Document answer', verified: true,
+          supporting_evidence: [{ sq_id: 'sq_1', source_id: 'user_notes', source_version: 1,
+            filename: 'notes.md', source_title: 'notes.md', chunk_id: 'doc-chunk',
+            line_start: 1, line_end: 2, text: 'Original document evidence.' }],
+        },
+      } })
+    })
     render(<App />)
     await screen.findByText('服务正常')
     fireEvent.mouseDown(screen.getByRole('combobox', { name: '知识源' }))
@@ -256,5 +303,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
     expect(streamQuestion).toHaveBeenCalledWith('A multi-hop question?', expect.any(Function), expect.any(AbortSignal),
       { workflowId: 'multi_hop_qa_v0', sourceId: 'user_notes', sourceVersion: 1 })
+    expect(await screen.findByTitle('知识源 ID：user_notes')).toHaveTextContent('User notes')
+    expect(screen.getByText(/第 1–2 行/)).toHaveTextContent('版本 1 · notes.md')
   })
 })

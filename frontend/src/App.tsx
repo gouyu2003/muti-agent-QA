@@ -322,7 +322,7 @@ function ExecutionTrace({ steps }: { steps: TraceStep[] }) {
   )
 }
 
-function EvidenceLedger({ groups }: { groups: EvidenceGroup[] }) {
+function EvidenceLedger({ groups, source }: { groups: EvidenceGroup[]; source?: SourceOption }) {
   if (!groups.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无检索证据" />
 
   return (
@@ -349,7 +349,7 @@ function EvidenceLedger({ groups }: { groups: EvidenceGroup[] }) {
                     <Tag variant="filled">score {chunk.relevance_score.toFixed(2)}</Tag>
                   </Tooltip>
                 </div>
-                <EvidenceLocation evidence={chunk} />
+                <EvidenceLocation evidence={chunk} source={source} />
                 <p>{chunk.text}</p>
               </article>
             ))}
@@ -360,7 +360,7 @@ function EvidenceLedger({ groups }: { groups: EvidenceGroup[] }) {
   )
 }
 
-function ResultPanel({ result, durationMs }: { result?: RunResult; durationMs?: number }) {
+function ResultPanel({ result, durationMs, source }: { result?: RunResult; durationMs?: number; source?: SourceOption }) {
   if (!result) {
     return (
       <div className="result-empty">
@@ -400,11 +400,11 @@ function ResultPanel({ result, durationMs }: { result?: RunResult; durationMs?: 
         </div>
         <Tag>{result.evidence_chunks?.reduce((sum, group) => sum + group.chunks.length, 0) ?? 0} 条</Tag>
       </div>
-      <EvidenceLedger groups={result.evidence_chunks ?? []} />
+      <EvidenceLedger groups={result.evidence_chunks ?? []} source={source} />
       {result.supporting_evidence?.length ? <section className="supporting-evidence">
         <h3>最终支撑证据</h3>
         {result.supporting_evidence.map((evidence, index) => <article key={`${evidence.sq_id}-${evidence.chunk_id ?? index}-${index}`}>
-          <strong>{evidence.source_title}</strong><EvidenceLocation evidence={evidence} /><p>{evidence.text}</p>
+          <strong>{evidence.source_title}</strong><EvidenceLocation evidence={evidence} source={source} /><p>{evidence.text}</p>
         </article>)}
       </section> : null}
     </div>
@@ -768,7 +768,7 @@ export default function App() {
                   </Tag>
                 ) : null}
               </div>
-              <ResultPanel result={run.result} durationMs={run.durationMs} />
+              <ResultPanel result={run.result} durationMs={run.durationMs} source={shownSource} />
             </Card>
           </div>
         </div>
