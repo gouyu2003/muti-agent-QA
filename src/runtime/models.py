@@ -46,6 +46,15 @@ class RunContext(RuntimeModel):
     protocol_id: str = Field(min_length=1)
     code_version: str = Field(min_length=1)
     config_snapshot: dict[str, Any] = Field(default_factory=dict)
+    experiment_id: str | None = None
+    sample_id: str | None = None
+
+    @model_validator(mode="after")
+    def snapshot_experiment_metadata(self) -> "RunContext":
+        if self.experiment_id is not None or self.sample_id is not None:
+            self.config_snapshot = {**self.config_snapshot, "_run_metadata": {
+                "experiment_id": self.experiment_id, "sample_id": self.sample_id}}
+        return self
 
 
 class RunError(RuntimeModel):

@@ -249,12 +249,12 @@ def test_fastapi_endpoint_uses_run_service_and_persists_run(api_client):
     assert detail.run.context.record_id is not None
 
 
-def test_api_context_snapshots_current_v0_configuration():
+def test_api_context_snapshots_current_v1_configuration_with_compatible_workflow_id():
     context = build_api_run_context("Q", run_id="fixed-run-id")
 
     assert context.run_id == "fixed-run-id"
     assert context.entrypoint == "api"
-    assert context.method_id == "multi_agent_adaptive_v0"
+    assert context.method_id == "multi_agent_adaptive_v1"
     assert context.workflow_id == "multi_hop_qa_v0"
     assert context.protocol_id == "multi_hop_qa_v0"
     assert context.source_id == "hotpotqa_fixture"

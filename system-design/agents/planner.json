@@ -1,22 +1,19 @@
 {
   "agent_id": "planner_v0",
   "agent_name": "规划智能体",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "role": "planner",
   "domain": "multi_hop_qa",
   "description": "接收用户的复杂问题，分析问题结构，将其拆解为若干个可独立检索的子问题，并制定检索策略。同时在验证阶段发现证据冲突时，负责重新规划问题分解路径。",
-
   "reasoning_method": "cot",
-
   "knowledge_sources": [
     {
       "source_id": "none",
       "source_type": "none",
       "path_or_endpoint": "",
-      "description": "规划智能体不直接访问外部知识源，仅依赖 LLM 内部知识进行问题分解"
+      "description": "仅依据原问题规划检索任务，不把模型内部知识当成事实来源"
     }
   ],
-
   "tools": [
     {
       "tool_id": "question_decomposer",
@@ -24,14 +21,12 @@
       "description": "将复杂问题分解为若干子问题列表的辅助函数（V0 使用 LLM 提示词直接生成）"
     }
   ],
-
   "model_config": {
     "model_name": "deepseek-v4.1-flash",
     "temperature": 0.3,
     "max_tokens": 2048,
-    "system_prompt": "你是一个专业的问题分析与规划智能体。给定一个复杂的多跳问答问题，你的任务是：\n1. 分析该问题需要哪些知识点才能回答；\n2. 将问题拆解为 2-4 个可以独立检索的子问题，每个子问题应聚焦单一事实；\n3. 为每个子问题给出简要的检索关键词建议；\n4. 判断各子问题之间的依赖关系（是否有先后顺序）。\n请以结构化 JSON 格式输出结果。"
+    "system_prompt": "你是一个问题分析与规划智能体。围绕原始问题制定最少且必要的检索步骤：简单事实问题允许直接使用原问题作为唯一子问题；复杂问题可拆为 1-4 个子问题，不为凑数量扩写。子问题应核实单一事实，提供检索关键词和 depends_on 依赖。未知的人物、机构或中间实体必须通过检索确定，用关系描述保留未知项，禁止把模型猜测的实体和关系当作已知事实。实体身份、时间和关系方向必须与原问题一致。返回结构化 JSON。"
   },
-
   "neighbor_agents": [
     {
       "agent_id": "retriever_v0",
@@ -46,7 +41,6 @@
       "description": "当验证智能体检测到证据冲突时，会触发条件路由，将控制权返回规划智能体进行重规划"
     }
   ],
-
   "input_schema": {
     "question": {
       "type": "string",
@@ -71,17 +65,34 @@
       "default": 0
     }
   },
-
   "output_schema": {
     "sub_questions": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "id": { "type": "string", "description": "子问题编号，如 sq_1" },
-          "question": { "type": "string", "description": "子问题文本" },
-          "keywords": { "type": "array", "items": { "type": "string" }, "description": "检索关键词" },
-          "depends_on": { "type": "array", "items": { "type": "string" }, "description": "依赖的先行子问题 ID，空表示无依赖" }
+          "id": {
+            "type": "string",
+            "description": "子问题编号，如 sq_1"
+          },
+          "question": {
+            "type": "string",
+            "description": "子问题文本"
+          },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "检索关键词"
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "依赖的先行子问题 ID，空表示无依赖"
+          }
         }
       },
       "description": "拆解后的子问题列表，供 Retriever 使用"
@@ -89,14 +100,16 @@
     "retrieval_strategy": {
       "type": "string",
       "description": "检索策略说明，如 sequential（顺序检索）或 parallel（并行检索）",
-      "enum": ["sequential", "parallel"]
+      "enum": [
+        "sequential",
+        "parallel"
+      ]
     },
     "plan_retry_count": {
       "type": "integer",
       "description": "更新后的重规划次数"
     }
   },
-
   "failure_handling": {
     "max_retries": 2,
     "on_failure": "terminate",

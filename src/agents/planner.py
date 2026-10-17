@@ -90,6 +90,22 @@ def parse_plan(raw: str, fallback_question: str = "") -> dict[str, Any]:
             {"id": "sq_1", "question": fallback, "keywords": [], "depends_on": []}
         ]
 
+    ids = [sq['id'] for sq in sub_questions]
+    invalid = (len(sub_questions) > 4 or len(set(ids)) != len(ids)
+               or any(dep not in ids for sq in sub_questions for dep in sq['depends_on']))
+    placed: set[str] = set()
+    while not invalid and len(placed) < len(sub_questions):
+        ready = {sq['id'] for sq in sub_questions if set(sq['depends_on']) <= placed}
+        if not ready - placed:
+            invalid = True
+            break
+        placed |= ready
+    if invalid:
+        if not fallback_question.strip():
+            raise ValueError('Planner 输出的子问题或依赖关系无效')
+        sub_questions = [{'id': 'sq_1', 'question': fallback_question.strip(),
+                          'keywords': [], 'depends_on': []}]
+
     strategy = as_str(data, "retrieval_strategy", "sequential").strip().lower()
     if strategy not in ALLOWED_STRATEGIES:
         strategy = "sequential"
@@ -111,7 +127,10 @@ def planner_fn(
     prompt = build_prompt(state, config["model_config"]["system_prompt"])
     max_retries = config.get("failure_handling", {}).get("max_retries", 2)
     raw = invoke_text(chat, prompt, max_retries, usage_collector)
-    plan = parse_plan(raw, state.get("question", ""))
+    try:
+        plan = parse_plan(raw, state.get("question", ""))
+    except ValueError:
+        plan = parse_plan('', state.get('question', ''))
 
     retry_count = int(state.get("plan_retry_count", 0))
     if state.get("conflict_flag"):
@@ -124,4 +143,6 @@ def planner_fn(
         "conflict_flag": False,
         "conflict_note": "",
         "conflict_pairs": [],
+        "retrieval_supplement_request": None,
+        "insufficient_sq_ids": [],
     }

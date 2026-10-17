@@ -11,17 +11,21 @@ from typing import Any, Callable
 from src.config_loader import REQUIRED_AGENT_FIELDS, load_json, validate_required_fields
 from src.knowledge.bm25_retriever import BM25Retriever
 from src.knowledge.hotpotqa_loader import load_fixture
+from src.knowledge.hotpotqa_context import load_context
 from src.knowledge.corpus import load_corpus, corpus_retriever
 from src.knowledge.store import KnowledgeStore, retriever_from_corpus_snapshot
 from src.runtime.specs import AgentSpec, KnowledgeSourceSpec, WorkflowSpec
+from src.agents.retriever import configured_top_k
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CATALOG_PATH = PROJECT_ROOT / "system-design" / "systems" / "default.json"
 SOURCE_LOADERS: dict[str, Callable[[Path], dict[str, Any]]] = {
+    "hotpotqa_context": load_context,
     "hotpotqa_record": load_fixture,
     "document_corpus": load_corpus,
 }
 RETRIEVER_FACTORIES: dict[str, Callable[[dict[str, Any], str], BM25Retriever]] = {
+    "hotpotqa_context": lambda record, source_id: BM25Retriever(record, source_id=source_id),
     "hotpotqa_record": lambda record, source_id: BM25Retriever(record, source_id=source_id),
     "document_corpus": corpus_retriever,
 }
@@ -195,6 +199,7 @@ def resolve_system(
     for agent in agents.values():
         if agent.agent_id != registered_ids[agent.agent_type]:
             raise ValueError(f"未注册的智能体节点: {agent.agent_id}")
+    configured_top_k(agents["retriever_v0"].config)
     bindings = agents["retriever_v0"].config["knowledge_sources"]
     if not isinstance(bindings, list) or not all(isinstance(item, dict) for item in bindings):
         raise ValueError("retriever_v0.knowledge_sources 必须是对象列表")

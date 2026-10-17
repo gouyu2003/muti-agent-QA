@@ -136,7 +136,7 @@ export interface EvidenceChunk extends EvidenceLocation {
 export interface EvidenceGroup {
   sq_id: string
   chunks: EvidenceChunk[]
-  sufficiency: 'sufficient' | 'insufficient'
+  sufficiency: 'sufficient' | 'insufficient' | 'unknown'
   insufficiency_note: string
 }
 
@@ -144,6 +144,7 @@ export interface SupportingEvidence extends EvidenceLocation {
   sq_id: string
   text: string
   source_title: string
+  source_paragraph?: number
   source_id?: string
 }
 
@@ -218,6 +219,8 @@ export interface StoredRunRecord {
     protocol_id: string
     code_version: string
     config_snapshot: Record<string, unknown>
+    experiment_id?: string | null
+    sample_id?: string | null
   }
   status: StoredRunStatus
   started_at: string

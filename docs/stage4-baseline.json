@@ -1,0 +1,908 @@
+{
+  "base_commit": "1418c18a38e98dc674a0ff79fa942bdb8a131a3b",
+  "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:0c10706efd11b9eb552d8d498cfb1e3805b1019f0eb294c91630e460a3ec8dd2",
+  "snapshot": {
+    "schema_version": "1",
+    "config_sha256": "0dbba90d08b1f9c70694b04917f0175be8b73fc0eefcb508de84aa77ffcd274b",
+    "system_id": "multi_agent_qa_demo",
+    "system_version": "0.2.0",
+    "agents": {
+      "planner_v0": {
+        "agent_id": "planner_v0",
+        "agent_name": "规划智能体",
+        "version": "0.1.0",
+        "role": "planner",
+        "domain": "multi_hop_qa",
+        "description": "接收用户的复杂问题，分析问题结构，将其拆解为若干个可独立检索的子问题，并制定检索策略。同时在验证阶段发现证据冲突时，负责重新规划问题分解路径。",
+        "reasoning_method": "cot",
+        "knowledge_sources": [
+          {
+            "source_id": "none",
+            "source_type": "none",
+            "path_or_endpoint": "",
+            "description": "规划智能体不直接访问外部知识源，仅依赖 LLM 内部知识进行问题分解"
+          }
+        ],
+        "tools": [
+          {
+            "tool_id": "question_decomposer",
+            "tool_type": "python_fn",
+            "description": "将复杂问题分解为若干子问题列表的辅助函数（V0 使用 LLM 提示词直接生成）"
+          }
+        ],
+        "model_config": {
+          "model_name": "deepseek-v4.1-flash",
+          "temperature": 0.3,
+          "max_tokens": 2048,
+          "system_prompt": "你是一个专业的问题分析与规划智能体。给定一个复杂的多跳问答问题，你的任务是：\n1. 分析该问题需要哪些知识点才能回答；\n2. 将问题拆解为 2-4 个可以独立检索的子问题，每个子问题应聚焦单一事实；\n3. 为每个子问题给出简要的检索关键词建议；\n4. 判断各子问题之间的依赖关系（是否有先后顺序）。\n请以结构化 JSON 格式输出结果。"
+        },
+        "neighbor_agents": [
+          {
+            "agent_id": "retriever_v0",
+            "relationship": "downstream",
+            "communication": "shared_state",
+            "description": "规划完成后，将子问题列表写入共享状态，Retriever 读取并执行检索"
+          },
+          {
+            "agent_id": "answer_validator_v0",
+            "relationship": "downstream",
+            "communication": "shared_state",
+            "description": "当验证智能体检测到证据冲突时，会触发条件路由，将控制权返回规划智能体进行重规划"
+          }
+        ],
+        "input_schema": {
+          "question": {
+            "type": "string",
+            "description": "用户输入的原始问题",
+            "required": true
+          },
+          "conflict_flag": {
+            "type": "boolean",
+            "description": "来自 Answer-Validator 的冲突标记；若为 true，规划智能体需重新分解问题",
+            "required": false,
+            "default": false
+          },
+          "conflict_note": {
+            "type": "string",
+            "description": "Answer-Validator 对冲突内容的说明，帮助规划智能体调整分解策略",
+            "required": false
+          },
+          "plan_retry_count": {
+            "type": "integer",
+            "description": "当前重规划次数，防止无限循环",
+            "required": false,
+            "default": 0
+          }
+        },
+        "output_schema": {
+          "sub_questions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "子问题编号，如 sq_1"
+                },
+                "question": {
+                  "type": "string",
+                  "description": "子问题文本"
+                },
+                "keywords": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "检索关键词"
+                },
+                "depends_on": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "依赖的先行子问题 ID，空表示无依赖"
+                }
+              }
+            },
+            "description": "拆解后的子问题列表，供 Retriever 使用"
+          },
+          "retrieval_strategy": {
+            "type": "string",
+            "description": "检索策略说明，如 sequential（顺序检索）或 parallel（并行检索）",
+            "enum": [
+              "sequential",
+              "parallel"
+            ]
+          },
+          "plan_retry_count": {
+            "type": "integer",
+            "description": "更新后的重规划次数"
+          }
+        },
+        "failure_handling": {
+          "max_retries": 2,
+          "on_failure": "terminate",
+          "fallback_message": "规划智能体无法分解该问题，请检查输入问题的格式或长度。"
+        }
+      },
+      "retriever_v0": {
+        "agent_id": "retriever_v0",
+        "agent_name": "检索与证据智能体",
+        "version": "0.1.0",
+        "role": "retriever",
+        "domain": "multi_hop_qa",
+        "description": "接收规划智能体拆解的子问题列表，对每个子问题独立执行检索，返回相关的证据片段（文本段落）。支持顺序检索和并行检索两种策略。当验证智能体判断证据不足时，可针对指定子问题重新检索或扩展关键词补充检索。",
+        "reasoning_method": "rag",
+        "knowledge_sources": [
+          {
+            "source_id": "hotpotqa_fixture",
+            "source_type": "hotpotqa_record",
+            "path_or_endpoint": "data/hotpotqa/fixture_001.json",
+            "description": "V0 使用的单条 HotpotQA 本地记录"
+          },
+          {
+            "source_id": "demo_fixture_002",
+            "source_type": "hotpotqa_record",
+            "path_or_endpoint": "data/hotpotqa/demo_fixture_002.json",
+            "description": "阶段 2 用于测试知识源切换的独立演示材料"
+          }
+        ],
+        "tools": [
+          {
+            "tool_id": "bm25_retriever",
+            "tool_type": "python_fn",
+            "description": "基于 BM25 的关键词检索工具，从本地文档集中返回 top-k 段落"
+          },
+          {
+            "tool_id": "dense_retriever",
+            "tool_type": "python_fn",
+            "description": "基于向量嵌入的语义检索工具（需要 FAISS 索引），与 BM25 可组合使用"
+          }
+        ],
+        "model_config": {
+          "model_name": "deepseek-v4.1-flash",
+          "temperature": 0.1,
+          "max_tokens": 512,
+          "system_prompt": "你是一个专业的证据检索智能体。给定一个子问题，你的任务是：\n1. 从提供的检索结果中筛选出与该子问题最相关的段落（最多 3 段）；\n2. 对每段证据标注其来源文档标题和段落编号；\n3. 评估该证据是否足以回答子问题（sufficient / insufficient）；\n4. 若不足，简述缺少什么信息。\n请以结构化 JSON 格式输出。"
+        },
+        "neighbor_agents": [
+          {
+            "agent_id": "planner_v0",
+            "relationship": "upstream",
+            "communication": "shared_state",
+            "description": "从共享状态读取 Planner 产生的子问题列表和检索策略"
+          },
+          {
+            "agent_id": "answer_validator_v0",
+            "relationship": "downstream",
+            "communication": "shared_state",
+            "description": "将检索到的证据片段写入共享状态，供 Answer-Validator 使用"
+          }
+        ],
+        "input_schema": {
+          "sub_questions": {
+            "type": "array",
+            "description": "来自 Planner 的子问题列表（含关键词和依赖关系）",
+            "required": true
+          },
+          "retrieval_strategy": {
+            "type": "string",
+            "description": "检索策略：sequential 或 parallel",
+            "required": true
+          },
+          "retrieval_supplement_request": {
+            "type": "object",
+            "description": "来自 Answer-Validator 的补充检索请求（证据不足时触发）",
+            "required": false,
+            "properties": {
+              "target_sq_id": {
+                "type": "string",
+                "description": "需要补充检索的子问题 ID"
+              },
+              "additional_keywords": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          "retrieval_retry_count": {
+            "type": "integer",
+            "description": "当前补充检索次数，防止无限循环",
+            "required": false,
+            "default": 0
+          }
+        },
+        "output_schema": {
+          "evidence_chunks": {
+            "type": "array",
+            "description": "每个子问题对应的证据片段列表",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sq_id": {
+                  "type": "string",
+                  "description": "对应的子问题编号"
+                },
+                "chunks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "text": {
+                        "type": "string",
+                        "description": "证据段落文本"
+                      },
+                      "source_title": {
+                        "type": "string",
+                        "description": "来源文档标题"
+                      },
+                      "source_paragraph": {
+                        "type": "integer",
+                        "description": "段落编号"
+                      },
+                      "relevance_score": {
+                        "type": "number",
+                        "description": "相关性得分 0-1"
+                      }
+                    }
+                  }
+                },
+                "sufficiency": {
+                  "type": "string",
+                  "enum": [
+                    "sufficient",
+                    "insufficient"
+                  ],
+                  "description": "检索智能体对证据充分性的自评"
+                },
+                "insufficiency_note": {
+                  "type": "string",
+                  "description": "若 insufficient，说明缺少哪方面信息"
+                }
+              }
+            }
+          },
+          "retrieval_retry_count": {
+            "type": "integer",
+            "description": "更新后的补充检索次数"
+          }
+        },
+        "failure_handling": {
+          "max_retries": 3,
+          "on_failure": "answer_validator_v0",
+          "fallback_message": "检索失败或超过最大重试次数，将使用已有证据（可能不完整）继续生成答案。"
+        }
+      },
+      "answer_validator_v0": {
+        "agent_id": "answer_validator_v0",
+        "agent_name": "回答与验证智能体",
+        "version": "0.1.0",
+        "role": "answer_validator",
+        "domain": "multi_hop_qa",
+        "description": "综合规划智能体的子问题列表和检索智能体的证据片段，生成最终答案。同时负责证据充分性检查（是否有子问题缺乏证据支撑）和证据冲突检测（多个证据之间是否相互矛盾）。验证通过则输出最终结果；证据不足则触发补充检索；证据冲突则触发重规划。",
+        "reasoning_method": "cot",
+        "knowledge_sources": [
+          {
+            "source_id": "none",
+            "source_type": "none",
+            "path_or_endpoint": "",
+            "description": "Answer-Validator 不直接访问外部知识库，所有推理基于 Retriever 提供的证据片段"
+          }
+        ],
+        "tools": [
+          {
+            "tool_id": "evidence_checker",
+            "tool_type": "python_fn",
+            "description": "辅助函数：检查每个子问题是否有对应的充分证据（sufficient），返回缺失列表"
+          },
+          {
+            "tool_id": "conflict_detector",
+            "tool_type": "python_fn",
+            "description": "辅助函数：检测不同来源的证据片段之间是否存在事实矛盾，返回冲突对列表"
+          }
+        ],
+        "model_config": {
+          "model_name": "deepseek-v4.1-flash",
+          "temperature": 0.2,
+          "max_tokens": 4096,
+          "system_prompt": "你是一个专业的问答与证据验证智能体。给定一个复杂问题、其子问题列表以及每个子问题对应的证据片段，你的任务是：\n1. 综合所有证据，生成对原始问题的完整答案；答案务必简明，控制在 30 个英文单词以内，只给结论不展开论述，避免输出过长被截断；\n2. 检查每个子问题的证据是否充分（是否能回答该子问题）；\n3. 检查不同来源的证据之间是否存在事实冲突；\n4. 给出验证结论：\n   - verified=true：证据充分且无冲突，答案可信；\n   - verified=false + insufficient：证据不足，需要补充检索；\n   - verified=false + conflict：证据存在冲突，需要重新规划。\n请以结构化 JSON 格式输出答案和验证结论。"
+        },
+        "neighbor_agents": [
+          {
+            "agent_id": "retriever_v0",
+            "relationship": "upstream",
+            "communication": "shared_state",
+            "description": "从共享状态读取 Retriever 产生的证据片段列表"
+          },
+          {
+            "agent_id": "planner_v0",
+            "relationship": "upstream",
+            "communication": "shared_state",
+            "description": "从共享状态读取 Planner 产生的子问题列表，用于对应证据"
+          },
+          {
+            "agent_id": "retriever_v0",
+            "relationship": "downstream",
+            "communication": "shared_state",
+            "description": "证据不足时，向共享状态写入补充检索请求，触发 Retriever 重新检索"
+          },
+          {
+            "agent_id": "planner_v0",
+            "relationship": "downstream",
+            "communication": "shared_state",
+            "description": "证据冲突时，向共享状态写入冲突标记，触发 Planner 重新规划"
+          }
+        ],
+        "input_schema": {
+          "question": {
+            "type": "string",
+            "description": "用户输入的原始问题",
+            "required": true
+          },
+          "sub_questions": {
+            "type": "array",
+            "description": "来自 Planner 的子问题列表",
+            "required": true
+          },
+          "evidence_chunks": {
+            "type": "array",
+            "description": "来自 Retriever 的证据片段列表（按子问题分组）",
+            "required": true
+          },
+          "validation_retry_count": {
+            "type": "integer",
+            "description": "当前验证循环次数，防止无限循环",
+            "required": false,
+            "default": 0
+          }
+        },
+        "output_schema": {
+          "answer": {
+            "type": "string",
+            "description": "综合所有证据生成的最终答案"
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "验证是否通过：true 表示证据充分且无冲突，可直接输出"
+          },
+          "failure_type": {
+            "type": "string",
+            "enum": [
+              "none",
+              "insufficient",
+              "conflict"
+            ],
+            "description": "验证失败的类型：none（通过）/ insufficient（证据不足）/ conflict（证据冲突）"
+          },
+          "insufficient_sq_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "证据不足的子问题 ID 列表，触发 Retriever 补充检索时使用"
+          },
+          "retrieval_supplement_request": {
+            "type": "object",
+            "description": "向 Retriever 发出的补充检索请求（failure_type=insufficient 时写入）",
+            "properties": {
+              "target_sq_id": {
+                "type": "string"
+              },
+              "additional_keywords": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          "conflict_flag": {
+            "type": "boolean",
+            "description": "证据冲突标记，failure_type=conflict 时为 true，触发 Planner 重规划"
+          },
+          "conflict_note": {
+            "type": "string",
+            "description": "冲突内容说明，帮助 Planner 调整问题分解策略"
+          },
+          "conflict_pairs": {
+            "type": "array",
+            "description": "具体冲突的证据对",
+            "items": {
+              "type": "object",
+              "properties": {
+                "chunk_a": {
+                  "type": "string",
+                  "description": "证据片段 A 的来源标识"
+                },
+                "chunk_b": {
+                  "type": "string",
+                  "description": "证据片段 B 的来源标识"
+                },
+                "conflict_description": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "verification_note": {
+            "type": "string",
+            "description": "验证过程的完整说明，输出到最终结果"
+          },
+          "supporting_evidence": {
+            "type": "array",
+            "description": "最终答案所依赖的证据片段（仅 verified=true 时有效）",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sq_id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "source_title": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "validation_retry_count": {
+            "type": "integer",
+            "description": "更新后的验证循环次数"
+          }
+        },
+        "failure_handling": {
+          "max_retries": 2,
+          "on_failure": "terminate",
+          "fallback_message": "验证智能体无法完成验证，超过最大重试次数。将输出当前最佳答案（可能不完整）。"
+        }
+      }
+    },
+    "agent_types": {
+      "planner_v0": "planner",
+      "retriever_v0": "retriever",
+      "answer_validator_v0": "answer_validator"
+    },
+    "protocol": {
+      "protocol_id": "multi_hop_qa_v0",
+      "method_id": "multi_agent_adaptive_v0",
+      "protocol_name": "复杂多跳问答协同协议",
+      "version": "0.1.0",
+      "domain": "multi_hop_qa",
+      "description": "定义 Planner、Retriever、Answer-Validator 三个智能体在复杂多跳问答任务中的协同顺序、状态跳转规则、信息传递格式和失败处理策略。",
+      "agents": [
+        "planner_v0",
+        "retriever_v0",
+        "answer_validator_v0"
+      ],
+      "entry_node": "planner_v0",
+      "shared_state_fields": {
+        "question": {
+          "type": "str",
+          "writer": "system",
+          "readers": [
+            "planner_v0",
+            "answer_validator_v0"
+          ]
+        },
+        "sub_questions": {
+          "type": "list",
+          "writer": "planner_v0",
+          "readers": [
+            "retriever_v0",
+            "answer_validator_v0"
+          ]
+        },
+        "retrieval_strategy": {
+          "type": "str",
+          "writer": "planner_v0",
+          "readers": [
+            "retriever_v0"
+          ]
+        },
+        "plan_retry_count": {
+          "type": "int",
+          "writer": "planner_v0",
+          "readers": [
+            "planner_v0",
+            "router"
+          ]
+        },
+        "evidence_chunks": {
+          "type": "list",
+          "writer": "retriever_v0",
+          "readers": [
+            "answer_validator_v0"
+          ]
+        },
+        "retrieval_retry_count": {
+          "type": "int",
+          "writer": "retriever_v0",
+          "readers": [
+            "retriever_v0",
+            "router"
+          ]
+        },
+        "retrieval_supplement_request": {
+          "type": "dict",
+          "writer": "answer_validator_v0",
+          "readers": [
+            "retriever_v0"
+          ]
+        },
+        "answer": {
+          "type": "str",
+          "writer": "answer_validator_v0",
+          "readers": [
+            "system_output"
+          ]
+        },
+        "verified": {
+          "type": "bool",
+          "writer": "answer_validator_v0",
+          "readers": [
+            "router"
+          ]
+        },
+        "failure_type": {
+          "type": "str",
+          "writer": "answer_validator_v0",
+          "readers": [
+            "router"
+          ]
+        },
+        "conflict_flag": {
+          "type": "bool",
+          "writer": "answer_validator_v0",
+          "readers": [
+            "planner_v0",
+            "router"
+          ]
+        },
+        "conflict_note": {
+          "type": "str",
+          "writer": "answer_validator_v0",
+          "readers": [
+            "planner_v0"
+          ]
+        },
+        "conflict_pairs": {
+          "type": "list",
+          "writer": "answer_validator_v0",
+          "readers": [
+            "planner_v0"
+          ]
+        },
+        "insufficient_sq_ids": {
+          "type": "list",
+          "writer": "answer_validator_v0",
+          "readers": [
+            "retriever_v0"
+          ]
+        },
+        "verification_note": {
+          "type": "str",
+          "writer": "answer_validator_v0",
+          "readers": [
+            "system_output"
+          ]
+        },
+        "supporting_evidence": {
+          "type": "list",
+          "writer": "answer_validator_v0",
+          "readers": [
+            "system_output"
+          ]
+        },
+        "validation_retry_count": {
+          "type": "int",
+          "writer": "answer_validator_v0",
+          "readers": [
+            "answer_validator_v0",
+            "router"
+          ]
+        }
+      },
+      "edges": [
+        {
+          "edge_id": "e1",
+          "from": "planner_v0",
+          "to": "retriever_v0",
+          "condition": "always",
+          "route_name": "always",
+          "description": "规划完成后，无条件进入检索节点"
+        },
+        {
+          "edge_id": "e2",
+          "from": "retriever_v0",
+          "to": "answer_validator_v0",
+          "condition": "always",
+          "route_name": "always",
+          "description": "检索完成后，无条件进入验证节点"
+        },
+        {
+          "edge_id": "e3_pass",
+          "from": "answer_validator_v0",
+          "to": "END",
+          "condition": "verified",
+          "route_name": "verified",
+          "description": "验证通过：证据充分且无冲突，输出最终结果"
+        },
+        {
+          "edge_id": "e3_insufficient",
+          "from": "answer_validator_v0",
+          "to": "retriever_v0",
+          "condition": "insufficient_retry (uses routing_rules.max_cycles.retrieval_retry_count)",
+          "route_name": "insufficient_retry",
+          "description": "证据不足且未到配置的重试上限：回到 Retriever"
+        },
+        {
+          "edge_id": "e3_conflict",
+          "from": "answer_validator_v0",
+          "to": "planner_v0",
+          "condition": "conflict_retry (uses routing_rules.max_cycles.plan_retry_count)",
+          "route_name": "conflict_retry",
+          "description": "证据冲突且未到配置的重试上限：回到 Planner"
+        },
+        {
+          "edge_id": "e3_max_retry",
+          "from": "answer_validator_v0",
+          "to": "END",
+          "condition": "fallback",
+          "route_name": "fallback",
+          "description": "超过最大重试次数：强制输出当前最佳答案（可能不完整）"
+        }
+      ],
+      "routing_rules": {
+        "final_answer_authority": "answer_validator_v0",
+        "parallel_nodes": [],
+        "parallel_note": "V0 所有节点串行执行；V1 扩展 Retriever 支持子问题并行检索",
+        "max_cycles": {
+          "retrieval_retry_count": 3,
+          "plan_retry_count": 2,
+          "validation_retry_count": 2
+        }
+      },
+      "message_schemas": {
+        "planner_to_retriever": {
+          "fields": [
+            "sub_questions",
+            "retrieval_strategy"
+          ],
+          "format": "shared_state"
+        },
+        "retriever_to_validator": {
+          "fields": [
+            "evidence_chunks",
+            "retrieval_retry_count"
+          ],
+          "format": "shared_state"
+        },
+        "validator_to_retriever": {
+          "fields": [
+            "retrieval_supplement_request",
+            "insufficient_sq_ids"
+          ],
+          "format": "shared_state",
+          "trigger": "failure_type == insufficient"
+        },
+        "validator_to_planner": {
+          "fields": [
+            "conflict_flag",
+            "conflict_note",
+            "conflict_pairs"
+          ],
+          "format": "shared_state",
+          "trigger": "failure_type == conflict"
+        },
+        "system_output": {
+          "fields": [
+            "answer",
+            "supporting_evidence",
+            "verification_note",
+            "verified"
+          ],
+          "format": "json",
+          "trigger": "verified == true OR max_retry_exceeded"
+        }
+      }
+    },
+    "workflow_spec": {
+      "protocol_id": "multi_hop_qa_v0",
+      "method_id": "multi_agent_adaptive_v0",
+      "agents": [
+        "planner_v0",
+        "retriever_v0",
+        "answer_validator_v0"
+      ],
+      "entry_node": "planner_v0",
+      "edges": [
+        {
+          "edge_id": "e1",
+          "from": "planner_v0",
+          "to": "retriever_v0",
+          "route_name": "always",
+          "condition": "always",
+          "description": "规划完成后，无条件进入检索节点"
+        },
+        {
+          "edge_id": "e2",
+          "from": "retriever_v0",
+          "to": "answer_validator_v0",
+          "route_name": "always",
+          "condition": "always",
+          "description": "检索完成后，无条件进入验证节点"
+        },
+        {
+          "edge_id": "e3_pass",
+          "from": "answer_validator_v0",
+          "to": "END",
+          "route_name": "verified",
+          "condition": "verified",
+          "description": "验证通过：证据充分且无冲突，输出最终结果"
+        },
+        {
+          "edge_id": "e3_insufficient",
+          "from": "answer_validator_v0",
+          "to": "retriever_v0",
+          "route_name": "insufficient_retry",
+          "condition": "insufficient_retry (uses routing_rules.max_cycles.retrieval_retry_count)",
+          "description": "证据不足且未到配置的重试上限：回到 Retriever"
+        },
+        {
+          "edge_id": "e3_conflict",
+          "from": "answer_validator_v0",
+          "to": "planner_v0",
+          "route_name": "conflict_retry",
+          "condition": "conflict_retry (uses routing_rules.max_cycles.plan_retry_count)",
+          "description": "证据冲突且未到配置的重试上限：回到 Planner"
+        },
+        {
+          "edge_id": "e3_max_retry",
+          "from": "answer_validator_v0",
+          "to": "END",
+          "route_name": "fallback",
+          "condition": "fallback",
+          "description": "超过最大重试次数：强制输出当前最佳答案（可能不完整）"
+        }
+      ],
+      "max_cycles": {
+        "retrieval_retry_count": 3,
+        "plan_retry_count": 2,
+        "validation_retry_count": 2
+      }
+    },
+    "source": {
+      "source_id": "hotpotqa_fixture",
+      "source_type": "hotpotqa_record",
+      "path": "../../data/hotpotqa/fixture_001.json",
+      "name": "HotpotQA",
+      "is_demo": false,
+      "resolved_path": "D:\\multi-agent\\muti-agent-QA\\data\\hotpotqa\\fixture_001.json",
+      "sha256": "42154b09316418fad57f27b4e950d1df1377adad8270f6a9833cbffaa57d57f7"
+    },
+    "dataset": {
+      "name": "HotpotQA",
+      "source_id": "hotpotqa_fixture",
+      "record_id": "5a8c7595554299585d9e36b6"
+    }
+  },
+  "archive_sha256": "8fe9aba1b2a8432064f235c0b794c02f750158c78b925a8eb16999f9b18f3ebe",
+  "files": {
+    ".env.example": "34a6d2ce39ae81caf76b490cbfd90c792ad7e4a65fe7c86fb40b7c292d9e6e22",
+    ".gitignore": "e8b9764faeaa37c71107e3c6347e3017c104cae31044d75dead127d7ba96edf3",
+    ".zcodeignore": "8f6d51b86e9147b11434a9949b5437672fa8c6d417f9e0ce6acf94dc2bfc5821",
+    "backend/__init__.py": "7749e3f1eb15a7a0dae116da8c4a594d326d60f8cfed0c4928a7ccac3d54ef9f",
+    "backend/app.py": "004a40f96962a95766211134a9ac4e93d8c1455497ca50db731a27d74815cb9a",
+    "backend/knowledge_api.py": "d0ba6f0ed82c818d10c99bfb1437e176a4d37d98b40541d25790f18ea241b238",
+    "backend/schemas.py": "de9513fdcd7c29c19b89161b6b24e1b389b95cf3f8ed400419162f528ba8e620",
+    "backend/streaming.py": "a0c2f0735c11938331aff31922a59889320d071366c1edac6cbf0b90f7665efb",
+    "data/examples/stage3/institute.txt": "168064b67944b3aeeb5587bf372a36437d7420a158c57347aacb8a09f375157f",
+    "data/examples/stage3/people.md": "8e004691dd41beef3bd3c821e8182b89685ebc0d2e0fa23cefcefb1135b9c62c",
+    "data/hotpotqa/demo_fixture_002.json": "c33156670054f7145de8d3af64549aa88a0f0be5324475e9b463423d68ab99cf",
+    "data/hotpotqa/fixture_001.json": "42154b09316418fad57f27b4e950d1df1377adad8270f6a9833cbffaa57d57f7",
+    "docs/stage3-live-results.json": "fc34b017db574e43475a06498f02a95f164046ed2e269012a2225ee3c556066d",
+    "docs/stage3-validation.md": "2a603dec8c952e73476098ad724f2f569ec38a20692f51ad5841f989967c4cab",
+    "frontend/index.html": "b58881c51a5eb212c9e1d73c319a4b147e0f7223a1e86f801e9d16fd1399e550",
+    "frontend/package-lock.json": "4def3182eb99ce0e51d4d06f8af85fa006587654bc1aab0e0d1dc7732b5473a2",
+    "frontend/package.json": "94abaecb9dfe72308c30f5cda65780d5ffcfc78a43247eb55edd5c798bbec634",
+    "frontend/src/api.test.ts": "2d3032246ab797ac2ffb9751a442492d1d2f36d56e942f8c0851beebffbe2837",
+    "frontend/src/api.ts": "f0b7a699ab90e3de33bf2d0d0b34d5d9ca4932e6ede02a97e24df095e014f652",
+    "frontend/src/App.test.tsx": "5c6f01beebf82558ccc60637aa3dc50eb0f2b718d1d95f008e2376bcde4284fc",
+    "frontend/src/App.tsx": "ce38a5bd749f24a165e74aa7bf4065f2f17d989f0b4638df4a72692c3183690f",
+    "frontend/src/EvidenceLocation.tsx": "3d08d1838e0218e55cfaffa2f22c7dcaf99bddd87058aaf922ca9734210228eb",
+    "frontend/src/HistoryView.tsx": "3dc6d5cbf0511b23514904fe6b1ab190669f058c18ea3beb01647fc13a559d39",
+    "frontend/src/KnowledgeView.test.tsx": "53c8efefb3140c8b1ca041c3f4c87f03e5deab2bae572004d06a063c7fc3f4f8",
+    "frontend/src/KnowledgeView.tsx": "c7a1c4f28f761dc6d2a90c2e95838f8f5d6892a60dc92b4395942ed285a9caa6",
+    "frontend/src/main.tsx": "c0928c589f260ca35cf64a924ebc6c706beac0c40a100d6f80571f64c16d019e",
+    "frontend/src/runState.test.ts": "3cc3828b8da2031835b78fb3a74302d8846a0945917b8e681b5eef54884707c1",
+    "frontend/src/runState.ts": "471da878727f338c8d050fc33556b25e9885329fbac108d5e1c1f3893612ebee",
+    "frontend/src/styles.css": "34461f9587c5042d067e8138a40e23a1c65322f53be393ba7533275e09fb758a",
+    "frontend/src/test/setup.ts": "e4058dc308f4f4a407edf7f976acd30f8e9a1e2d32a5a4f7260dd6297c5a8465",
+    "frontend/src/types.ts": "051bea98901c2ea11af20a89e238bf290223334db077c13c2659039dfeb3de17",
+    "frontend/src/vite-env.d.ts": "424faf9241dd699dda995b367ed36665732da1e6ec1f33b2fd40394488ecac92",
+    "frontend/tsconfig.app.json": "f2406e21a2835c9d3645b8b2ff257ee7ceb2e2373a13dc4802390ec0fa4675bf",
+    "frontend/tsconfig.json": "ad28d132ee48d6e23917cf5827cace785d0fc01a44ca68b0dda51cc8c3fd3f52",
+    "frontend/tsconfig.node.json": "1ae717960dd18546c9c460673c240733638da3a32771319808bb2ba0b3978021",
+    "frontend/vite.config.ts": "f45b59b214d9f90c51bbe0fe529045ee90feb5df13dd2bc288dc89408cbb7980",
+    "main.py": "fdbf6d07e599620bba8ae81c43d07e6f8fb7b92e8895c41c21e8c31977a2c5e6",
+    "pytest.ini": "545cc1bec51d8fca5e27caaf09cb19f4a8becad865b58a3f154c242ae06e4a7d",
+    "README.md": "fdab07a8eed03b985b37613d8ff5afc8165e3dcb6e1d10e6a09843107c826be7",
+    "requirements-api.txt": "cb29073575292ee44aac719270e1f7191b6992668a5cac55ba63fc226e7f2b0a",
+    "requirements.txt": "20e7f203c4e0543d054447aa856d25a4e92b4dd014d4cb2f51979f8576067987",
+    "src/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/agents/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/agents/answer_validator.py": "38a43f563f9a4cc09e29ad5f26306b8ea71e412eacba936f48e794add84d338b",
+    "src/agents/json_utils.py": "dc3956ff083561621f52be0561be734c767fdce31bc3955ae67e2f36dea18cd5",
+    "src/agents/llm_retry.py": "17d0c9e37e1c2b02bde680eb70e7596a783eb4349898b1ceb59e562505ee55be",
+    "src/agents/planner.py": "ce31d092b577fc66506c03c88d7a2f8937204fc9922a8c934ba19bb3104bf797",
+    "src/agents/retriever.py": "863d7edd4fd582a02c9bf1ee578964c897535229361e9c0f343e960bf69b7a5a",
+    "src/config_loader.py": "9d81c12ffe09d95c68df7baf061a791c64ced304fc30431e7a1904364ddf8cb8",
+    "src/evaluation/__init__.py": "1e8552fa6bb4b1aa5d2fab197f2800e7dd1152481ebbf65648dd9590557f0e3f",
+    "src/evaluation/batch.py": "cc5679dffd6e628db9d38b4497d042b1b019113023c9588857409e36c7971816",
+    "src/evaluation/hotpotqa.py": "ff6caea5c55f1946a91215d9c06e97fde092f1536bf974670ad4920912b4b0fe",
+    "src/evaluation/metrics.py": "7d046da9fd55e067546579a0038a1bb672145609b3a3c6b58255dd2622f73078",
+    "src/graph.py": "8d586dedf01cf5ba0c6ed6c5344b36e5e171ee8de6940156ac2a28cafc1393b4",
+    "src/knowledge/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/knowledge/bm25_retriever.py": "ece6df179cf26d63b4ccb647a57f8f0181bfb05e3f811ae4165c98c56d51ed07",
+    "src/knowledge/cli.py": "326e57e6cd11c50634949c619b690d5becedc2ec883189ad4af36c0ef028c022",
+    "src/knowledge/corpus.py": "6091de5a046cfedd8ca2400cd26d244d59d7749fc6dbbd2f1948a2085a310f7e",
+    "src/knowledge/hotpotqa_context.py": "b37977fbdd130ca19f45d4a2474cf7fe92172b181a80ca7883b9b43de5bfa863",
+    "src/knowledge/hotpotqa_loader.py": "60fd162eca6a7a967778cb28a542ae36427a5f4e27e16f328cd1f2f038aa4806",
+    "src/knowledge/store.py": "9cd451c7bbe80b32c1145f0f19af859cdcb5a338a1a7ccd9176de3394e7f2b61",
+    "src/llm.py": "fc42c8dac5f997d1966643cd079535a5f50f101e18df776e4cbe9d595add82a4",
+    "src/llm_usage.py": "30c0626827f765e20d39276ba0f1431a6f93c1f745b6fbd2808bda5396e92f0f",
+    "src/router.py": "88caf113d032851c2710252fbd84cb65ffc8587251b826c3152e3a52ce12b273",
+    "src/runtime/__init__.py": "05b8501e7fb4623c8a5b459628e1dac7c1024164eb8791187258d5842fcdf507",
+    "src/runtime/context.py": "08ad58950e5dba3a4842d201c406abb7c81751c37d1e99a2d4c4b1ec2bc81837",
+    "src/runtime/models.py": "1e1817a7d967ba47e28066a3d1ac013716e797cd7d2676114c6c989ac94a3d27",
+    "src/runtime/repository.py": "868c9a932f2f63e0719eae579b600cb9016e9129183db6387be6d876790db6e3",
+    "src/runtime/service.py": "f4e42a7b9c00e1468824f89ad272df805f91c4fea05e1aa42713407badbbe40d",
+    "src/runtime/specs.py": "0d9ca114ad516133271e37d7ec4d9fd25230209fe977b1c13ae6b88634092f6d",
+    "src/runtime/sqlite_repository.py": "4b484b1aa8e7b71eb0e6725ede5d442e4197822162590c81e7040dc98bbbcf4a",
+    "src/runtime/system.py": "39d209589b0ad169597979c4545d2419b5ab7dccfeeae0e963a052a8dc0e0118",
+    "src/runtime/version.py": "1cc1a1c539c61b4f8c3a9ebeff8904d55ada8dc9f7291d4f5a8d105504691da2",
+    "src/state.py": "b313a623ecc0575d563d415fda608771484f31db1c6d0859b2b2ac7a5837b244",
+    "system-design/agents/answer_validator.json": "d9fdab0363accc5bdfca181cb58999808bd03083a207d58aceb4620b079c0089",
+    "system-design/agents/planner.json": "1e3672559088e3fb019816b8ad4f0d175320f15317ed28fd489d9246e6f07b34",
+    "system-design/agents/README.md": "68b24e693a4820a2c586ec7ceda7f632e4cff3ded017aeb277a797a9f0c12186",
+    "system-design/agents/retriever.json": "b05f8797e5c59929b8bdd30db3f5978bfdf58e89b999d250ab6b4d9bd73dbd6d",
+    "system-design/examples/hotpotqa_example_001.json": "fe838d42931d3dd6e3c1a26b378fc01dc8a3750df629bf758cb6afd5d50a4335",
+    "system-design/examples/领域配置示例文档.md": "9bb0749fcc2f058eabf20a09bbab85d3ef11fa8355e2d41d439ce7b0ed4c52fe",
+    "system-design/protocols/multi_hop_qa.json": "458f24be64ad3c15c6e848bf21d64122a751146280981df60ff24f94a6812de5",
+    "system-design/protocols/multi_hop_qa_fixed.json": "0e46bf9d40d1b4f8048680fa1c430bd83be3f67437ed023e25fa004be95399e2",
+    "system-design/protocols/协同协议设计文档.md": "9ac7fa23c416c9f0afcc1bc99fbb8e8520069d910fe60fddeba0785e2cd00732",
+    "system-design/systems/default.json": "d6cdf1b7c37bb97965d28006c5bbd5261bc9bf88be740686397afa9b88d320ce",
+    "system-design/V0测试基线-2026-09-21.md": "76ae788335367dc03b81471cab605843f6aee26df05b6dbfc607dfec4a90ca30",
+    "system-design/系统总体设计文档.md": "eef574e741b24a12e3f78983afd500fde27add0e0216745cee0c87bc005c0a8f",
+    "tests/test_answer_validator.py": "5ffd820e741bc6cb603ff963c5e202369269a35d5e2b58fc2d895d4d89482b21",
+    "tests/test_backend_api.py": "0bf6b6c40b47875050c59549e489edb7a1aacc2191fa99cb893fd210132c07c2",
+    "tests/test_bm25_retriever.py": "25adbe63d455ab4e89bc4b6881d34b58f255a6908b3b91b10854e224b31909e2",
+    "tests/test_code_version.py": "1615ac80cae930a4b62f0cc56948a5b4c34d644752fee177b83148efeeb25403",
+    "tests/test_config_loader.py": "76481000cf23b2b05615c54b2b95d3dd98acb8f1e740814f343571447fb297f6",
+    "tests/test_configured_runtime.py": "a61568d620517d03d17359326710ec348538bbfe20f3b15b780d4f85e9278768",
+    "tests/test_document_knowledge.py": "f9d4d229da25f71111cb72b13404ebd0817600568a290eae41c4070908b00dcd",
+    "tests/test_graph.py": "b5756bcf5a31bbc054f7e6e3ab236d75baa0c61f846041d6ab650ef51f9442ea",
+    "tests/test_hotpotqa_loader.py": "e4d67884002112ec64365f8af844e182eac016b8f4dccdd06cc7f28ec6d247f1",
+    "tests/test_integration_deepseek.py": "ee8462cac7f48aa7716b813df13fb489c7433ff451330d47e231b56e032b08d6",
+    "tests/test_knowledge_api.py": "c222694d40c3b2c08a8539a935839b34e3706c9c36bf4ec010f64b7b7843ff77",
+    "tests/test_llm_usage.py": "9e5f9aac9492f28ae87e9f3d45403683746de496d9e3db312b66fe9b4c51dc88",
+    "tests/test_main.py": "15e1d6ae7290913f20c3a0ff90b5275e4b413c7e53657871f498738d1871a066",
+    "tests/test_planner.py": "3a69cc84cbb14f64ebe5adeb6c562bf591aec2ef58312460cc18653a3ebfdc89",
+    "tests/test_retriever.py": "d05465860d91686a5392c1418e739ef704191d358acf89141d098f03b37e426d",
+    "tests/test_router.py": "7d14ad544d068064f656e2a89b74a0ae249b5423c2970473d9bbff0d8125f807",
+    "tests/test_run_service.py": "a29171e51612d370f92361edf3fd8065fba831a1cb70958fa76a03aa75c7bb7b",
+    "tests/test_runtime_models.py": "d3cfe68049f6f33e6a916b9788a3e20a5587ee6cf2604487dadd84ad8d708c8a",
+    "tests/test_sqlite_repository.py": "bf9e78457c18f676f99b4af49342fecab2199fa3b8deb2f3e4834a93fc87ac64",
+    "tests/test_state.py": "75e8c4f78685c0294bacb7176bb418e2e58ff3a4d6f197e14ff3ee354fbfa049",
+    "会话交接.md": "6d30280f6130c5fdc8ec904e64508e7f6977e79715bd112137cbbc6950892bc9"
+  }
+}

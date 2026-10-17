@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import re
+import json
 from typing import Any, Optional, Protocol
 
 from src.agents.json_utils import as_bool, as_list, as_str, extract_json_object
@@ -73,21 +74,32 @@ def build_prompt(state: AgentState, system_prompt: str) -> str:
             location = (f"chunk_id={chunk['chunk_id']}; lines {chunk['line_start']}-{chunk['line_end']}"
                         if chunk.get("chunk_id") else f"#{chunk.get('source_paragraph', '?')}")
             lines.append(f"  - ({chunk['source_title']} {location}) {text}")
+            reference = {'sq_id': group['sq_id'], 'source_title': chunk['source_title']}
+            if chunk.get('chunk_id'):
+                reference['chunk_id'] = chunk['chunk_id']
+            elif 'source_paragraph' in chunk:
+                reference['source_paragraph'] = chunk['source_paragraph']
+            lines.append('    可直接复制的引用：' + json.dumps(reference, ensure_ascii=False))
         if not group.get("chunks"):
             lines.append(f"  - 无证据：{group.get('insufficiency_note', '')}")
 
     lines += [
         "",
         "只输出一个 JSON 对象，字段：answer, verified, failure_type(none/insufficient/conflict),"
-        " insufficient_sq_ids, conflict_flag, conflict_note, conflict_pairs, "
-        "supporting_evidence[{sq_id,text,source_title,chunk_id}], verification_note。"
+        " insufficient_sq_ids, retrieval_supplement_request, conflict_flag, conflict_note, conflict_pairs, "
+        "supporting_evidence[{sq_id,text,source_title,source_paragraph,chunk_id}], verification_note。"
         "证据有 chunk_id 时支撑证据可只返回 {sq_id,chunk_id}，必须原样返回该 ID；"
-        "只引用提供的证据，材料无答案时 verified=false。",
+        "HotpotQA 证据必须优先返回 {sq_id,source_title,source_paragraph}，source_paragraph 是零起始句子索引。"
+        "只引用提供的证据，材料无答案时 verified=false。"
+        "首先判断证据是否能回答原始问题，子问题仅是辅助计划；无关子问题缺少证据不能否决已有完整证据的答案。"
+        "unknown 仅表示检索命中但语义充分性尚未判断。不要把词语命中当成关系成立；核对同名实体身份、必要的每一跳和与答案有关的事实冲突。"
+        "答案只给简短实体、日期、数字或 yes/no，不解释；推理依据写入 verification_note。"
+        "insufficient_sq_ids 和 retrieval_supplement_request 只描述阻碍原始问题作答的必要缺口。",
     ]
     return "\n".join(lines)
 
 
-def parse_verification(raw: str, state: AgentState, *, require_citations: bool = False) -> dict[str, Any]:
+def parse_verification(raw: str, state: AgentState, *, require_citations: bool = True) -> dict[str, Any]:
     """纯函数：解析并规整验证结果，处理脏输出与字段缺失。
 
     raw 为空（推理 token 耗尽导致 content 为空）时不抛异常，
@@ -104,6 +116,7 @@ def parse_verification(raw: str, state: AgentState, *, require_citations: bool =
             "conflict_pairs": [],
             "verification_note": "LLM 返回为空（推理 token 预算耗尽），按证据不足处理",
             "supporting_evidence": [],
+            "retrieval_supplement_request": None,
         }
 
     data = extract_json_object(raw)
@@ -114,7 +127,6 @@ def parse_verification(raw: str, state: AgentState, *, require_citations: bool =
         for chunk in group.get("chunks", [])
         if isinstance(chunk.get("text"), str)
     ]
-    known_texts = {normalize_text(chunk["text"]): chunk["text"] for _, chunk in known_entries}
 
     answer = as_str(data, "answer").strip()
     verified = as_bool(data, "verified", False)
@@ -123,7 +135,8 @@ def parse_verification(raw: str, state: AgentState, *, require_citations: bool =
     if failure_type not in FAILURE_TYPES:
         failure_type = "none"
 
-    insufficient_sq_ids = [i for i in as_list(data, "insufficient_sq_ids") if isinstance(i, str)]
+    known_ids = {sq['id'] for sq in state.get('sub_questions', [])}
+    insufficient_sq_ids = [i for i in as_list(data, "insufficient_sq_ids") if isinstance(i, str) and i in known_ids]
     conflict_pairs = [
         {
             "chunk_a": as_str(p, "chunk_a"),
@@ -136,6 +149,9 @@ def parse_verification(raw: str, state: AgentState, *, require_citations: bool =
 
     # 一致性规整：自相矛盾的输出一律按"未通过"处理，
     # 宁可让路由触发重规划/补检索，也不放行可疑答案
+    if verified and (as_bool(data, 'conflict_flag', False) or conflict_pairs):
+        verified = False
+        failure_type = 'conflict'
     if verified and failure_type != "none":
         verified = False
     if not verified and failure_type == "none":
@@ -148,38 +164,34 @@ def parse_verification(raw: str, state: AgentState, *, require_citations: bool =
     for item in as_list(data, "supporting_evidence"):
         if not isinstance(item, dict):
             continue
-        if item.get("chunk_id"):
-            candidates = [chunk for sq_id, chunk in known_entries
-                          if sq_id == as_str(item, "sq_id") and chunk.get("chunk_id") == item["chunk_id"]]
-            if len(candidates) != 1:
+        candidates = [chunk for sq_id, chunk in known_entries if sq_id == as_str(item, 'sq_id')]
+        for field in ('source_title', 'source_id', 'chunk_id'):
+            if item.get(field) is not None and item.get(field) != '':
+                candidates = [chunk for chunk in candidates if chunk.get(field) == item[field]]
+        if item.get('source_paragraph') is not None:
+            index = item['source_paragraph']
+            if type(index) is not int or index < 0 or not item.get('source_title'):
                 continue
-            chunk = candidates[0]
-            supporting_evidence.append({"sq_id": as_str(item, "sq_id"), "text": chunk["text"],
-                                        "source_title": chunk["source_title"], **_provenance(chunk)})
+            candidates = [chunk for chunk in candidates if chunk.get('source_paragraph') == index]
+        elif not item.get('chunk_id'):
+            if item.get('source_title'):
+                candidates = [chunk for chunk in candidates if match_evidence(
+                    as_str(item, 'text'), {normalize_text(chunk['text']): chunk['text']})]
+            else:
+                # A legacy text-only citation must identify exactly one retrieved
+                # chunk across all sources in this subquestion. No fuzzy fallback.
+                norm = normalize_text(as_str(item, 'text'))
+                candidates = [chunk for chunk in candidates if norm and normalize_text(chunk['text']) == norm]
+        if len(candidates) != 1:
             continue
-        matched = match_evidence(as_str(item, "text"), known_texts)
-        if matched:
-            candidates = [
-                chunk for sq_id, chunk in known_entries
-                if sq_id == as_str(item, "sq_id")
-                and normalize_text(chunk["text"]) == normalize_text(matched)
-            ]
-            if not candidates:
-                continue
-            if any(candidate.get("chunk_id") for candidate in candidates) and len(candidates) != 1:
-                continue
-            chunk = next(
-                (candidate for candidate in candidates
-                 if candidate["source_title"] == as_str(item, "source_title")),
-                candidates[0],
-            )
-            supporting_evidence.append(
-                {"sq_id": as_str(item, "sq_id"), "text": matched,
-                 "source_title": chunk["source_title"],
-                 **_provenance(chunk)}
-            )
+        chunk = candidates[0]
+        evidence = {'sq_id': as_str(item, 'sq_id'), 'text': chunk['text'],
+                    'source_title': chunk['source_title'], **_provenance(chunk)}
+        if evidence not in supporting_evidence:
+            supporting_evidence.append(evidence)
 
-    if verified and (require_citations or any(chunk.get("chunk_id") for _, chunk in known_entries)) and not supporting_evidence:
+    citation_validation_failed = verified and (not answer or not supporting_evidence)
+    if citation_validation_failed:
         verified = False
         failure_type = "insufficient"
         conflict_flag = False
@@ -188,18 +200,22 @@ def parse_verification(raw: str, state: AgentState, *, require_citations: bool =
         "answer": answer,
         "verified": verified and failure_type == "none",
         "failure_type": failure_type,
-        "insufficient_sq_ids": insufficient_sq_ids,
+        "insufficient_sq_ids": insufficient_sq_ids if not verified else [],
         "conflict_flag": conflict_flag,
         "conflict_note": as_str(data, "conflict_note") if conflict_flag else "",
         "conflict_pairs": conflict_pairs if conflict_flag else [],
         "verification_note": as_str(data, "verification_note"),
         "supporting_evidence": supporting_evidence,
+        "retrieval_supplement_request": None,
     }
+    if citation_validation_failed:
+        result['verification_note'] += ' 服务端校验：答案为空或没有可定位的引用，验证未通过。'
 
     if failure_type == "insufficient":
-        target = insufficient_sq_ids[0] if insufficient_sq_ids else ""
+        target = insufficient_sq_ids[0] if insufficient_sq_ids else next(
+            (sq['id'] for sq in state.get('sub_questions', [])), '')
         supplied = data.get("retrieval_supplement_request")
-        if isinstance(supplied, dict) and as_str(supplied, "target_sq_id"):
+        if isinstance(supplied, dict) and as_str(supplied, "target_sq_id") in known_ids:
             result["retrieval_supplement_request"] = {
                 "target_sq_id": as_str(supplied, "target_sq_id"),
                 "additional_keywords": [k for k in as_list(supplied, "additional_keywords") if isinstance(k, str)],
@@ -216,7 +232,7 @@ def parse_verification(raw: str, state: AgentState, *, require_citations: bool =
 
 
 def _provenance(chunk: dict[str, Any]) -> dict[str, Any]:
-    fields = ("source_id", "source_version", "document_id", "chunk_id", "filename",
+    fields = ("source_paragraph", "source_id", "source_version", "document_id", "chunk_id", "filename",
               "heading_path", "line_start", "line_end", "char_start", "char_end")
     return {key: chunk[key] for key in fields if key in chunk}
 
@@ -234,7 +250,7 @@ def answer_validator_fn(
     *,
     usage_collector: LLMUsageCollector | None = None,
     agent_config: dict[str, Any] | None = None,
-    require_citations: bool = False,
+    require_citations: bool = True,
 ) -> dict[str, Any]:
     config = agent_config or load_agent_configs()[AGENT_ID]
     chat = llm if llm is not None else default_llm(config)
@@ -243,6 +259,10 @@ def answer_validator_fn(
     max_retries = config.get("failure_handling", {}).get("max_retries", 2)
     raw = invoke_text(chat, prompt, max_retries, usage_collector)
 
-    result = parse_verification(raw, state, require_citations=require_citations)
+    try:
+        result = parse_verification(raw, state, require_citations=require_citations)
+    except ValueError:
+        result = parse_verification('', state, require_citations=require_citations)
+        result['verification_note'] = '模型响应不是合法验证 JSON，按证据不足处理，不放行答案。'
     result["validation_retry_count"] = int(state.get("validation_retry_count", 0)) + 1
     return result

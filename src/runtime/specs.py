@@ -19,7 +19,7 @@ class AgentSpec(StrictSpec):
 
 class KnowledgeSourceSpec(StrictSpec):
     source_id: str = Field(min_length=1)
-    source_type: Literal["hotpotqa_record", "document_corpus"]
+    source_type: Literal["hotpotqa_record", "hotpotqa_context", "document_corpus"]
     path: str = Field(min_length=1)
     name: str = Field(min_length=1)
     is_demo: bool = False

@@ -1,13 +1,11 @@
 {
   "agent_id": "retriever_v0",
   "agent_name": "检索与证据智能体",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "role": "retriever",
   "domain": "multi_hop_qa",
-  "description": "接收规划智能体拆解的子问题列表，对每个子问题独立执行检索，返回相关的证据片段（文本段落）。支持顺序检索和并行检索两种策略。当验证智能体判断证据不足时，可针对指定子问题重新检索或扩展关键词补充检索。",
-
+  "description": "本地确定性 BM25 节点，按依赖顺序串行检索并传递桥接实体，不调用 LLM。有命中仅表示候选证据，语义充分性由 Answer-Validator 判断。",
   "reasoning_method": "rag",
-
   "knowledge_sources": [
     {
       "source_id": "hotpotqa_fixture",
@@ -22,27 +20,19 @@
       "description": "阶段 2 用于测试知识源切换的独立演示材料"
     }
   ],
-
   "tools": [
     {
       "tool_id": "bm25_retriever",
       "tool_type": "python_fn",
       "description": "基于 BM25 的关键词检索工具，从本地文档集中返回 top-k 段落"
-    },
-    {
-      "tool_id": "dense_retriever",
-      "tool_type": "python_fn",
-      "description": "基于向量嵌入的语义检索工具（需要 FAISS 索引），与 BM25 可组合使用"
     }
   ],
-
   "model_config": {
     "model_name": "deepseek-v4.1-flash",
     "temperature": 0.1,
     "max_tokens": 512,
-    "system_prompt": "你是一个专业的证据检索智能体。给定一个子问题，你的任务是：\n1. 从提供的检索结果中筛选出与该子问题最相关的段落（最多 3 段）；\n2. 对每段证据标注其来源文档标题和段落编号；\n3. 评估该证据是否足以回答子问题（sufficient / insufficient）；\n4. 若不足，简述缺少什么信息。\n请以结构化 JSON 格式输出。"
+    "system_prompt": "本节点不调用 LLM。检索命中标记 unknown，未命中标记 insufficient；相关性得分仅用于 BM25 排序，不是概率。top_k 由 retrieval_config 配置。"
   },
-
   "neighbor_agents": [
     {
       "agent_id": "planner_v0",
@@ -57,7 +47,6 @@
       "description": "将检索到的证据片段写入共享状态，供 Answer-Validator 使用"
     }
   ],
-
   "input_schema": {
     "sub_questions": {
       "type": "array",
@@ -74,9 +63,19 @@
       "description": "来自 Answer-Validator 的补充检索请求（证据不足时触发）",
       "required": false,
       "properties": {
-        "target_sq_id": { "type": "string", "description": "需要补充检索的子问题 ID" },
-        "additional_keywords": { "type": "array", "items": { "type": "string" } },
-        "reason": { "type": "string" }
+        "target_sq_id": {
+          "type": "string",
+          "description": "需要补充检索的子问题 ID"
+        },
+        "additional_keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reason": {
+          "type": "string"
+        }
       }
     },
     "retrieval_retry_count": {
@@ -86,7 +85,6 @@
       "default": 0
     }
   },
-
   "output_schema": {
     "evidence_chunks": {
       "type": "array",
@@ -94,23 +92,42 @@
       "items": {
         "type": "object",
         "properties": {
-          "sq_id": { "type": "string", "description": "对应的子问题编号" },
+          "sq_id": {
+            "type": "string",
+            "description": "对应的子问题编号"
+          },
           "chunks": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "text": { "type": "string", "description": "证据段落文本" },
-                "source_title": { "type": "string", "description": "来源文档标题" },
-                "source_paragraph": { "type": "integer", "description": "段落编号" },
-                "relevance_score": { "type": "number", "description": "相关性得分 0-1" }
+                "text": {
+                  "type": "string",
+                  "description": "证据段落文本"
+                },
+                "source_title": {
+                  "type": "string",
+                  "description": "来源文档标题"
+                },
+                "source_paragraph": {
+                  "type": "integer",
+                  "description": "段落编号"
+                },
+                "relevance_score": {
+                  "type": "number",
+                  "description": "BM25 排序分数，不限于 0-1"
+                }
               }
             }
           },
           "sufficiency": {
             "type": "string",
-            "enum": ["sufficient", "insufficient"],
-            "description": "检索智能体对证据充分性的自评"
+            "enum": [
+              "sufficient",
+              "insufficient",
+              "unknown"
+            ],
+            "description": "unknown 表示有命中但语义充分性待验证；sufficient 仅兼容历史记录"
           },
           "insufficiency_note": {
             "type": "string",
@@ -124,10 +141,12 @@
       "description": "更新后的补充检索次数"
     }
   },
-
   "failure_handling": {
     "max_retries": 3,
     "on_failure": "answer_validator_v0",
     "fallback_message": "检索失败或超过最大重试次数，将使用已有证据（可能不完整）继续生成答案。"
+  },
+  "retrieval_config": {
+    "top_k": 3
   }
 }

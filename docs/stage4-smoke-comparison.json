@@ -1,0 +1,1553 @@
+{
+  "manifest": {
+    "selection_version": "stage4-smoke-v1",
+    "dataset_sha256": "e3da074df24e8369009918aa5cdbdd254dadcde4c63f7569d36afd6f2268caa8",
+    "samples": [
+      {
+        "sample_id": "5ab9625e55429970cfb8eaa9",
+        "type": "bridge"
+      },
+      {
+        "sample_id": "5a7b78c35542997c3ec971a9",
+        "type": "bridge"
+      },
+      {
+        "sample_id": "5ae39f405542991a06ce9a02",
+        "type": "bridge"
+      },
+      {
+        "sample_id": "5a8d0940554299585d9e379e",
+        "type": "bridge"
+      },
+      {
+        "sample_id": "5ae81060554299540e5a572c",
+        "type": "bridge"
+      },
+      {
+        "sample_id": "5a8db42f5542994ba4e3dd11",
+        "type": "comparison"
+      },
+      {
+        "sample_id": "5abe8aad55429976d4830b60",
+        "type": "comparison"
+      },
+      {
+        "sample_id": "5ab310bb554299233954fef9",
+        "type": "comparison"
+      },
+      {
+        "sample_id": "5ac3d2ac554299741d48a330",
+        "type": "comparison"
+      },
+      {
+        "sample_id": "5a8a07af55429970aeb70222",
+        "type": "comparison"
+      }
+    ]
+  },
+  "v0": {
+    "sample_count": 10,
+    "completed": 9,
+    "verified": 5,
+    "completion_rate": 0.9,
+    "verification_pass_rate": 0.5555555555555556,
+    "em": 0.2,
+    "f1": 0.39089991849582645,
+    "sp_em": 0.0,
+    "sp_f1": 0.0,
+    "total_tokens_total": 287815,
+    "total_tokens_mean": 28781.5,
+    "total_tokens_reported_samples": 10,
+    "prompt_tokens_total": 51430,
+    "prompt_tokens_mean": 5143.0,
+    "prompt_tokens_reported_samples": 10,
+    "completion_tokens_total": 236385,
+    "completion_tokens_mean": 23638.5,
+    "completion_tokens_reported_samples": 10,
+    "llm_call_count_total": 77,
+    "llm_call_count_mean": 7.7,
+    "llm_call_count_reported_samples": 10,
+    "duration_ms_total": 2310178,
+    "duration_ms_mean": 231017.8,
+    "duration_ms_reported_samples": 10
+  },
+  "v1": {
+    "sample_count": 10,
+    "completed": 10,
+    "verified": 6,
+    "completion_rate": 1.0,
+    "verification_pass_rate": 0.6,
+    "em": 0.5,
+    "f1": 0.525,
+    "sp_em": 0.1,
+    "sp_f1": 0.5655555555555556,
+    "total_tokens_total": 92561,
+    "total_tokens_mean": 9256.1,
+    "total_tokens_reported_samples": 10,
+    "prompt_tokens_total": 23992,
+    "prompt_tokens_mean": 2399.2,
+    "prompt_tokens_reported_samples": 10,
+    "completion_tokens_total": 68569,
+    "completion_tokens_mean": 6856.9,
+    "completion_tokens_reported_samples": 10,
+    "llm_call_count_total": 40,
+    "llm_call_count_mean": 4.0,
+    "llm_call_count_reported_samples": 10,
+    "duration_ms_total": 703515,
+    "duration_ms_mean": 70351.5,
+    "duration_ms_reported_samples": 10
+  },
+  "observation_counts": {
+    "v0": {
+      "gold_support_not_fully_retrieved": 4,
+      "partial_answer_or_format": 6,
+      "supporting_fact_mismatch": 10,
+      "validator_rejection": 5,
+      "answer_mismatch": 2,
+      "runtime_failure_after_model_responses": 1
+    },
+    "v1": {
+      "supporting_fact_mismatch": 9,
+      "gold_support_not_fully_retrieved": 7,
+      "answer_mismatch": 4,
+      "validator_rejection": 4,
+      "partial_answer_or_format": 1
+    }
+  },
+  "samples": [
+    {
+      "sample_id": "5ab9625e55429970cfb8eaa9",
+      "question": "Fort Snelling spurred growth of Saint Paul was located in this county?",
+      "type": "bridge",
+      "gold_answer": "Hennepin County",
+      "v0": {
+        "sample_id": "5ab9625e55429970cfb8eaa9",
+        "question": "Fort Snelling spurred growth of Saint Paul was located in this county?",
+        "type": "bridge",
+        "run_id": "95791958-9315-40ec-9305-2d132195a11a",
+        "experiment_id": "smoke-v0-01",
+        "method_id": "multi_agent_adaptive_v0",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:0c10706efd11b9eb552d8d498cfb1e3805b1019f0eb294c91630e460a3ec8dd2",
+        "config_sha256": "05875c16c35dd96482b3e1d8451ad665c5904d386c3ff26e9ca2aeff4e3f44bb",
+        "status": "completed",
+        "answer": "Hennepin County, Minnesota.",
+        "verified": true,
+        "supporting_evidence": [],
+        "predicted_supporting_facts": [],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 0.0,
+          "f1": 0.8,
+          "sp_em": 0.0,
+          "sp_f1": 0.0
+        },
+        "metrics": {
+          "duration_ms": 78459,
+          "node_call_count": 3,
+          "llm_call_count": 4,
+          "prompt_tokens": 1114,
+          "completion_tokens": 7427,
+          "total_tokens": 8541,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 0,
+          "validation_retry_count": 1
+        },
+        "error": null,
+        "verification_note": "Evidence sufficiently shows Fort Snelling was in Hennepin County and its proximity spurred Saint Paul's growth; no conflicts found.",
+        "gold": {
+          "answer": "Hennepin County",
+          "supporting_facts": [
+            [
+              "History of Saint Paul, Minnesota",
+              0
+            ],
+            [
+              "Fort Snelling",
+              0
+            ]
+          ]
+        },
+        "observations": [
+          "gold_support_not_fully_retrieved",
+          "partial_answer_or_format",
+          "supporting_fact_mismatch"
+        ]
+      },
+      "v1": {
+        "sample_id": "5ab9625e55429970cfb8eaa9",
+        "question": "Fort Snelling spurred growth of Saint Paul was located in this county?",
+        "type": "bridge",
+        "run_id": "c82256a9-b806-4bb3-a167-096ac362c623",
+        "experiment_id": "smoke-v1-validated",
+        "method_id": "multi_agent_adaptive_v1",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:589093980c109329252a493b7ca70c60d0840173b86f2b1640d43449e289e018",
+        "config_sha256": "3461dd11f3c6ab7463180b882365e13cf1a20530992d0788e66a23fd6e248881",
+        "status": "completed",
+        "answer": "Hennepin County",
+        "verified": true,
+        "supporting_evidence": [
+          {
+            "source_id": "sample_5ab9625e55429970cfb8eaa9",
+            "source_paragraph": 0,
+            "source_title": "Fort Snelling",
+            "sq_id": "sq_1",
+            "text": "Fort Snelling, originally known as Fort Saint Anthony, was a military fortification located at the confluence of Minnesota and Mississippi Rivers in Hennepin County, Minnesota."
+          }
+        ],
+        "predicted_supporting_facts": [
+          [
+            "Fort Snelling",
+            0
+          ]
+        ],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 1.0,
+          "f1": 1.0,
+          "sp_em": 0.0,
+          "sp_f1": 0.6666666666666666
+        },
+        "metrics": {
+          "duration_ms": 48197,
+          "node_call_count": 3,
+          "llm_call_count": 2,
+          "prompt_tokens": 948,
+          "completion_tokens": 4732,
+          "total_tokens": 5680,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 0,
+          "validation_retry_count": 1
+        },
+        "error": null,
+        "verification_note": "The cited Fort Snelling source directly states Fort Snelling was located in Hennepin County, Minnesota. No relevant conflict or missing evidence affects the county answer.",
+        "gold": {
+          "answer": "Hennepin County",
+          "supporting_facts": [
+            [
+              "History of Saint Paul, Minnesota",
+              0
+            ],
+            [
+              "Fort Snelling",
+              0
+            ]
+          ]
+        },
+        "observations": [
+          "supporting_fact_mismatch"
+        ]
+      }
+    },
+    {
+      "sample_id": "5a7b78c35542997c3ec971a9",
+      "question": "What year was the voice actress of an animated television series premiered on Cartoon Network born?",
+      "type": "bridge",
+      "gold_answer": "1967",
+      "v0": {
+        "sample_id": "5a7b78c35542997c3ec971a9",
+        "question": "What year was the voice actress of an animated television series premiered on Cartoon Network born?",
+        "type": "bridge",
+        "run_id": "ca0eb87d-6d48-4d01-904e-23df7f9b9876",
+        "experiment_id": "smoke-v0-01",
+        "method_id": "multi_agent_adaptive_v0",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:0c10706efd11b9eb552d8d498cfb1e3805b1019f0eb294c91630e460a3ec8dd2",
+        "config_sha256": "9f7e369d146f1171e8ff922365cd07fae882d0905961c77a3cac7b8c62b35979",
+        "status": "completed",
+        "answer": "Cannot determine: evidence lists multiple Cartoon Network series and multiple voice actresses (born 1967, 1968, 1982), without identifying which one is intended.",
+        "verified": false,
+        "supporting_evidence": [],
+        "predicted_supporting_facts": [],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 0.0,
+          "f1": 0.08695652173913045,
+          "sp_em": 0.0,
+          "sp_f1": 0.0
+        },
+        "metrics": {
+          "duration_ms": 595273,
+          "node_call_count": 11,
+          "llm_call_count": 17,
+          "prompt_tokens": 11230,
+          "completion_tokens": 59114,
+          "total_tokens": 70344,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 3,
+          "validation_retry_count": 5
+        },
+        "error": null,
+        "verification_note": "The provided evidence does not uniquely identify the animated series or its voice actress; therefore the birth year cannot be determined.",
+        "gold": {
+          "answer": "1967",
+          "supporting_facts": [
+            [
+              "Lara Jill Miller",
+              0
+            ],
+            [
+              "Lara Jill Miller",
+              5
+            ],
+            [
+              "The Life and Times of Juniper Lee",
+              0
+            ],
+            [
+              "The Life and Times of Juniper Lee",
+              2
+            ]
+          ]
+        },
+        "observations": [
+          "gold_support_not_fully_retrieved",
+          "partial_answer_or_format",
+          "validator_rejection",
+          "supporting_fact_mismatch"
+        ]
+      },
+      "v1": {
+        "sample_id": "5a7b78c35542997c3ec971a9",
+        "question": "What year was the voice actress of an animated television series premiered on Cartoon Network born?",
+        "type": "bridge",
+        "run_id": "f0fa812a-0162-469a-b29d-b4e654b11afc",
+        "experiment_id": "smoke-v1-validated",
+        "method_id": "multi_agent_adaptive_v1",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:589093980c109329252a493b7ca70c60d0840173b86f2b1640d43449e289e018",
+        "config_sha256": "3748e888fdf9b6d3fa13005b5fc00de542e38daf8283b7f47733082ae40d4aaa",
+        "status": "completed",
+        "answer": "",
+        "verified": false,
+        "supporting_evidence": [
+          {
+            "source_id": "sample_5a7b78c35542997c3ec971a9",
+            "source_paragraph": 0,
+            "source_title": "Generator Rex",
+            "sq_id": "sq_1",
+            "text": "Generator Rex is an American science fantasy action animated television series created by Man of Action for Cartoon Network."
+          },
+          {
+            "source_id": "sample_5a7b78c35542997c3ec971a9",
+            "source_paragraph": 0,
+            "source_title": "List of Dexter's Laboratory episodes",
+            "sq_id": "sq_1",
+            "text": "\"Dexter's Laboratory\" is an American animated television series created by Genndy Tartakovsky for Cartoon Network."
+          },
+          {
+            "source_id": "sample_5a7b78c35542997c3ec971a9",
+            "source_paragraph": 0,
+            "source_title": "Robotboy",
+            "sq_id": "sq_1",
+            "text": "Robotboy is an animated children's television series which is produced by French production company Alphanim for France 3 and Cartoon Network Europe, as well as the studios LuxAnimation and Cofinova 1."
+          },
+          {
+            "source_id": "sample_5a7b78c35542997c3ec971a9",
+            "source_paragraph": 0,
+            "source_title": "Kat Cressida",
+            "sq_id": "sq_2",
+            "text": "Kathryn \"Kat\" Cressida (born March 1, 1968) is an American voice actress."
+          },
+          {
+            "source_id": "sample_5a7b78c35542997c3ec971a9",
+            "source_paragraph": 0,
+            "source_title": "Lara Jill Miller",
+            "sq_id": "sq_3",
+            "text": "Lara Jill Miller (born April 20, 1967) is an American actress and voice actress."
+          }
+        ],
+        "predicted_supporting_facts": [
+          [
+            "Generator Rex",
+            0
+          ],
+          [
+            "List of Dexter's Laboratory episodes",
+            0
+          ],
+          [
+            "Robotboy",
+            0
+          ],
+          [
+            "Kat Cressida",
+            0
+          ],
+          [
+            "Lara Jill Miller",
+            0
+          ]
+        ],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 0.0,
+          "f1": 0.0,
+          "sp_em": 0.0,
+          "sp_f1": 0.22222222222222224
+        },
+        "metrics": {
+          "duration_ms": 211589,
+          "node_call_count": 9,
+          "llm_call_count": 7,
+          "prompt_tokens": 6474,
+          "completion_tokens": 19892,
+          "total_tokens": 26366,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 3,
+          "validation_retry_count": 4
+        },
+        "error": null,
+        "verification_note": "The evidence lists Cartoon Network animated series and voice actresses with birth years, but it does not establish which series is the one referenced or which voice actress is associated with that series. Therefore the birth year cannot be determined without relying on outside knowledge.",
+        "gold": {
+          "answer": "1967",
+          "supporting_facts": [
+            [
+              "Lara Jill Miller",
+              0
+            ],
+            [
+              "Lara Jill Miller",
+              5
+            ],
+            [
+              "The Life and Times of Juniper Lee",
+              0
+            ],
+            [
+              "The Life and Times of Juniper Lee",
+              2
+            ]
+          ]
+        },
+        "observations": [
+          "gold_support_not_fully_retrieved",
+          "answer_mismatch",
+          "validator_rejection",
+          "supporting_fact_mismatch"
+        ]
+      }
+    },
+    {
+      "sample_id": "5ae39f405542991a06ce9a02",
+      "question": "\"Knock\" is an example of fiction by Frederic Brown that has how many words?",
+      "type": "bridge",
+      "gold_answer": "1000 words",
+      "v0": {
+        "sample_id": "5ae39f405542991a06ce9a02",
+        "question": "\"Knock\" is an example of fiction by Frederic Brown that has how many words?",
+        "type": "bridge",
+        "run_id": "8f85e77d-e1b9-44b9-bfb5-94576096e75a",
+        "experiment_id": "smoke-v0-01",
+        "method_id": "multi_agent_adaptive_v0",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:0c10706efd11b9eb552d8d498cfb1e3805b1019f0eb294c91630e460a3ec8dd2",
+        "config_sha256": "bdf36c12e6443bf25acd4665c8130c04a4cb20b110884eb966b0e98d72133550",
+        "status": "completed",
+        "answer": "Insufficient evidence: no word count for Fredric Brown's \"Knock\" is provided.",
+        "verified": false,
+        "supporting_evidence": [],
+        "predicted_supporting_facts": [],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 0.0,
+          "f1": 0.0,
+          "sp_em": 0.0,
+          "sp_f1": 0.0
+        },
+        "metrics": {
+          "duration_ms": 124362,
+          "node_call_count": 9,
+          "llm_call_count": 6,
+          "prompt_tokens": 3668,
+          "completion_tokens": 15378,
+          "total_tokens": 19046,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 3,
+          "validation_retry_count": 4
+        },
+        "error": null,
+        "verification_note": "sq_1 confirms the author, but sq_2 lacks the complete text and sq_3 lacks any word count.",
+        "gold": {
+          "answer": "1000 words",
+          "supporting_facts": [
+            [
+              "Knock (short story)",
+              0
+            ],
+            [
+              "Flash fiction",
+              0
+            ]
+          ]
+        },
+        "observations": [
+          "answer_mismatch",
+          "validator_rejection",
+          "supporting_fact_mismatch"
+        ]
+      },
+      "v1": {
+        "sample_id": "5ae39f405542991a06ce9a02",
+        "question": "\"Knock\" is an example of fiction by Frederic Brown that has how many words?",
+        "type": "bridge",
+        "run_id": "fcf7b29d-47a7-4815-9125-53cd94ecfa92",
+        "experiment_id": "smoke-v1-validated",
+        "method_id": "multi_agent_adaptive_v1",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:589093980c109329252a493b7ca70c60d0840173b86f2b1640d43449e289e018",
+        "config_sha256": "a790b2437bcdb605d1ac434f9f265e1c7b25f056edda8bd3795ed502aad090ed",
+        "status": "completed",
+        "answer": "",
+        "verified": false,
+        "supporting_evidence": [
+          {
+            "source_id": "sample_5ae39f405542991a06ce9a02",
+            "source_paragraph": 0,
+            "source_title": "Knock (short story)",
+            "sq_id": "sq_1",
+            "text": "\"Knock\", written by Fredric Brown, is a science fiction short story that starts with a short-short story based on the following text of Thomas Bailey Aldrich:"
+          }
+        ],
+        "predicted_supporting_facts": [
+          [
+            "Knock (short story)",
+            0
+          ]
+        ],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 0.0,
+          "f1": 0.0,
+          "sp_em": 0.0,
+          "sp_f1": 0.6666666666666666
+        },
+        "metrics": {
+          "duration_ms": 66593,
+          "node_call_count": 9,
+          "llm_call_count": 5,
+          "prompt_tokens": 3086,
+          "completion_tokens": 7604,
+          "total_tokens": 10690,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 3,
+          "validation_retry_count": 4
+        },
+        "error": null,
+        "verification_note": "The evidence identifies \"Knock\" as a short story by Fredric Brown and mentions it starts with a short-short story, but it does not provide the word count requested by the original question. The other evidence is unrelated to the word count. Therefore, the answer cannot be verified as complete.",
+        "gold": {
+          "answer": "1000 words",
+          "supporting_facts": [
+            [
+              "Knock (short story)",
+              0
+            ],
+            [
+              "Flash fiction",
+              0
+            ]
+          ]
+        },
+        "observations": [
+          "gold_support_not_fully_retrieved",
+          "answer_mismatch",
+          "validator_rejection",
+          "supporting_fact_mismatch"
+        ]
+      }
+    },
+    {
+      "sample_id": "5a8d0940554299585d9e379e",
+      "question": "Which American politician who served as United States Senator from 1971 to 1989 was Governor of Florida before Buddy MacKay?",
+      "type": "bridge",
+      "gold_answer": "Lawton Chiles",
+      "v0": {
+        "sample_id": "5a8d0940554299585d9e379e",
+        "question": "Which American politician who served as United States Senator from 1971 to 1989 was Governor of Florida before Buddy MacKay?",
+        "type": "bridge",
+        "run_id": "67833907-ecf5-402d-8766-7aeef90afcc2",
+        "experiment_id": "smoke-v0-01",
+        "method_id": "multi_agent_adaptive_v0",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:0c10706efd11b9eb552d8d498cfb1e3805b1019f0eb294c91630e460a3ec8dd2",
+        "config_sha256": "33ac18a588795d7f3dced10d3dd8aed80ca6e11dc1f989527321863bede3f0c8",
+        "status": "completed",
+        "answer": "Lawton Chiles.",
+        "verified": true,
+        "supporting_evidence": [],
+        "predicted_supporting_facts": [],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 1.0,
+          "f1": 1.0,
+          "sp_em": 0.0,
+          "sp_f1": 0.0
+        },
+        "metrics": {
+          "duration_ms": 72082,
+          "node_call_count": 3,
+          "llm_call_count": 4,
+          "prompt_tokens": 1455,
+          "completion_tokens": 7919,
+          "total_tokens": 9374,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 0,
+          "validation_retry_count": 1
+        },
+        "error": null,
+        "verification_note": "Evidence confirms Lawton Chiles was U.S. Senator from 1971 to 1989 and Governor before Buddy MacKay; no conflicts.",
+        "gold": {
+          "answer": "Lawton Chiles",
+          "supporting_facts": [
+            [
+              "Buddy MacKay",
+              0
+            ],
+            [
+              "Buddy MacKay",
+              1
+            ],
+            [
+              "Lawton Chiles",
+              0
+            ],
+            [
+              "Lawton Chiles",
+              1
+            ]
+          ]
+        },
+        "observations": [
+          "supporting_fact_mismatch"
+        ]
+      },
+      "v1": {
+        "sample_id": "5a8d0940554299585d9e379e",
+        "question": "Which American politician who served as United States Senator from 1971 to 1989 was Governor of Florida before Buddy MacKay?",
+        "type": "bridge",
+        "run_id": "8d3a7292-5262-446f-8577-cf7c97204d91",
+        "experiment_id": "smoke-v1-validated",
+        "method_id": "multi_agent_adaptive_v1",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:589093980c109329252a493b7ca70c60d0840173b86f2b1640d43449e289e018",
+        "config_sha256": "c901918debc534ad1e09996f3043ccfa117bae8b1773ab59ee4e22757cca6e65",
+        "status": "completed",
+        "answer": "Lawton Chiles",
+        "verified": true,
+        "supporting_evidence": [
+          {
+            "source_id": "sample_5a8d0940554299585d9e379e",
+            "source_paragraph": 1,
+            "source_title": "Buddy MacKay",
+            "sq_id": "sq_1",
+            "text": " A Democrat, he was briefly the 42nd Governor of Florida following the death of Lawton Chiles on December 12, 1998."
+          },
+          {
+            "source_id": "sample_5a8d0940554299585d9e379e",
+            "source_paragraph": 1,
+            "source_title": "Lawton Chiles",
+            "sq_id": "sq_2",
+            "text": " He served as a United States Senator from 1971 to 1989 and as the 41st Governor of Florida from 1991 to 1998."
+          }
+        ],
+        "predicted_supporting_facts": [
+          [
+            "Buddy MacKay",
+            1
+          ],
+          [
+            "Lawton Chiles",
+            1
+          ]
+        ],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 1.0,
+          "f1": 1.0,
+          "sp_em": 0.0,
+          "sp_f1": 0.6666666666666666
+        },
+        "metrics": {
+          "duration_ms": 71538,
+          "node_call_count": 3,
+          "llm_call_count": 4,
+          "prompt_tokens": 1640,
+          "completion_tokens": 6870,
+          "total_tokens": 8510,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 0,
+          "validation_retry_count": 1
+        },
+        "error": null,
+        "verification_note": "Buddy MacKay became Governor of Florida immediately after the death of Lawton Chiles. Lawton Chiles served as Florida Governor from 1991 to 1998 and as a United States Senator from 1971 to 1989, matching the original question.",
+        "gold": {
+          "answer": "Lawton Chiles",
+          "supporting_facts": [
+            [
+              "Buddy MacKay",
+              0
+            ],
+            [
+              "Buddy MacKay",
+              1
+            ],
+            [
+              "Lawton Chiles",
+              0
+            ],
+            [
+              "Lawton Chiles",
+              1
+            ]
+          ]
+        },
+        "observations": [
+          "gold_support_not_fully_retrieved",
+          "supporting_fact_mismatch"
+        ]
+      }
+    },
+    {
+      "sample_id": "5ae81060554299540e5a572c",
+      "question": "Mutton Lane Cemetery is located in a town 13 mi north of where?",
+      "type": "bridge",
+      "gold_answer": "London",
+      "v0": {
+        "sample_id": "5ae81060554299540e5a572c",
+        "question": "Mutton Lane Cemetery is located in a town 13 mi north of where?",
+        "type": "bridge",
+        "run_id": "b6973cad-92b4-4b76-8201-02e2a332d279",
+        "experiment_id": "smoke-v0-01",
+        "method_id": "multi_agent_adaptive_v0",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:0c10706efd11b9eb552d8d498cfb1e3805b1019f0eb294c91630e460a3ec8dd2",
+        "config_sha256": "3a3251be1d5109fdfd9870af20466d1eb87ab447cb0c7689f53b69f9e02b728e",
+        "status": "completed",
+        "answer": "London.",
+        "verified": true,
+        "supporting_evidence": [],
+        "predicted_supporting_facts": [],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 1.0,
+          "f1": 1.0,
+          "sp_em": 0.0,
+          "sp_f1": 0.0
+        },
+        "metrics": {
+          "duration_ms": 11115,
+          "node_call_count": 3,
+          "llm_call_count": 2,
+          "prompt_tokens": 782,
+          "completion_tokens": 1522,
+          "total_tokens": 2304,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 0,
+          "validation_retry_count": 1
+        },
+        "error": null,
+        "verification_note": "Evidence is sufficient and consistent: Mutton Lane Cemetery is in Potters Bar, which is 13 mi north of London.",
+        "gold": {
+          "answer": "London",
+          "supporting_facts": [
+            [
+              "Mutton Lane Cemetery",
+              0
+            ],
+            [
+              "Potters Bar",
+              0
+            ]
+          ]
+        },
+        "observations": [
+          "supporting_fact_mismatch"
+        ]
+      },
+      "v1": {
+        "sample_id": "5ae81060554299540e5a572c",
+        "question": "Mutton Lane Cemetery is located in a town 13 mi north of where?",
+        "type": "bridge",
+        "run_id": "609493b6-7677-4674-b181-5bc596b8a098",
+        "experiment_id": "smoke-v1-validated",
+        "method_id": "multi_agent_adaptive_v1",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:589093980c109329252a493b7ca70c60d0840173b86f2b1640d43449e289e018",
+        "config_sha256": "6b17900dbf9f988cf27908f6be2da8d05b6bc9c8f37c253fd0008b7c02976fb2",
+        "status": "completed",
+        "answer": "London",
+        "verified": true,
+        "supporting_evidence": [
+          {
+            "source_id": "sample_5ae81060554299540e5a572c",
+            "source_paragraph": 0,
+            "source_title": "Mutton Lane Cemetery",
+            "sq_id": "sq_1",
+            "text": "Mutton Lane Cemetery, officially known as St Mary's Cemetery, is a cemetery in Mutton Lane, Potters Bar, Hertfordshire, that is associated with nearby St Mary the Virgin and All Saints church."
+          },
+          {
+            "source_id": "sample_5ae81060554299540e5a572c",
+            "source_paragraph": 0,
+            "source_title": "Potters Bar",
+            "sq_id": "sq_2",
+            "text": "Potters Bar is a town in Hertfordshire, England, 13 mi north of London."
+          }
+        ],
+        "predicted_supporting_facts": [
+          [
+            "Mutton Lane Cemetery",
+            0
+          ],
+          [
+            "Potters Bar",
+            0
+          ]
+        ],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 1.0,
+          "f1": 1.0,
+          "sp_em": 1.0,
+          "sp_f1": 1.0
+        },
+        "metrics": {
+          "duration_ms": 21871,
+          "node_call_count": 5,
+          "llm_call_count": 3,
+          "prompt_tokens": 2052,
+          "completion_tokens": 2653,
+          "total_tokens": 4705,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 1,
+          "validation_retry_count": 2
+        },
+        "error": null,
+        "verification_note": "Mutton Lane Cemetery is located in Potters Bar, and Potters Bar is 13 mi north of London. Therefore the town is 13 mi north of London.",
+        "gold": {
+          "answer": "London",
+          "supporting_facts": [
+            [
+              "Mutton Lane Cemetery",
+              0
+            ],
+            [
+              "Potters Bar",
+              0
+            ]
+          ]
+        },
+        "observations": []
+      }
+    },
+    {
+      "sample_id": "5a8db42f5542994ba4e3dd11",
+      "question": "Which documentary film follows poetry, Race to Nowhere or SlamNation?",
+      "type": "comparison",
+      "gold_answer": "SlamNation",
+      "v0": {
+        "sample_id": "5a8db42f5542994ba4e3dd11",
+        "question": "Which documentary film follows poetry, Race to Nowhere or SlamNation?",
+        "type": "comparison",
+        "run_id": "6d133860-a4eb-4cf9-af56-7f4f24d6da6d",
+        "experiment_id": "smoke-v0-01",
+        "method_id": "multi_agent_adaptive_v0",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:0c10706efd11b9eb552d8d498cfb1e3805b1019f0eb294c91630e460a3ec8dd2",
+        "config_sha256": "f43395975e5644068aaaae4d046edb86cb2d22371cd8915c8466e4d579df2cb6",
+        "status": "completed",
+        "answer": "SlamNation is the documentary that follows the National Poetry Slam, so it is about poetry.",
+        "verified": false,
+        "supporting_evidence": [],
+        "predicted_supporting_facts": [],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 0.0,
+          "f1": 0.14285714285714288,
+          "sp_em": 0.0,
+          "sp_f1": 0.0
+        },
+        "metrics": {
+          "duration_ms": 110349,
+          "node_call_count": 9,
+          "llm_call_count": 5,
+          "prompt_tokens": 3003,
+          "completion_tokens": 11040,
+          "total_tokens": 14043,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 3,
+          "validation_retry_count": 4
+        },
+        "error": null,
+        "verification_note": "SlamNation evidence sufficiently identifies the poetry documentary. Race to Nowhere subject evidence is insufficient, so overall verification fails for completeness; no conflict found.",
+        "gold": {
+          "answer": "SlamNation",
+          "supporting_facts": [
+            [
+              "Race to Nowhere",
+              0
+            ],
+            [
+              "SlamNation",
+              0
+            ],
+            [
+              "SlamNation",
+              1
+            ]
+          ]
+        },
+        "observations": [
+          "partial_answer_or_format",
+          "validator_rejection",
+          "supporting_fact_mismatch"
+        ]
+      },
+      "v1": {
+        "sample_id": "5a8db42f5542994ba4e3dd11",
+        "question": "Which documentary film follows poetry, Race to Nowhere or SlamNation?",
+        "type": "comparison",
+        "run_id": "aa52f1ee-fb60-44ab-b96c-c91ee594b899",
+        "experiment_id": "smoke-v1-validated",
+        "method_id": "multi_agent_adaptive_v1",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:589093980c109329252a493b7ca70c60d0840173b86f2b1640d43449e289e018",
+        "config_sha256": "3641d5da59495f8ebe961e851df3992f2d2777822b40204edd312b299f095e56",
+        "status": "completed",
+        "answer": "SlamNation",
+        "verified": true,
+        "supporting_evidence": [
+          {
+            "source_id": "sample_5a8db42f5542994ba4e3dd11",
+            "source_paragraph": 0,
+            "source_title": "SlamNation",
+            "sq_id": "sq_1",
+            "text": "SlamNation is a documentary film by director Paul Devlin."
+          },
+          {
+            "source_id": "sample_5a8db42f5542994ba4e3dd11",
+            "source_paragraph": 1,
+            "source_title": "SlamNation",
+            "sq_id": "sq_1",
+            "text": " The film follows the National Poetry Slam in Portland, Oregon."
+          }
+        ],
+        "predicted_supporting_facts": [
+          [
+            "SlamNation",
+            0
+          ],
+          [
+            "SlamNation",
+            1
+          ]
+        ],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 1.0,
+          "f1": 1.0,
+          "sp_em": 0.0,
+          "sp_f1": 0.8
+        },
+        "metrics": {
+          "duration_ms": 29128,
+          "node_call_count": 3,
+          "llm_call_count": 2,
+          "prompt_tokens": 892,
+          "completion_tokens": 3001,
+          "total_tokens": 3893,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 0,
+          "validation_retry_count": 1
+        },
+        "error": null,
+        "verification_note": "SlamNation is identified as a documentary and its description states it follows the National Poetry Slam; Race to Nowhere evidence does not indicate a poetry connection. Therefore the poetry-related documentary is SlamNation.",
+        "gold": {
+          "answer": "SlamNation",
+          "supporting_facts": [
+            [
+              "Race to Nowhere",
+              0
+            ],
+            [
+              "SlamNation",
+              0
+            ],
+            [
+              "SlamNation",
+              1
+            ]
+          ]
+        },
+        "observations": [
+          "supporting_fact_mismatch"
+        ]
+      }
+    },
+    {
+      "sample_id": "5abe8aad55429976d4830b60",
+      "question": "Which American Director doubled as a choreographer also, Stanley Kubrick or Kenny Ortega?",
+      "type": "comparison",
+      "gold_answer": "Kenneth John \"Kenny\" Ortega (born April 18, 1950) is an American producer, director, and choreographer.",
+      "v0": {
+        "sample_id": "5abe8aad55429976d4830b60",
+        "question": "Which American Director doubled as a choreographer also, Stanley Kubrick or Kenny Ortega?",
+        "type": "comparison",
+        "run_id": "079802ff-c692-45a4-8b41-7ee9f2e93196",
+        "experiment_id": "smoke-v0-01",
+        "method_id": "multi_agent_adaptive_v0",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:0c10706efd11b9eb552d8d498cfb1e3805b1019f0eb294c91630e460a3ec8dd2",
+        "config_sha256": "d54b2d4777febf61ef12a799b0c63a07dcfac97db3029e8b179a79d52c79137d",
+        "status": "failed",
+        "answer": "Kenny Ortega was the American director who also worked as a choreographer.",
+        "verified": false,
+        "supporting_evidence": [],
+        "predicted_supporting_facts": [],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 0.0,
+          "f1": 0.0,
+          "sp_em": 0.0,
+          "sp_f1": 0.0
+        },
+        "metrics": {
+          "duration_ms": 82083,
+          "node_call_count": 7,
+          "llm_call_count": 4,
+          "prompt_tokens": 2410,
+          "completion_tokens": 8437,
+          "total_tokens": 10847,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 2,
+          "validation_retry_count": 2
+        },
+        "error": {
+          "error_type": "execution_error",
+          "message": "多智能体流程执行失败，请查看后端日志后重试。"
+        },
+        "verification_note": "Kenny Ortega is supported as American director/choreographer, but sq_1 evidence does not address Stanley Kubrick, so full verification is insufficient.",
+        "gold": {
+          "answer": "Kenneth John \"Kenny\" Ortega (born April 18, 1950) is an American producer, director, and choreographer.",
+          "supporting_facts": [
+            [
+              "Kenny Ortega",
+              0
+            ],
+            [
+              "Stanley Kubrick",
+              0
+            ]
+          ]
+        },
+        "observations": [
+          "runtime_failure_after_model_responses",
+          "gold_support_not_fully_retrieved",
+          "answer_mismatch",
+          "validator_rejection",
+          "supporting_fact_mismatch"
+        ]
+      },
+      "v1": {
+        "sample_id": "5abe8aad55429976d4830b60",
+        "question": "Which American Director doubled as a choreographer also, Stanley Kubrick or Kenny Ortega?",
+        "type": "comparison",
+        "run_id": "77e0fa8e-0db8-4f3b-beca-a26677cf6a98",
+        "experiment_id": "smoke-v1-validated",
+        "method_id": "multi_agent_adaptive_v1",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:589093980c109329252a493b7ca70c60d0840173b86f2b1640d43449e289e018",
+        "config_sha256": "a05f32ed23863043a343d6f0b2775d809f2f59866cfb49dd3064ede90bee0315",
+        "status": "completed",
+        "answer": "Kenny Ortega",
+        "verified": true,
+        "supporting_evidence": [
+          {
+            "source_id": "sample_5abe8aad55429976d4830b60",
+            "source_paragraph": 0,
+            "source_title": "Kenny Ortega",
+            "sq_id": "sq_1",
+            "text": "Kenneth John \"Kenny\" Ortega (born April 18, 1950) is an American producer, director, and choreographer."
+          },
+          {
+            "source_id": "sample_5abe8aad55429976d4830b60",
+            "source_paragraph": 3,
+            "source_title": "High School Musical 3: Senior Year",
+            "sq_id": "sq_1",
+            "text": " Kenny Ortega returned as director and choreographer, as did all six primary actors."
+          }
+        ],
+        "predicted_supporting_facts": [
+          [
+            "Kenny Ortega",
+            0
+          ],
+          [
+            "High School Musical 3: Senior Year",
+            3
+          ]
+        ],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 0.0,
+          "f1": 0.25,
+          "sp_em": 0.0,
+          "sp_f1": 0.5
+        },
+        "metrics": {
+          "duration_ms": 12874,
+          "node_call_count": 3,
+          "llm_call_count": 2,
+          "prompt_tokens": 912,
+          "completion_tokens": 1402,
+          "total_tokens": 2314,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 0,
+          "validation_retry_count": 1
+        },
+        "error": null,
+        "verification_note": "Evidence explicitly identifies Kenny Ortega as an American director and choreographer, and another source confirms he served as director and choreographer. This directly satisfies the question’s relation for Kenny Ortega.",
+        "gold": {
+          "answer": "Kenneth John \"Kenny\" Ortega (born April 18, 1950) is an American producer, director, and choreographer.",
+          "supporting_facts": [
+            [
+              "Kenny Ortega",
+              0
+            ],
+            [
+              "Stanley Kubrick",
+              0
+            ]
+          ]
+        },
+        "observations": [
+          "gold_support_not_fully_retrieved",
+          "partial_answer_or_format",
+          "supporting_fact_mismatch"
+        ]
+      }
+    },
+    {
+      "sample_id": "5ab310bb554299233954fef9",
+      "question": "Which author found inspiration in their career prior to writing, Hart Crane or John le Carré?",
+      "type": "comparison",
+      "gold_answer": "John le Carré",
+      "v0": {
+        "sample_id": "5ab310bb554299233954fef9",
+        "question": "Which author found inspiration in their career prior to writing, Hart Crane or John le Carré?",
+        "type": "comparison",
+        "run_id": "ac9ccdf7-0d8a-41e3-b073-c2995e76b68f",
+        "experiment_id": "smoke-v0-01",
+        "method_id": "multi_agent_adaptive_v0",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:0c10706efd11b9eb552d8d498cfb1e3805b1019f0eb294c91630e460a3ec8dd2",
+        "config_sha256": "15f2d19e03f8dc558b7b83dcc7c74b1c7b57309ede1d4376df6675c26b620c28",
+        "status": "completed",
+        "answer": "John le Carré; his MI6 career inspired his espionage fiction.",
+        "verified": false,
+        "supporting_evidence": [],
+        "predicted_supporting_facts": [],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 0.0,
+          "f1": 0.4615384615384615,
+          "sp_em": 0.0,
+          "sp_f1": 0.0
+        },
+        "metrics": {
+          "duration_ms": 835364,
+          "node_call_count": 17,
+          "llm_call_count": 23,
+          "prompt_tokens": 20133,
+          "completion_tokens": 87970,
+          "total_tokens": 108103,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 3,
+          "validation_retry_count": 8
+        },
+        "error": null,
+        "verification_note": "Evidence supports John le Carré's intelligence career preceding and shaping his espionage novels, but it does not establish Hart Crane's pre-writing career or that it inspired him.",
+        "gold": {
+          "answer": "John le Carré",
+          "supporting_facts": [
+            [
+              "Hart Crane",
+              2
+            ],
+            [
+              "John le Carré",
+              0
+            ],
+            [
+              "John le Carré",
+              1
+            ]
+          ]
+        },
+        "observations": [
+          "partial_answer_or_format",
+          "validator_rejection",
+          "supporting_fact_mismatch"
+        ]
+      },
+      "v1": {
+        "sample_id": "5ab310bb554299233954fef9",
+        "question": "Which author found inspiration in their career prior to writing, Hart Crane or John le Carré?",
+        "type": "comparison",
+        "run_id": "a10ac840-d3b4-4da1-ace2-e97a668da727",
+        "experiment_id": "smoke-v1-validated",
+        "method_id": "multi_agent_adaptive_v1",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:589093980c109329252a493b7ca70c60d0840173b86f2b1640d43449e289e018",
+        "config_sha256": "4a0ff0ef2c221614a59dc1af5c0cca488f082fa4b13d042cad6e1e8958bc39d2",
+        "status": "completed",
+        "answer": "",
+        "verified": false,
+        "supporting_evidence": [
+          {
+            "source_id": "sample_5ab310bb554299233954fef9",
+            "source_paragraph": 1,
+            "source_title": "Hart Crane",
+            "sq_id": "sq_1",
+            "text": " Finding both inspiration and provocation in the poetry of T. S. Eliot, Crane wrote modernist poetry that was difficult, highly stylized, and ambitious in its scope."
+          },
+          {
+            "source_id": "sample_5ab310bb554299233954fef9",
+            "source_paragraph": 2,
+            "source_title": "Hart Crane",
+            "sq_id": "sq_1",
+            "text": " In his most ambitious work, \"The Bridge\", Crane sought to write an epic poem, in the vein of \"The Waste Land\", that expressed a more optimistic view of modern, urban culture than the one that he found in Eliot's work."
+          },
+          {
+            "source_id": "sample_5ab310bb554299233954fef9",
+            "source_paragraph": 0,
+            "source_title": "Hart Crane",
+            "sq_id": "sq_1",
+            "text": "Harold Hart Crane (July 21, 1899 – April 27, 1932) was an American poet."
+          }
+        ],
+        "predicted_supporting_facts": [
+          [
+            "Hart Crane",
+            1
+          ],
+          [
+            "Hart Crane",
+            2
+          ],
+          [
+            "Hart Crane",
+            0
+          ]
+        ],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 0.0,
+          "f1": 0.0,
+          "sp_em": 0.0,
+          "sp_f1": 0.3333333333333333
+        },
+        "metrics": {
+          "duration_ms": 108453,
+          "node_call_count": 9,
+          "llm_call_count": 6,
+          "prompt_tokens": 3334,
+          "completion_tokens": 9273,
+          "total_tokens": 12607,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 3,
+          "validation_retry_count": 4
+        },
+        "error": null,
+        "verification_note": "证据只显示 Hart Crane 从 T. S. Eliot 的诗歌中获得灵感，并未涉及 Hart Crane 或 John le Carré 在写作之前的职业经历，也没有 John le Carré 的相关证据。因此无法判断原问题问的是哪一位作者。",
+        "gold": {
+          "answer": "John le Carré",
+          "supporting_facts": [
+            [
+              "Hart Crane",
+              2
+            ],
+            [
+              "John le Carré",
+              0
+            ],
+            [
+              "John le Carré",
+              1
+            ]
+          ]
+        },
+        "observations": [
+          "gold_support_not_fully_retrieved",
+          "answer_mismatch",
+          "validator_rejection",
+          "supporting_fact_mismatch"
+        ]
+      }
+    },
+    {
+      "sample_id": "5ac3d2ac554299741d48a330",
+      "question": "What has Henry Winkler worked as that Norman Foster has not?",
+      "type": "comparison",
+      "gold_answer": "comedian",
+      "v0": {
+        "sample_id": "5ac3d2ac554299741d48a330",
+        "question": "What has Henry Winkler worked as that Norman Foster has not?",
+        "type": "comparison",
+        "run_id": "0d484453-ccff-4a06-9d13-f16a577598db",
+        "experiment_id": "smoke-v0-01",
+        "method_id": "multi_agent_adaptive_v0",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:0c10706efd11b9eb552d8d498cfb1e3805b1019f0eb294c91630e460a3ec8dd2",
+        "config_sha256": "9b22f8acf416eee77ae5f5845ea67f5f01ea485b0710fda3030553a6809f8390",
+        "status": "completed",
+        "answer": "For architect Norman Foster: actor, director, comedian, producer, author. For director Norman Foster: comedian, producer, author.",
+        "verified": true,
+        "supporting_evidence": [],
+        "predicted_supporting_facts": [],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 0.0,
+          "f1": 0.11764705882352941,
+          "sp_em": 0.0,
+          "sp_f1": 0.0
+        },
+        "metrics": {
+          "duration_ms": 354103,
+          "node_call_count": 8,
+          "llm_call_count": 10,
+          "prompt_tokens": 6794,
+          "completion_tokens": 33016,
+          "total_tokens": 39810,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 1,
+          "retrieval_retry_count": 0,
+          "validation_retry_count": 3
+        },
+        "error": null,
+        "verification_note": "All subquestions have sufficient evidence; no contradictions found.",
+        "gold": {
+          "answer": "comedian",
+          "supporting_facts": [
+            [
+              "Henry Winkler",
+              0
+            ],
+            [
+              "Norman Foster (director)",
+              0
+            ]
+          ]
+        },
+        "observations": [
+          "partial_answer_or_format",
+          "supporting_fact_mismatch"
+        ]
+      },
+      "v1": {
+        "sample_id": "5ac3d2ac554299741d48a330",
+        "question": "What has Henry Winkler worked as that Norman Foster has not?",
+        "type": "comparison",
+        "run_id": "2e45cf84-eb81-48f3-9fb1-7e5ab6f2787f",
+        "experiment_id": "smoke-v1-validated",
+        "method_id": "multi_agent_adaptive_v1",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:589093980c109329252a493b7ca70c60d0840173b86f2b1640d43449e289e018",
+        "config_sha256": "86ffc86d4b37513d00f46ecd8e1551d965540bc04786c058230bbed9e8c046fb",
+        "status": "completed",
+        "answer": "",
+        "verified": false,
+        "supporting_evidence": [],
+        "predicted_supporting_facts": [],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 0.0,
+          "f1": 0.0,
+          "sp_em": 0.0,
+          "sp_f1": 0.0
+        },
+        "metrics": {
+          "duration_ms": 104694,
+          "node_call_count": 9,
+          "llm_call_count": 7,
+          "prompt_tokens": 3470,
+          "completion_tokens": 10331,
+          "total_tokens": 13801,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 3,
+          "validation_retry_count": 4
+        },
+        "error": null,
+        "verification_note": "The provided evidence mentions Henry Winkler only incidentally and includes an unrelated Immanuel Winkler. It contains no information about Norman Foster or a comparison of what each has worked as, so the original question cannot be answered.",
+        "gold": {
+          "answer": "comedian",
+          "supporting_facts": [
+            [
+              "Henry Winkler",
+              0
+            ],
+            [
+              "Norman Foster (director)",
+              0
+            ]
+          ]
+        },
+        "observations": [
+          "gold_support_not_fully_retrieved",
+          "answer_mismatch",
+          "validator_rejection",
+          "supporting_fact_mismatch"
+        ]
+      }
+    },
+    {
+      "sample_id": "5a8a07af55429970aeb70222",
+      "question": "Which airport served more people in 2015 Asheville Regional Airport or Orlando International Airport ?",
+      "type": "comparison",
+      "gold_answer": "Orlando International Airport",
+      "v0": {
+        "sample_id": "5a8a07af55429970aeb70222",
+        "question": "Which airport served more people in 2015 Asheville Regional Airport or Orlando International Airport ?",
+        "type": "comparison",
+        "run_id": "6c44a438-34f4-4a0a-8fed-81135f03452d",
+        "experiment_id": "smoke-v0-01",
+        "method_id": "multi_agent_adaptive_v0",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:0c10706efd11b9eb552d8d498cfb1e3805b1019f0eb294c91630e460a3ec8dd2",
+        "config_sha256": "91b97a51668cdcdc5158aa7ccf9553f1909d93fdb9cb13e07f6a601f486c0428",
+        "status": "completed",
+        "answer": "Orlando International Airport served more people in 2015: over 40.2 million vs Asheville Regional Airport's approximately 787,000.",
+        "verified": true,
+        "supporting_evidence": [],
+        "predicted_supporting_facts": [],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 0.0,
+          "f1": 0.3,
+          "sp_em": 0.0,
+          "sp_f1": 0.0
+        },
+        "metrics": {
+          "duration_ms": 46988,
+          "node_call_count": 3,
+          "llm_call_count": 2,
+          "prompt_tokens": 841,
+          "completion_tokens": 4562,
+          "total_tokens": 5403,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 0,
+          "validation_retry_count": 1
+        },
+        "error": null,
+        "verification_note": "Asheville's 2015 total can be inferred from its 2016 total and 5% increase; Orlando's 2015 total is over 40.2 million. No conflict; Orlando is larger.",
+        "gold": {
+          "answer": "Orlando International Airport",
+          "supporting_facts": [
+            [
+              "Asheville Regional Airport",
+              3
+            ],
+            [
+              "Orlando International Airport",
+              0
+            ],
+            [
+              "Orlando International Airport",
+              1
+            ]
+          ]
+        },
+        "observations": [
+          "gold_support_not_fully_retrieved",
+          "partial_answer_or_format",
+          "supporting_fact_mismatch"
+        ]
+      },
+      "v1": {
+        "sample_id": "5a8a07af55429970aeb70222",
+        "question": "Which airport served more people in 2015 Asheville Regional Airport or Orlando International Airport ?",
+        "type": "comparison",
+        "run_id": "e1530942-5423-4839-93ba-afc1b98bba5a",
+        "experiment_id": "smoke-v1-validated",
+        "method_id": "multi_agent_adaptive_v1",
+        "code_version": "git:1418c18a38e98dc674a0ff79fa942bdb8a131a3b+source-sha256:589093980c109329252a493b7ca70c60d0840173b86f2b1640d43449e289e018",
+        "config_sha256": "41c28e8a00929c794e2f66822e54d3283cb2aab66180597b9072edbaee828558",
+        "status": "completed",
+        "answer": "Orlando International Airport",
+        "verified": true,
+        "supporting_evidence": [
+          {
+            "source_id": "sample_5a8a07af55429970aeb70222",
+            "source_paragraph": 3,
+            "source_title": "Asheville Regional Airport",
+            "sq_id": "sq_1",
+            "text": " In 2016 it served an all-time record number of passengers for the airport, 826,648, an increase of 5% over 2015 and the third consecutive year of record traffic."
+          },
+          {
+            "source_id": "sample_5a8a07af55429970aeb70222",
+            "source_paragraph": 1,
+            "source_title": "Orlando International Airport",
+            "sq_id": "sq_2",
+            "text": " It is the second-busiest airport in the state of Florida, as over 40.2 million passengers were handled at the airport as of 2015."
+          }
+        ],
+        "predicted_supporting_facts": [
+          [
+            "Asheville Regional Airport",
+            3
+          ],
+          [
+            "Orlando International Airport",
+            1
+          ]
+        ],
+        "recovered_v0_coordinates": [],
+        "scores": {
+          "em": 1.0,
+          "f1": 1.0,
+          "sp_em": 0.0,
+          "sp_f1": 0.8
+        },
+        "metrics": {
+          "duration_ms": 28578,
+          "node_call_count": 3,
+          "llm_call_count": 2,
+          "prompt_tokens": 1184,
+          "completion_tokens": 2811,
+          "total_tokens": 3995,
+          "estimated_cost_usd": null,
+          "plan_retry_count": 0,
+          "retrieval_retry_count": 0,
+          "validation_retry_count": 1
+        },
+        "error": null,
+        "verification_note": "Asheville's 2016 record of 826,648 passengers was 5% over 2015, implying about 787,284 passengers in 2015. Orlando handled over 40.2 million passengers as of 2015. Therefore Orlando International Airport served more people in 2015.",
+        "gold": {
+          "answer": "Orlando International Airport",
+          "supporting_facts": [
+            [
+              "Asheville Regional Airport",
+              3
+            ],
+            [
+              "Orlando International Airport",
+              0
+            ],
+            [
+              "Orlando International Airport",
+              1
+            ]
+          ]
+        },
+        "observations": [
+          "gold_support_not_fully_retrieved",
+          "supporting_fact_mismatch"
+        ]
+      }
+    }
+  ],
+  "samples_with_final_citations": {
+    "v0": 0,
+    "v1": 9
+  },
+  "limitations": "Ten development samples; observations are diagnostics, not proven causal attribution or statistical significance. Each experiment is sequential internally, but execution windows overlap; latency is exploratory and affected by shared remote service load."
+}

@@ -267,6 +267,12 @@ class SQLiteRunRepository:
 
     def _row_to_run(self, row: sqlite3.Row) -> RunRecord:
         try:
+            snapshot = _load_json(row["config_snapshot_json"], "config_snapshot_json")
+            if not isinstance(snapshot, dict):
+                raise RepositoryError('配置快照必须是 JSON 对象')
+            metadata = snapshot.get("_run_metadata", {})
+            if not isinstance(metadata, dict):
+                raise RepositoryError('实验元数据必须是 JSON 对象')
             context = RunContext(
                 run_id=row["run_id"],
                 entrypoint=row["entrypoint"],
@@ -278,9 +284,9 @@ class SQLiteRunRepository:
                 model_name=row["model_name"],
                 protocol_id=row["protocol_id"],
                 code_version=row["code_version"],
-                config_snapshot=_load_json(
-                    row["config_snapshot_json"], "config_snapshot_json"
-                ),
+                config_snapshot=snapshot,
+                experiment_id=metadata.get("experiment_id"),
+                sample_id=metadata.get("sample_id"),
             )
             metrics = RunMetrics(
                 duration_ms=row["duration_ms"],

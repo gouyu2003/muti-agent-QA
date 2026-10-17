@@ -1,0 +1,24 @@
+{
+  "offline_tests": {
+    "passed": 204,
+    "integration_deselected": 3
+  },
+  "frontend_tests": {
+    "passed": 23
+  },
+  "frontend_typecheck": "passed",
+  "frontend_build": "passed",
+  "real_model_tests": {
+    "passed": 3,
+    "api_cli_document_runs": 5,
+    "validator_cases": 4
+  },
+  "live_citation_checks": 13,
+  "source_integrity_checks": 5,
+  "official_metric_parity_cases": 11,
+  "v0_terminal_runs": 10,
+  "v1_terminal_runs": 10,
+  "v1_smoke_citation_checks": 20,
+  "v1_smoke_context_integrity_checks": 10,
+  "official_prediction_files_cross_checked": 2
+}

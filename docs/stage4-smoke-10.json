@@ -1,0 +1,46 @@
+{
+  "selection_version": "stage4-smoke-v1",
+  "dataset_sha256": "e3da074df24e8369009918aa5cdbdd254dadcde4c63f7569d36afd6f2268caa8",
+  "samples": [
+    {
+      "sample_id": "5ab9625e55429970cfb8eaa9",
+      "type": "bridge"
+    },
+    {
+      "sample_id": "5a7b78c35542997c3ec971a9",
+      "type": "bridge"
+    },
+    {
+      "sample_id": "5ae39f405542991a06ce9a02",
+      "type": "bridge"
+    },
+    {
+      "sample_id": "5a8d0940554299585d9e379e",
+      "type": "bridge"
+    },
+    {
+      "sample_id": "5ae81060554299540e5a572c",
+      "type": "bridge"
+    },
+    {
+      "sample_id": "5a8db42f5542994ba4e3dd11",
+      "type": "comparison"
+    },
+    {
+      "sample_id": "5abe8aad55429976d4830b60",
+      "type": "comparison"
+    },
+    {
+      "sample_id": "5ab310bb554299233954fef9",
+      "type": "comparison"
+    },
+    {
+      "sample_id": "5ac3d2ac554299741d48a330",
+      "type": "comparison"
+    },
+    {
+      "sample_id": "5a8a07af55429970aeb70222",
+      "type": "comparison"
+    }
+  ]
+}

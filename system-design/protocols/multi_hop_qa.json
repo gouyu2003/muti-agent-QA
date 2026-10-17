@@ -1,8 +1,8 @@
 {
   "protocol_id": "multi_hop_qa_v0",
-  "method_id": "multi_agent_adaptive_v0",
+  "method_id": "multi_agent_adaptive_v1",
   "protocol_name": "复杂多跳问答协同协议",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "domain": "multi_hop_qa",
   "description": "定义 Planner、Retriever、Answer-Validator 三个智能体在复杂多跳问答任务中的协同顺序、状态跳转规则、信息传递格式和失败处理策略。",
 

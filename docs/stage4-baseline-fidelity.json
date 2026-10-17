@@ -1,0 +1,59 @@
+{
+  "commit": "1418c18a38e98dc674a0ff79fa942bdb8a131a3b",
+  "files": [
+    {
+      "path": "src/agents/planner.py",
+      "identical_after_crlf_normalization": true,
+      "git_content_sha256": "5069c68fcade026b26f085c0097ab18bc39238fe9b9ab4c6e61ff64ce0e3ab0d",
+      "archived_sha256": "ce31d092b577fc66506c03c88d7a2f8937204fc9922a8c934ba19bb3104bf797"
+    },
+    {
+      "path": "src/agents/retriever.py",
+      "identical_after_crlf_normalization": true,
+      "git_content_sha256": "21d597a0d96ab6a85edaf9f8eb7cd359df0974d689b1ca58fe05e79ad80d001d",
+      "archived_sha256": "863d7edd4fd582a02c9bf1ee578964c897535229361e9c0f343e960bf69b7a5a"
+    },
+    {
+      "path": "src/agents/answer_validator.py",
+      "identical_after_crlf_normalization": true,
+      "git_content_sha256": "cb1471a96d54a345a250aa88a69e15a9c70e2e7dc6a5e9d8e9f1ece1f541a914",
+      "archived_sha256": "38a43f563f9a4cc09e29ad5f26306b8ea71e412eacba936f48e794add84d338b"
+    },
+    {
+      "path": "src/knowledge/bm25_retriever.py",
+      "identical_after_crlf_normalization": true,
+      "git_content_sha256": "6f82963be03e67cb5bb162e439b42ef133d586f9121609f6cad9d36c20757f02",
+      "archived_sha256": "ece6df179cf26d63b4ccb647a57f8f0181bfb05e3f811ae4165c98c56d51ed07"
+    },
+    {
+      "path": "src/graph.py",
+      "identical_after_crlf_normalization": true,
+      "git_content_sha256": "3dc60a3a018cd72e9068a663e22c222562b008fb57dae7e584ab8183a9c2ffbc",
+      "archived_sha256": "8d586dedf01cf5ba0c6ed6c5344b36e5e171ee8de6940156ac2a28cafc1393b4"
+    },
+    {
+      "path": "system-design/agents/planner.json",
+      "identical_after_crlf_normalization": true,
+      "git_content_sha256": "c885a2d5d5b3dd3150e7fd9e9f9aad4aeb0c773abf0ac4807636ca5fdfee6f89",
+      "archived_sha256": "1e3672559088e3fb019816b8ad4f0d175320f15317ed28fd489d9246e6f07b34"
+    },
+    {
+      "path": "system-design/agents/answer_validator.json",
+      "identical_after_crlf_normalization": true,
+      "git_content_sha256": "000fb3c734428879a8db02c1fc0ec5c6e2fa48e38c1cf9e6e4fa08ae04cfc4da",
+      "archived_sha256": "d9fdab0363accc5bdfca181cb58999808bd03083a207d58aceb4620b079c0089"
+    },
+    {
+      "path": "system-design/agents/retriever.json",
+      "identical_after_crlf_normalization": true,
+      "git_content_sha256": "f9af710665a65f4f6694760d916148b2a6da8041454e5bac49ff91cf92f54a2b",
+      "archived_sha256": "b05f8797e5c59929b8bdd30db3f5978bfdf58e89b999d250ab6b4d9bd73dbd6d"
+    },
+    {
+      "path": "system-design/protocols/multi_hop_qa.json",
+      "identical_after_crlf_normalization": true,
+      "git_content_sha256": "1fa9cfeb76bfcff2c672d6b453d89778df58933bd496dec0f626bbdfd8601751",
+      "archived_sha256": "458f24be64ad3c15c6e848bf21d64122a751146280981df60ff24f94a6812de5"
+    }
+  ]
+}

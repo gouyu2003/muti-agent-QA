@@ -1,8 +1,8 @@
 {
   "protocol_id": "multi_hop_qa_fixed",
-  "method_id": "multi_agent_fixed",
+  "method_id": "multi_agent_fixed_v1",
   "protocol_name": "固定三节点问答流程",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "agents": ["planner_v0", "retriever_v0", "answer_validator_v0"],
   "entry_node": "planner_v0",
   "edges": [

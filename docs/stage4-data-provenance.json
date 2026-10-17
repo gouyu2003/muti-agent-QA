@@ -1,0 +1,19 @@
+{
+  "dataset": "HotpotQA dev distractor v1",
+  "record_count": 7405,
+  "official_homepage": "https://hotpotqa.github.io/",
+  "official_download": "http://curtis.ml.cmu.edu/datasets/hotpot/hotpot_dev_distractor_v1.json",
+  "download_url": "https://huggingface.co/datasets/namlh2004/hotpotqa/resolve/7e54db4656209750ff487f6fdf8e39a66dba136b/hotpot_dev_distractor_v1.json",
+  "mirror_revision": "7e54db4656209750ff487f6fdf8e39a66dba136b",
+  "sha256": "e3da074df24e8369009918aa5cdbdd254dadcde4c63f7569d36afd6f2268caa8",
+  "license": "CC BY-SA 4.0 (original HotpotQA dataset)",
+  "retrieved_date": "2026-10-17",
+  "note": "Original HTTPS endpoint ended TLS unexpectedly; HTTP endpoint returned 502. Used the immutable mirror referenced by EleutherAI lm-evaluation-harness; hash matches the mirror LFS SHA256. Byte identity with the unavailable original host was not independently verified.",
+  "evaluation_script_url": "https://raw.githubusercontent.com/hotpotqa/hotpot/master/hotpot_evaluate_v1.py",
+  "evaluation_script_sha256": "d35fc91a6db21d791dbdda11daf3856e9359f5701d54e3eefba20d88fecc02c0",
+  "metric_parity": {
+    "answer_cases": 7,
+    "supporting_fact_cases": 4,
+    "result": "passed"
+  }
+}

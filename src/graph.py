@@ -32,10 +32,11 @@ def default_nodes(
             planner_fn, usage_collector=usage_collector,
             agent_config=agent_configs[PLANNER_NODE] if agent_configs else None,
         ),
-        RETRIEVER_NODE: partial(retriever_fn, retriever=retriever),
+        RETRIEVER_NODE: partial(retriever_fn, retriever=retriever,
+                               agent_config=agent_configs[RETRIEVER_NODE] if agent_configs else None),
         ANSWER_VALIDATOR_NODE: partial(
             answer_validator_fn, usage_collector=usage_collector,
-            require_citations=bool(getattr(retriever, "is_document_corpus", False)),
+            require_citations=True,
             agent_config=agent_configs[ANSWER_VALIDATOR_NODE] if agent_configs else None,
         ),
     }

@@ -91,7 +91,8 @@ class BM25Retriever:
         return instance
 
     def search(
-        self, query: str, top_k: int = 3, min_score: float = MIN_SCORE
+        self, query: str, top_k: int = 3, min_score: float = MIN_SCORE,
+        *, entity_hints: list[str] | None = None,
     ) -> list[EvidenceChunk]:
         """返回得分高于 min_score 的最多 top_k 条证据，按得分降序。
 
@@ -109,9 +110,19 @@ class BM25Retriever:
         scores = self._bm25.get_scores(query_tokens)
         ranked = sorted(
             (index for index in range(len(self._docs)) if scores[index] > min_score),
-            key=lambda index: scores[index],
-            reverse=True,
-        )[:top_k]
+            key=lambda index: scores[index], reverse=True,
+        )
+        if entity_hints:
+            anchors = [' '.join(tokenize(entity)) for entity in entity_hints if tokenize(entity)]
+            def anchored(text: str) -> bool:
+                padded = ' ' + ' '.join(tokenize(text)) + ' '
+                return any(' ' + entity + ' ' in padded for entity in anchors)
+            title_hits = {i for i in ranked if anchored(self._docs[i]['source_title'])}
+            # Prefer the resolved entity's own passage. Ordinary document corpora
+            # have filenames as titles, so fall back to entity-bearing original text.
+            hits = title_hits or {i for i in ranked if anchored(self._docs[i]['text'])}
+            ranked.sort(key=lambda i: i not in hits)
+        ranked = ranked[:top_k]
 
         return [
             {
@@ -121,6 +132,10 @@ class BM25Retriever:
             }
             for index in ranked
         ]
+
+    def search_anchored(self, query: str, entity_hints: list[str], top_k: int = 3) -> list[EvidenceChunk]:
+        """Resolve second-hop query drift without adding an LLM or changing top_k."""
+        return self.search(query, top_k=top_k, entity_hints=entity_hints)
 
 
 def build_retriever(fixture_path: str | None = None) -> BM25Retriever:

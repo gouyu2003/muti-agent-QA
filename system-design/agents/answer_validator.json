@@ -1,13 +1,11 @@
 {
   "agent_id": "answer_validator_v0",
   "agent_name": "回答与验证智能体",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "role": "answer_validator",
   "domain": "multi_hop_qa",
-  "description": "综合规划智能体的子问题列表和检索智能体的证据片段，生成最终答案。同时负责证据充分性检查（是否有子问题缺乏证据支撑）和证据冲突检测（多个证据之间是否相互矛盾）。验证通过则输出最终结果；证据不足则触发补充检索；证据冲突则触发重规划。",
-
+  "description": "首先验证检索证据是否足以回答原始问题；子问题仅辅助检索，无关子问题缺少证据不阻断答案。只引用已提供的真实证据。",
   "reasoning_method": "cot",
-
   "knowledge_sources": [
     {
       "source_id": "none",
@@ -16,7 +14,6 @@
       "description": "Answer-Validator 不直接访问外部知识库，所有推理基于 Retriever 提供的证据片段"
     }
   ],
-
   "tools": [
     {
       "tool_id": "evidence_checker",
@@ -29,14 +26,12 @@
       "description": "辅助函数：检测不同来源的证据片段之间是否存在事实矛盾，返回冲突对列表"
     }
   ],
-
   "model_config": {
     "model_name": "deepseek-v4.1-flash",
     "temperature": 0.2,
     "max_tokens": 4096,
-    "system_prompt": "你是一个专业的问答与证据验证智能体。给定一个复杂问题、其子问题列表以及每个子问题对应的证据片段，你的任务是：\n1. 综合所有证据，生成对原始问题的完整答案；答案务必简明，控制在 30 个英文单词以内，只给结论不展开论述，避免输出过长被截断；\n2. 检查每个子问题的证据是否充分（是否能回答该子问题）；\n3. 检查不同来源的证据之间是否存在事实冲突；\n4. 给出验证结论：\n   - verified=true：证据充分且无冲突，答案可信；\n   - verified=false + insufficient：证据不足，需要补充检索；\n   - verified=false + conflict：证据存在冲突，需要重新规划。\n请以结构化 JSON 格式输出答案和验证结论。"
+    "system_prompt": "你是问答与证据验证智能体。首要目标是判断提供的证据能否完整回答原始问题，不能依赖模型常识补齐缺失事实。子问题只是检索计划，无关子问题的证据不足不应否决已有完整证据的答案。逐一核对必要关系、同名实体身份、时间条件及与答案有关的事实冲突。unknown 仅表示检索命中，不代表证据充分。证据支持原问题时输出简短答案（实体、日期、数字或 yes/no），不要展开解释，验证理由写入 verification_note。只有答案非空、必要证据完整、无相关冲突且提供真实引用时 verified=true。缺少必要证据返回 insufficient，只为影响原问题的缺口请求补检索；存在相关事实冲突返回 conflict。禁止把原规划的猜测当作事实。只输出结构化 JSON。"
   },
-
   "neighbor_agents": [
     {
       "agent_id": "retriever_v0",
@@ -63,7 +58,6 @@
       "description": "证据冲突时，向共享状态写入冲突标记，触发 Planner 重新规划"
     }
   ],
-
   "input_schema": {
     "question": {
       "type": "string",
@@ -87,7 +81,6 @@
       "default": 0
     }
   },
-
   "output_schema": {
     "answer": {
       "type": "string",
@@ -99,21 +92,36 @@
     },
     "failure_type": {
       "type": "string",
-      "enum": ["none", "insufficient", "conflict"],
+      "enum": [
+        "none",
+        "insufficient",
+        "conflict"
+      ],
       "description": "验证失败的类型：none（通过）/ insufficient（证据不足）/ conflict（证据冲突）"
     },
     "insufficient_sq_ids": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "证据不足的子问题 ID 列表，触发 Retriever 补充检索时使用"
     },
     "retrieval_supplement_request": {
       "type": "object",
       "description": "向 Retriever 发出的补充检索请求（failure_type=insufficient 时写入）",
       "properties": {
-        "target_sq_id": { "type": "string" },
-        "additional_keywords": { "type": "array", "items": { "type": "string" } },
-        "reason": { "type": "string" }
+        "target_sq_id": {
+          "type": "string"
+        },
+        "additional_keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reason": {
+          "type": "string"
+        }
       }
     },
     "conflict_flag": {
@@ -130,9 +138,17 @@
       "items": {
         "type": "object",
         "properties": {
-          "chunk_a": { "type": "string", "description": "证据片段 A 的来源标识" },
-          "chunk_b": { "type": "string", "description": "证据片段 B 的来源标识" },
-          "conflict_description": { "type": "string" }
+          "chunk_a": {
+            "type": "string",
+            "description": "证据片段 A 的来源标识"
+          },
+          "chunk_b": {
+            "type": "string",
+            "description": "证据片段 B 的来源标识"
+          },
+          "conflict_description": {
+            "type": "string"
+          }
         }
       }
     },
@@ -146,9 +162,19 @@
       "items": {
         "type": "object",
         "properties": {
-          "sq_id": { "type": "string" },
-          "text": { "type": "string" },
-          "source_title": { "type": "string" }
+          "sq_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "source_title": {
+            "type": "string"
+          },
+          "source_paragraph": {
+            "type": "integer",
+            "description": "HotpotQA 标题内零起始句子索引，由服务端回填"
+          }
         }
       }
     },
@@ -157,7 +183,6 @@
       "description": "更新后的验证循环次数"
     }
   },
-
   "failure_handling": {
     "max_retries": 2,
     "on_failure": "terminate",

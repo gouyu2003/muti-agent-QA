@@ -17,3 +17,6 @@ data/runtime/*.sqlite3-wal
 
 # User documents, immutable knowledge versions and local indices
 data/knowledge/
+
+# Local experiment inputs, isolated run databases and frozen source archives
+data/experiments/

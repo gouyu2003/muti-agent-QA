@@ -1,0 +1,33 @@
+{
+  "evaluation_script_sha256": "d35fc91a6db21d791dbdda11daf3856e9359f5701d54e3eefba20d88fecc02c0",
+  "v1": {
+    "em": 0.5,
+    "f1": 0.525,
+    "prec": 0.6,
+    "recall": 0.5142857142857143,
+    "sp_em": 0.1,
+    "sp_f1": 0.5655555555555555,
+    "sp_prec": 0.7033333333333334,
+    "sp_recall": 0.4916666666666667,
+    "joint_em": 0.1,
+    "joint_f1": 0.40583333333333327,
+    "joint_prec": 0.55,
+    "joint_recall": 0.3404761904761905
+  },
+  "v1_citation_checks": 20,
+  "v1_context_integrity_checks": 10,
+  "v0": {
+    "em": 0.2,
+    "f1": 0.39089991849582645,
+    "prec": 0.33280148772795826,
+    "recall": 0.8,
+    "sp_em": 0.0,
+    "sp_f1": 0.0,
+    "sp_prec": 0.0,
+    "sp_recall": 0.0,
+    "joint_em": 0.0,
+    "joint_f1": 0.0,
+    "joint_prec": 0.0,
+    "joint_recall": 0.0
+  }
+}

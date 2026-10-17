@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "system_id": "multi_agent_qa_demo",
-  "system_version": "0.2.0",
+  "system_version": "0.3.0",
   "default_workflow_id": "multi_hop_qa_v0",
   "default_source_id": "hotpotqa_fixture",
   "agents": [

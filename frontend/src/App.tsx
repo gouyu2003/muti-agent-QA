@@ -232,7 +232,7 @@ function RetrieverOutput({ result }: { result: Partial<RunResult> }) {
           <div>
             <strong>{group.sq_id}</strong>
             <Tag color={group.sufficiency === 'sufficient' ? 'success' : 'warning'} variant="filled">
-              {group.sufficiency === 'sufficient' ? '证据充分' : '证据不足'}
+              {group.sufficiency === 'unknown' ? '待验证' : group.sufficiency === 'sufficient' ? '证据充分' : '证据不足'}
             </Tag>
           </div>
           <Text type="secondary">
@@ -335,7 +335,7 @@ function EvidenceLedger({ groups, source }: { groups: EvidenceGroup[]; source?: 
               <strong>{group.sq_id}</strong>
             </div>
             <Tag color={group.sufficiency === 'sufficient' ? 'success' : 'warning'} variant="filled">
-              {group.sufficiency === 'sufficient' ? '充分' : '不足'}
+              {group.sufficiency === 'unknown' ? '待验证' : group.sufficiency === 'sufficient' ? '充分' : '不足'}
             </Tag>
           </header>
           <div className="evidence-items">

@@ -1,10 +1,14 @@
 # Multi-Agent QA
 
-基于 LangGraph 的多智能体协同问答系统，当前已实现阶段 0–3 的功能：V0 问答基线、运行轨迹持久化、配置驱动的协作流程，以及用户材料导入与知识源版本管理。
+基于 LangGraph 的多智能体协同问答系统，已实现运行轨迹持久化、配置驱动的协作流程、用户材料导入与知识源版本管理，并增加阶段 4.0 的问答修复与最小 HotpotQA 批量评测。当前自适应方法标识为 `multi_agent_adaptive_v1`。
 
 系统使用 Planner、Retriever、Answer-Validator 三个智能体，支持“固定三节点”和“反馈重试”两种流程。知识源可选择预置 HotpotQA 记录，也可通过界面或 CLI 导入一组英文 UTF-8 TXT/MD 文件。用户可以选择知识源及版本、测试问答，并从实时结果和历史记录追溯到具体文件与原文位置。
 
 原 V0 的真实 HotpotQA `bridge` 样本仍作为默认演示与回归基线保留。反馈重试流程支持证据不足时补充检索、证据冲突时重新规划；固定流程在一次验证后结束。
+
+阶段 4.0 的 Planner 允许 1–4 个必要子问题；Retriever 继续使用本地 BM25，有命中时显示“待验证”，由 Validator 判断能否回答原问题。`system-design/agents/retriever.json` 的 `retrieval_config.top_k` 默认 3，必须是正整数。第二跳优先检索从前一步原文中识别的新实体对应材料。HotpotQA 最终引用包含标题与零起始句子索引，TXT/MD 引用保留文件、版本和行号；服务器只回填能唯一定位的原文。
+
+阶段 4.0 的验收与复跑说明见 [docs/stage4-validation.md](docs/stage4-validation.md)。最小实验入口为 `python -m src.evaluation.batch`，输入数据与实验数据库保存在被 Git 忽略的 `data/experiments/`，固定样本清单和可审阅报告保存在 `docs/`。
 
 ## 系统结构
 
@@ -114,7 +118,7 @@ npm run dev
 .\venv\Scripts\python.exe main.py --workflow-id multi_hop_qa_fixed --source-id demo_fixture_002 "Which city contains Westhaven University?"
 ```
 
-`POST /api/v1/qa/stream` 的 JSON 请求可以增加可选的 `workflow_id` 和 `source_id`；只传 `question` 仍使用原 V0 默认值。也可通过 `MAQA_SYSTEM_CONFIG_PATH` 指向另一份系统清单，命令行还支持 `--system-config`。清单中的文件路径相对于清单所在目录解析。未知流程、知识源、组件或非法连线会在开始运行前报错。
+`POST /api/v1/qa/stream` 的 JSON 请求可以增加可选的 `workflow_id` 和 `source_id`；只传 `question` 使用当前默认配置。`multi_hop_qa_v0` 保留为兼容流程 ID，当前执行 V1，实际方法以快照中的 `method_id` 和协议版本为准。原始 V0 需要从冻结源码独立复跑。也可通过 `MAQA_SYSTEM_CONFIG_PATH` 指向另一份系统清单，命令行还支持 `--system-config`。清单中的文件路径相对于清单所在目录解析。未知流程、知识源、组件或非法连线会在开始运行前报错。
 
 运行历史、详情、统计和 JSONL 导出分别通过 `/api/v1/runs`、`/api/v1/runs/{run_id}`、`/api/v1/stats/summary` 和 `/api/v1/exports/runs.jsonl` 访问。
 每条运行记录保存实际执行的流程与知识源配置快照、配置 SHA-256 和知识文件 SHA-256。`code_version` 默认包含 Git 提交和当前 Python 运行时代码的 SHA-256；即使代码尚未提交，指纹也会随代码内容变化。无 Git 仓库时仍记录源码指纹；部署构建也可通过 `MAQA_CODE_VERSION` 增加构建标识，源码指纹始终保留。历史详情页展示这些标识，便于核对运行所用版本。

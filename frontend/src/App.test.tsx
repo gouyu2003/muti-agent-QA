@@ -196,6 +196,23 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /开始协同问答/ })).toBeDisabled()
   })
 
+  it('labels retrieved candidates as awaiting verification and preserves sentence zero', async () => {
+    vi.mocked(streamQuestion).mockImplementation(async (_question, onEvent) => {
+      onEvent({ type: 'run_completed', run_id: 'v1-run', timestamp: 'now', payload: {
+        result: { answer: 'Northbridge', verified: true,
+          evidence_chunks: [{ sq_id: 'sq_1', sufficiency: 'unknown', insufficiency_note: '',
+            chunks: [{ source_title: 'Cedar', source_paragraph: 0, text: 'Cedar is in Northbridge.', relevance_score: 2.4 }] }],
+          supporting_evidence: [{ sq_id: 'sq_1', source_title: 'Cedar', source_paragraph: 0, text: 'Cedar is in Northbridge.' }],
+        },
+      } })
+    })
+    render(<App />)
+    await screen.findByText('服务正常')
+    fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
+    expect((await screen.findAllByText('待验证')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/句子索引 0|sentence #0/).length).toBeGreaterThan(0)
+  })
+
   it('switches source without overwriting a typed question', async () => {
     render(<App />)
     await screen.findByText('服务正常')

@@ -41,7 +41,9 @@ def _build_default_graph(context: RunContext, usage_collector: LLMUsageCollector
     )
 
 NODE_FIELDS: dict[str, tuple[str, ...]] = {
-    "planner_v0": ("sub_questions", "retrieval_strategy", "plan_retry_count"),
+    "planner_v0": ("sub_questions", "retrieval_strategy", "plan_retry_count",
+                   "conflict_flag", "conflict_note", "conflict_pairs",
+                   "retrieval_supplement_request", "insufficient_sq_ids"),
     "retriever_v0": ("evidence_chunks", "retrieval_retry_count"),
     "answer_validator_v0": (
         "answer",
@@ -54,6 +56,7 @@ NODE_FIELDS: dict[str, tuple[str, ...]] = {
         "verification_note",
         "supporting_evidence",
         "validation_retry_count",
+        "retrieval_supplement_request",
     ),
 }
 

@@ -28,7 +28,7 @@ class EvidenceChunk(TypedDict):
 class EvidenceGroup(TypedDict):
     sq_id: str
     chunks: list[EvidenceChunk]
-    sufficiency: Literal["sufficient", "insufficient"]
+    sufficiency: Literal["sufficient", "insufficient", "unknown"]
     insufficiency_note: str
 
 
@@ -48,6 +48,7 @@ class SupportingEvidence(TypedDict):
     sq_id: str
     text: str
     source_title: str
+    source_paragraph: NotRequired[int]
     source_id: NotRequired[str]
     source_version: NotRequired[int]
     document_id: NotRequired[str]
@@ -74,7 +75,7 @@ class AgentState(TypedDict):
     retrieval_retry_count: NotRequired[int]
 
     # Answer-Validator 运行期写入
-    retrieval_supplement_request: NotRequired[RetrievalSupplementRequest]
+    retrieval_supplement_request: NotRequired[RetrievalSupplementRequest | None]
     answer: NotRequired[str]
     verified: NotRequired[bool]
     failure_type: NotRequired[Literal["none", "insufficient", "conflict"]]
