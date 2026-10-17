@@ -7,9 +7,10 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from src.runtime.models import RunRecord
+from src.runtime.specs import RuntimeRequest
 
 
-class QuestionRequest(BaseModel):
+class QuestionRequest(RuntimeRequest):
     question: str = Field(min_length=1, max_length=2000)
     workflow_id: str | None = Field(default=None, min_length=1)
     source_id: str | None = Field(default=None, min_length=1)

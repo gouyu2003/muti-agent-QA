@@ -204,6 +204,59 @@ export interface RunFilters {
   entrypoint?: RunEntryPoint
   methodId?: string
   startedFrom?: string
+  experimentId?: string
+  systemId?: string
+}
+
+export interface SystemDraftFields {
+  name: string
+  description: string
+  workflow_id: string | null
+  source_id: string | null
+  source_version: number | null
+}
+
+export interface SavedSystemSnapshot {
+  config_sha256: string
+  agents: Record<string, { agent_name: string; role: string; description?: string; model_config: { model_name: string; system_prompt: string; temperature: number; max_tokens: number } }>
+  workflow_spec: { protocol_id: string; method_id: string; entry_node: string; agents: string[]; edges: { from: string; to: string; route_name: string }[]; max_cycles: Record<string, number> }
+  protocol: { protocol_name?: string; description?: string }
+  source?: { source_id: string; source_type: string; name: string; version?: number; file_count?: number; chunk_count?: number }
+}
+
+export interface SystemDocument extends SystemDraftFields {
+  snapshot: SavedSystemSnapshot
+  version?: string
+  draft_revision?: number
+  created_at?: string
+}
+
+export interface ManagedSystem {
+  system_id: string
+  draft_revision: number
+  draft: SystemDocument
+  versions: SystemDocument[]
+  created_at: string
+  updated_at: string
+}
+
+export interface RunSelection {
+  workflowId?: string
+  sourceId?: string
+  sourceVersion?: number
+  systemId?: string
+  systemVersion?: string
+  draftRevision?: number
+}
+
+export interface ManagedSelection extends RunSelection {
+  name: string
+  document: SystemDocument
+}
+
+export interface ExperimentOption {
+  experiment_id: string
+  name: string
 }
 
 export interface StoredRunRecord {

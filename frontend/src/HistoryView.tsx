@@ -8,7 +8,7 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons'
 import { Alert, Button, Empty, Input, Pagination, Select, Skeleton, Tag, Tooltip } from 'antd'
-import { getRunDetail, getRuns, getRunsExportUrl, getRunStats } from './api'
+import { getManagedSystems, getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats } from './api'
 import EvidenceLocation from './EvidenceLocation'
 import type {
   RunEntryPoint,
@@ -21,6 +21,8 @@ import type {
   StoredRunRecord,
   StoredRunStatus,
   StoredTraceEvent,
+  ExperimentOption,
+  ManagedSystem,
 } from './types'
 
 const PAGE_SIZE = 10
@@ -51,6 +53,11 @@ function isAbort(error: unknown): boolean {
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : '运行历史加载失败，请重试。'
+}
+
+function systemLabel(snapshot: Record<string, unknown>): string {
+  const ref = asObject(snapshot.system_ref)
+  return typeof ref.system_id === 'string' ? `${String(ref.name)} · ${ref.kind === 'draft' ? `草稿 r${String(ref.draft_revision)}` : String(ref.system_version)}` : ''
 }
 
 function formatDate(value: string): string {
@@ -193,7 +200,7 @@ function RunEvidence({ result, source }: { result: RunResult | null; source?: Pi
   )
 }
 
-function RunDetailPanel({ detail }: { detail: StoredRunDetail }) {
+function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDetail; experimentName?: string }) {
   const { run, events } = detail
   const result = run.final_state
   const snapshot = asObject(run.context.config_snapshot)
@@ -220,6 +227,12 @@ function RunDetailPanel({ detail }: { detail: StoredRunDetail }) {
         <span>{run.context.model_name}</span>
       </div>
       <div className="history-config-facts" aria-label="生效配置">
+        {run.context.experiment_id ? <>
+          <div><span>实验</span><strong>{experimentName || run.context.experiment_id}</strong></div>
+          <div><span>实验 ID</span><code>{run.context.experiment_id}</code></div>
+        </> : null}
+        {run.context.sample_id ? <div><span>样本编号</span><code>{run.context.sample_id}</code></div> : null}
+        {systemLabel(snapshot) ? <><div><span>所属问答系统</span><strong>{systemLabel(snapshot)}</strong></div><div><span>系统 ID</span><code>{String(asObject(snapshot.system_ref).system_id)}</code></div></> : null}
         <div><span>协作流程</span><strong>{run.context.workflow_id}</strong></div>
         <div><span>方法</span><strong>{run.context.method_id}</strong></div>
         <div><span>知识源</span><strong>{sourceName || sourceId || '未记录'}</strong></div>
@@ -267,9 +280,15 @@ function RunDetailPanel({ detail }: { detail: StoredRunDetail }) {
   )
 }
 
-export default function HistoryView() {
+export default function HistoryView({ initialSystemId }: { initialSystemId?: string }) {
+  const [systems, setSystems] = useState<ManagedSystem[]>([])
+  const [systemId, setSystemId] = useState(initialSystemId)
+  const [systemError, setSystemError] = useState('')
   const [status, setStatus] = useState<StoredRunStatus | undefined>()
   const [entrypoint, setEntrypoint] = useState<RunEntryPoint | undefined>()
+  const [experiments, setExperiments] = useState<ExperimentOption[]>([])
+  const [experimentId, setExperimentId] = useState<string>()
+  const [experimentError, setExperimentError] = useState('')
   const [timeRange, setTimeRange] = useState<TimeRange>('all')
   const [methodDraft, setMethodDraft] = useState('')
   const [methodId, setMethodId] = useState('')
@@ -291,9 +310,20 @@ export default function HistoryView() {
     return timeRange === 'all' ? undefined : new Date(Date.now() - hours[timeRange] * 3600000).toISOString()
   }, [timeRange, refresh])
   const filters = useMemo<RunFilters>(
-    () => ({ status, entrypoint, methodId: methodId || undefined, startedFrom }),
-    [status, entrypoint, methodId, startedFrom],
+    () => ({ status, entrypoint, methodId: methodId || undefined, startedFrom, experimentId, systemId }),
+    [status, entrypoint, methodId, startedFrom, experimentId, systemId],
   )
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setExperimentError('')
+    setSystemError('')
+    getManagedSystems(controller.signal).then(data => setSystems(data.items)).catch((error: unknown) => { if (!isAbort(error)) setSystemError(errorText(error)) })
+    getExperiments(controller.signal).then(setExperiments).catch((error: unknown) => {
+      if (!isAbort(error)) { setExperiments([]); setExperimentError(errorText(error)) }
+    })
+    return () => controller.abort()
+  }, [refresh])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -325,13 +355,15 @@ export default function HistoryView() {
   useEffect(() => {
     if (!selectedId) {
       setDetail(undefined)
+      setDetailLoading(false)
+      setDetailError('')
       return
     }
     const controller = new AbortController()
     setDetail(undefined)
     setDetailError('')
     setDetailLoading(true)
-    getRunDetail(selectedId, controller.signal)
+    getRunDetail(selectedId, controller.signal, experimentId)
       .then(setDetail)
       .catch((error: unknown) => {
         if (!isAbort(error)) setDetailError(errorText(error))
@@ -340,15 +372,15 @@ export default function HistoryView() {
         if (!controller.signal.aborted) setDetailLoading(false)
       })
     return () => controller.abort()
-  }, [selectedId, refresh])
+  }, [selectedId, refresh, experimentId])
 
   return (
     <main className="history-workspace">
       <header className="history-hero">
         <div>
-          <span className="section-kicker">RUN ARCHIVE / V0</span>
+          <span className="section-kicker">RUN ARCHIVE</span>
           <h1>每次运行，都有迹可循</h1>
-          <p>按运行查看问题、答案、节点轨迹与路由原因。API 和 CLI 记录汇入同一份档案。</p>
+          <p>查看日常问答与批量实验的问题、答案、证据和执行轨迹。</p>
         </div>
         <div className="history-hero-actions">
           <Button icon={<ReloadOutlined />} onClick={() => setRefresh((value) => value + 1)}>
@@ -370,12 +402,13 @@ export default function HistoryView() {
       ) : null}
 
       <section className="history-stats" aria-label="运行统计">
-        <div><span>运行总数</span><strong>{loading ? '—' : stats?.total_runs ?? 0}</strong><small>API 与 CLI 记录</small></div>
+        <div><span>运行总数</span><strong>{loading ? '—' : stats?.total_runs ?? 0}</strong><small>当前筛选范围内的运行</small></div>
         <div><span>完成率</span><strong>{loading ? '—' : formatPercent(stats?.completion_rate ?? 0)}</strong><small>已完成 / 全部运行</small></div>
         <div><span>验证通过率</span><strong>{loading ? '—' : formatPercent(stats?.verification_pass_rate ?? 0)}</strong><small>已验证 / 已完成，非答案准确率</small></div>
         <div><span>平均耗时</span><strong>{loading ? '—' : formatDuration(stats?.average_duration_ms ?? null)}</strong><small>有耗时记录的运行</small></div>
       </section>
 
+      {systemError ? <Alert type="error" title="系统筛选加载失败" description={systemError} /> : null}
       <section className="history-filters" aria-label="筛选运行历史">
         <div className="history-filter-heading">
           <FileSearchOutlined />
@@ -396,6 +429,8 @@ export default function HistoryView() {
           aria-label="入口筛选" value={entrypoint ?? 'all'}
           onChange={(value) => {
             setEntrypoint(value === 'all' ? undefined : value as RunEntryPoint)
+            setExperimentId(undefined)
+            setSelectedId(undefined)
             setPage(1)
           }}
           options={[
@@ -424,7 +459,17 @@ export default function HistoryView() {
           onSearch={(value) => { setMethodId(value.trim()); setPage(1) }}
           allowClear enterButton="筛选"
         />
+        <Select className="history-experiment-select" aria-label="系统筛选" value={systemId ?? ''}
+          onChange={value => { setSystemId(value || undefined); setPage(1); setSelectedId(undefined) }}
+          options={[{ value: '', label: '全部系统与临时问答' }, ...systems.map(item => ({ value: item.system_id, label: item.draft.name }))]} />
+        {entrypoint === 'batch' ? <Select
+          className="history-experiment-select"
+          aria-label="实验筛选" value={experimentId ?? ''}
+          onChange={(value) => { setExperimentId(value || undefined); setSelectedId(undefined); setPage(1) }}
+          options={[{ value: '', label: '全部批量实验' }, ...experiments.map((item) => ({ value: item.experiment_id, label: item.name }))]}
+        /> : null}
       </section>
+      {experimentError ? <Alert type="error" showIcon title="实验档案加载失败" description={experimentError} /> : null}
 
       <div className="history-main-grid">
         <section className="history-list-panel" aria-label="历史运行列表">
@@ -458,6 +503,11 @@ export default function HistoryView() {
                     </Tag>
                   </span>
                   <strong>{item.context.question}</strong>
+                  {systemLabel(item.context.config_snapshot) ? <span className="history-experiment-label">{systemLabel(item.context.config_snapshot)}</span> : null}
+                  {item.context.experiment_id ? <span className="history-experiment-label">
+                    {experiments.find((experiment) => experiment.experiment_id === item.context.experiment_id)?.name || item.context.experiment_id}
+                    {item.context.sample_id ? ` · 样本 ${item.context.sample_id}` : ''}
+                  </span> : null}
                   <span className="history-run-row-bottom">
                     {item.context.entrypoint.toUpperCase()} · {item.context.method_id}
                     <span><ClockCircleOutlined /> {formatDuration(item.metrics.duration_ms)}</span>
@@ -480,14 +530,15 @@ export default function HistoryView() {
           {detailError && !loading ? (
             <Alert type="error" showIcon message="运行详情加载失败" description={detailError} />
           ) : null}
-          {!loading && !detailLoading && !detailError && detail ? <RunDetailPanel detail={detail} /> : null}
+          {!loading && !detailLoading && !detailError && detail ? <RunDetailPanel detail={detail}
+            experimentName={experiments.find((experiment) => experiment.experiment_id === detail.run.context.experiment_id)?.name} /> : null}
           {!loading && !detailLoading && !detailError && !detail && !listError ? (
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="选择一条运行，查看完整轨迹与答案。" />
           ) : null}
         </section>
       </div>
       <p className="history-footer-note">
-        验证通过率反映当前验证器的结论。答案准确率需接入标准答案后另行计算。
+        验证通过率反映验证器的结论，不等同于标准答案准确率。
       </p>
     </main>
   )

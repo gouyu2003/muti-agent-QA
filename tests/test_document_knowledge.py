@@ -103,8 +103,7 @@ def test_runtime_pins_user_version_without_fake_hotpotqa_fields(store):
     assert context.config_snapshot["source"]["version"] == 1
     assert context.config_snapshot["source"]["index_sha256"]
     assert retriever_from_snapshot(context.config_snapshot).search("Northbridge")
-    with pytest.raises(ImportFailure):
-        store.resolve("another-system", result["source_id"])
+    assert store.resolve("another-system", result["source_id"])["version"] == 1
 
 
 def test_markdown_code_does_not_change_heading_path():

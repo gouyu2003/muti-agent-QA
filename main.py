@@ -36,6 +36,9 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
             "--thread-id 作为旧参数名兼容保留"
         ),
     )
+    parser.add_argument("--system-id", default=None)
+    parser.add_argument("--system-version", default=None)
+    parser.add_argument("--draft-revision", type=int, default=None)
     parser.add_argument("--workflow-id", default=None)
     parser.add_argument("--source-id", default=None)
     parser.add_argument("--source-version", type=int, default=None)
@@ -59,6 +62,7 @@ def run(
     source_id: str | None = None,
     source_version: int | None = None,
     catalog_path: str | None = None,
+    system_id: str | None = None, system_version: str | None = None, draft_revision: int | None = None,
 ) -> RunDetail:
     """通过统一 RunService 执行一次 CLI 运行并返回持久化详情。"""
 
@@ -66,6 +70,7 @@ def run(
     context = build_v0_run_context(
         question,
         entrypoint="cli",
+        **({"system_id": system_id, "system_version": system_version, "draft_revision": draft_revision} if any(v is not None for v in (system_id, system_version, draft_revision)) else {}),
         run_id=run_id,
         workflow_id=workflow_id,
         source_id=source_id,
@@ -121,13 +126,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     args = parse_args(argv)
     question = " ".join(args.question).strip()
-    if not question and args.source_id and args.source_id.startswith("user_"):
+    if not question and (args.system_id or (args.source_id and args.source_id.startswith("user_"))):
         print("用户知识源需要明确提供英文问题。")
         return 1
     question = question or DEFAULT_QUESTION
 
     try:
         options = {}
+        for key in ("system_id", "system_version", "draft_revision"):
+            if getattr(args, key) is not None:
+                options[key] = getattr(args, key)
         if args.workflow_id is not None:
             options["workflow_id"] = args.workflow_id
         if args.source_id is not None:

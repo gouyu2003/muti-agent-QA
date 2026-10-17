@@ -38,9 +38,11 @@ import type { ReactNode } from 'react'
 import { getSystemInfo, getSystemOptions, streamQuestion } from './api'
 import HistoryView from './HistoryView'
 import KnowledgeView from './KnowledgeView'
+import SystemsView from './SystemsView'
 import EvidenceLocation from './EvidenceLocation'
 import { initialRunState, runReducer } from './runState'
 import type {
+  ManagedSelection,
   AgentInfo,
   EvidenceGroup,
   NodeId,
@@ -412,7 +414,9 @@ function ResultPanel({ result, durationMs, source }: { result?: RunResult; durat
 }
 
 export default function App() {
-  const [view, setView] = useState<'live' | 'history' | 'knowledge'>('live')
+  const [view, setView] = useState<'live' | 'history' | 'knowledge' | 'systems'>('live')
+  const [managedSelection, setManagedSelection] = useState<ManagedSelection>()
+  const [historySystemId, setHistorySystemId] = useState<string>()
   const [system, setSystem] = useState<SystemInfo>()
   const [options, setOptions] = useState<SystemOptions>()
   const [workflowId, setWorkflowId] = useState('')
@@ -454,21 +458,28 @@ export default function App() {
 
   const agents = useMemo(
     () =>
-      system?.agents ??
+      (managedSelection ? Object.entries(managedSelection.document.snapshot.agents).map(([agent_id, config]) => ({ agent_id: agent_id as NodeId, name: config.agent_name, role: config.role, description: config.description ?? '' })) : system?.agents) ??
       NODE_ORDER.map((node) => ({
         agent_id: node,
         name: NODE_META[node].shortName,
         role: node,
         description: '',
       })),
-    [system],
+    [system, managedSelection],
   )
-  const currentWorkflow = options?.workflows.find((item) => item.workflow_id === workflowId)
+  const frozen = managedSelection?.document.snapshot
+  const currentWorkflow: WorkflowOption | undefined = frozen ? {
+    workflow_id: frozen.workflow_spec.protocol_id, name: frozen.protocol.protocol_name ?? frozen.workflow_spec.protocol_id,
+    description: frozen.protocol.description ?? '', method_id: frozen.workflow_spec.method_id,
+    entry_node: frozen.workflow_spec.entry_node, agents: frozen.workflow_spec.agents,
+    edges: frozen.workflow_spec.edges.map(edge => ({ source: edge.from, target: edge.to, route_name: edge.route_name })),
+    retry_limits: frozen.workflow_spec.max_cycles,
+  } : options?.workflows.find((item) => item.workflow_id === workflowId)
   const sourceOption = options?.sources.find((item) => item.source_id === sourceId)
   const versionInfo = sourceOption?.version_details?.find((item) => item.version === sourceVersion)
-  const currentSource = sourceOption ? { ...sourceOption, ...(versionInfo ?? {}) } : undefined
+  const currentSource: SourceOption | undefined = frozen?.source ? { record_id: null, question_type: null, level: null, context_count: null, supporting_fact_count: null, example_question: null, ...sourceOption, ...frozen.source, is_demo: sourceOption?.is_demo ?? false } : sourceOption ? { ...sourceOption, ...(versionInfo ?? {}) } : undefined
   const shownWorkflow = submittedSelection && run.status !== 'idle'
-    ? options?.workflows.find((item) => item.workflow_id === submittedSelection.workflowId)
+    ? managedSelection ? currentWorkflow : options?.workflows.find((item) => item.workflow_id === submittedSelection.workflowId)
     : currentWorkflow
   const shownSource = submittedSelection && run.status !== 'idle'
     ? submittedSource
@@ -498,6 +509,7 @@ export default function App() {
   }
 
   function useKnowledge(value: string, version: number) {
+    setManagedSelection(undefined)
     setSourceId(value)
     setSourceVersion(version)
     setSubmittedSelection(undefined)
@@ -530,7 +542,7 @@ export default function App() {
         normalized,
         (event) => dispatch({ type: 'stream_event', event }),
         controller.signal,
-        selection,
+        managedSelection ? { systemId: managedSelection.systemId, systemVersion: managedSelection.systemVersion, draftRevision: managedSelection.draftRevision } : selection,
       )
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return
@@ -572,7 +584,7 @@ export default function App() {
           <button
             type="button" className={view === 'history' ? 'active' : ''}
             aria-current={view === 'history' ? 'page' : undefined}
-            onClick={() => setView('history')}
+            onClick={() => { setHistorySystemId(undefined); setView('history') }}
           >
             <HistoryOutlined /> 运行历史
           </button>
@@ -580,15 +592,19 @@ export default function App() {
             aria-current={view === 'knowledge' ? 'page' : undefined} onClick={() => setView('knowledge')}>
             <DatabaseOutlined /> 知识源
           </button>
+          <button type="button" className={view === 'systems' ? 'active' : ''} aria-current={view === 'systems' ? 'page' : undefined} onClick={() => setView('systems')}><ApartmentOutlined /> 我的系统</button>
         </nav>
         <div className="system-badges">
           <Tag variant="filled">{shownWorkflow?.workflow_id ?? '等待配置'}</Tag>
-          <Tag variant="filled">{system?.model_name ?? 'DeepSeek · Bailian'}</Tag>
+          <Tag variant="filled">{(managedSelection ? Object.values(managedSelection.document.snapshot.agents)[0]?.model_config.model_name : system?.model_name) ?? 'DeepSeek · Bailian'}</Tag>
           <Badge status={systemError ? 'error' : options ? 'success' : 'processing'} text={systemError ? '配置不可用' : options ? '服务正常' : '正在连接'} />
         </div>
       </header>
 
-      {view === 'history' ? <HistoryView /> : view === 'knowledge' ? (
+      {view === 'systems' ? <SystemsView options={options} disabled={isRunning} onHistory={id => { setHistorySystemId(id); setView('history') }} onUse={selection => {
+        setManagedSelection(selection); setWorkflowId(selection.document.workflow_id ?? ''); setSourceId(selection.document.source_id ?? '')
+        setSourceVersion(selection.document.source_version ?? undefined); setSubmittedSelection(undefined); dispatch({ type: 'clear' }); setView('live')
+      }} /> : view === 'history' ? <HistoryView initialSystemId={historySystemId} /> : view === 'knowledge' ? (
         <KnowledgeView disabled={isRunning} onChanged={refreshOptions} onUse={useKnowledge} />
       ) : <main className="workspace">
         <aside className="protocol-column">
@@ -649,6 +665,9 @@ export default function App() {
           ) : null}
 
           <Card className="question-card" variant="borderless">
+            <div className="system-run-banner"><strong>{managedSelection ? `${managedSelection.name} · ${managedSelection.systemVersion ?? `草稿试运行 r${managedSelection.draftRevision}`}` : '临时问答'}</strong>
+              {managedSelection ? <Button disabled={isRunning} onClick={() => { setManagedSelection(undefined); setSubmittedSelection(undefined); dispatch({ type: 'clear' }) }}>切回临时问答</Button> : null}
+            </div>
             <div className="configuration-controls">
               <label>
                 <span>协作流程</span>
@@ -657,7 +676,7 @@ export default function App() {
                   value={workflowId || undefined}
                   options={options?.workflows.map((item) => ({ value: item.workflow_id, label: item.name })) ?? []}
                   onChange={selectWorkflow}
-                  disabled={isRunning || !options}
+                  disabled={isRunning || !options || Boolean(managedSelection)}
                   placeholder="选择协作流程"
                 />
               </label>
@@ -668,7 +687,7 @@ export default function App() {
                   value={sourceId || undefined}
                   options={options?.sources.map((item) => ({ value: item.source_id, label: item.is_demo ? `${item.name}（演示）` : item.name })) ?? []}
                   onChange={selectSource}
-                  disabled={isRunning || !options}
+                  disabled={isRunning || !options || Boolean(managedSelection)}
                   placeholder="选择知识源"
                 />
               </label>
@@ -676,7 +695,7 @@ export default function App() {
                 <span>知识源版本</span>
                 <Select aria-label="知识源版本" value={sourceVersion}
                   options={currentSource.versions?.map((version) => ({ value: version, label: `版本 ${version}` }))}
-                  disabled={isRunning}
+                  disabled={isRunning || Boolean(managedSelection)}
                   onChange={(version) => { setSourceVersion(version); setSubmittedSelection(undefined); dispatch({ type: 'clear' }) }} />
               </label> : null}
             </div>

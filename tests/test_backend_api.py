@@ -95,7 +95,9 @@ def _service(
 @pytest.fixture
 def api_client(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[tuple[TestClient, SQLiteRunRepository]]:
+    monkeypatch.setenv('MAQA_EXPERIMENT_CATALOG_PATH', str(tmp_path / 'no-experiments.json'))
     service, repository = _service(tmp_path)
     original_factory = app.state.run_service_factory
     app.state.run_service_factory = lambda: service

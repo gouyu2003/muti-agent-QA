@@ -93,3 +93,17 @@ class RuntimeRequest(StrictSpec):
     workflow_id: str | None = Field(default=None, min_length=1)
     source_id: str | None = Field(default=None, min_length=1)
     source_version: StrictInt | None = Field(default=None, ge=1)
+    system_id: str | None = Field(default=None, min_length=1)
+    system_version: str | None = Field(default=None, pattern=r'^v[1-9][0-9]*$')
+    draft_revision: StrictInt | None = Field(default=None, ge=1)
+
+    @model_validator(mode='after')
+    def system_selection(self):
+        if self.system_id:
+            if (self.system_version is None) == (self.draft_revision is None):
+                raise ValueError('指定系统时请选择发布版本或草稿修订号。')
+            if any(v is not None for v in (self.workflow_id, self.source_id, self.source_version)):
+                raise ValueError('系统版本运行不能覆盖流程或知识源。')
+        elif self.system_version is not None or self.draft_revision is not None:
+            raise ValueError('必须同时指定 system_id。')
+        return self

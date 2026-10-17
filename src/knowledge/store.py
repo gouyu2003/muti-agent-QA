@@ -1,7 +1,7 @@
 """Local, versioned knowledge imports shared by HTTP and CLI."""
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, closing
 from datetime import datetime, timezone
 from functools import lru_cache
 import json
@@ -37,25 +37,32 @@ class KnowledgeStore:
         self.root = Path(root or os.getenv("MAQA_KNOWLEDGE_DIR") or DEFAULT_ROOT).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self.database = self.root / "knowledge.sqlite3"
+        # SQLite backup includes committed WAL contents, unlike copying the file.
+        if self.database.exists():
+            with closing(sqlite3.connect(self.database)) as existing:
+                version = existing.execute("PRAGMA user_version").fetchone()[0]
+                has_sources = existing.execute("SELECT 1 FROM sqlite_master WHERE name='sources'").fetchone()
+                if has_sources and version < 2:
+                    backup = self.root / f"knowledge.pre-workspace-{datetime.now().strftime('%Y%m%d%H%M%S%f')}.sqlite3"
+                    with closing(sqlite3.connect(backup)) as target:
+                        existing.backup(target)
         with self.connection() as db:
-            db.executescript("""
-                CREATE TABLE IF NOT EXISTS sources (
-                    source_id TEXT PRIMARY KEY, system_id TEXT NOT NULL,
-                    name TEXT NOT NULL, created_at TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS versions (
-                    source_id TEXT NOT NULL REFERENCES sources(source_id),
-                    version INTEGER NOT NULL, status TEXT NOT NULL,
-                    created_at TEXT NOT NULL, metadata TEXT NOT NULL DEFAULT '{}',
-                    error TEXT, PRIMARY KEY (source_id, version)
-                );
-                CREATE TABLE IF NOT EXISTS bindings (
-                    system_id TEXT NOT NULL, agent_id TEXT NOT NULL,
-                    source_id TEXT NOT NULL REFERENCES sources(source_id),
-                    PRIMARY KEY (system_id, agent_id, source_id)
-                );
-                PRAGMA user_version = 1;
-            """)
+            version = db.execute("PRAGMA user_version").fetchone()[0]
+            if version > 2:
+                raise RuntimeError("不支持的知识库数据库版本")
+            if version == 2:
+                return
+            db.execute("BEGIN IMMEDIATE")
+            for statement in (
+                "CREATE TABLE IF NOT EXISTS sources (source_id TEXT PRIMARY KEY, system_id TEXT NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL)",
+                "CREATE TABLE IF NOT EXISTS versions (source_id TEXT NOT NULL REFERENCES sources(source_id), version INTEGER NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, metadata TEXT NOT NULL DEFAULT '{}', error TEXT, PRIMARY KEY (source_id, version))",
+                "CREATE TABLE IF NOT EXISTS bindings (system_id TEXT NOT NULL, agent_id TEXT NOT NULL, source_id TEXT NOT NULL REFERENCES sources(source_id), PRIMARY KEY (system_id, agent_id, source_id))",
+            ):
+                db.execute(statement)
+            columns = {row[1] for row in db.execute("PRAGMA table_info(sources)")}
+            if "workspace_id" not in columns:
+                db.execute("ALTER TABLE sources ADD COLUMN workspace_id TEXT NOT NULL DEFAULT 'local'")
+            db.execute("PRAGMA user_version = 2")
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
@@ -85,7 +92,7 @@ class KnowledgeStore:
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             if name is not None:
-                db.execute("INSERT INTO sources VALUES (?, ?, ?, ?)",
+                db.execute("INSERT INTO sources (source_id, system_id, name, created_at) VALUES (?, ?, ?, ?)",
                            (source_id, system_id, name.strip(), now()))
             version = db.execute("SELECT COALESCE(MAX(version), 0)+1 FROM versions WHERE source_id=?",
                                  (source_id,)).fetchone()[0]
@@ -127,9 +134,9 @@ class KnowledgeStore:
 
     def detail(self, system_id: str, source_id: str) -> dict[str, Any]:
         with self.connection() as db:
-            source = db.execute("SELECT * FROM sources WHERE source_id=? AND system_id=?", (source_id, system_id)).fetchone()
+            source = db.execute("SELECT * FROM sources WHERE source_id=? AND workspace_id='local'", (source_id,)).fetchone()
             if source is None:
-                raise ImportFailure("source_not_found", f"未知 source_id: {source_id}，未找到当前系统的用户知识源。")
+                raise ImportFailure("source_not_found", f"未知 source_id: {source_id}，未找到当前工作区的用户知识源。")
             rows = db.execute("SELECT * FROM versions WHERE source_id=? ORDER BY version DESC", (source_id,)).fetchall()
         versions = [{"version": row["version"], "status": row["status"], "created_at": row["created_at"],
                      **json.loads(row["metadata"]), "error": json.loads(row["error"]) if row["error"] else None}
@@ -144,16 +151,11 @@ class KnowledgeStore:
 
     def list_sources(self, system_id: str) -> list[dict[str, Any]]:
         with self.connection() as db:
-            ids = db.execute("SELECT source_id FROM sources WHERE system_id=? ORDER BY created_at DESC", (system_id,)).fetchall()
+            ids = db.execute("SELECT source_id FROM sources WHERE workspace_id='local' ORDER BY created_at DESC").fetchall()
         return [self.detail(system_id, row[0]) for row in ids]
 
     def resolve(self, system_id: str, source_id: str, version: int | None = None) -> dict[str, Any]:
         detail = self.detail(system_id, source_id)
-        with self.connection() as db:
-            binding = db.execute("SELECT 1 FROM bindings WHERE system_id=? AND agent_id='retriever_v0' AND source_id=?",
-                                 (system_id, source_id)).fetchone()
-        if not binding:
-            raise ImportFailure("source_not_ready", "知识源尚未成功导入并绑定到检索智能体。")
         selected = version if version is not None else detail["current_version"]
         entry = next((v for v in detail["versions"] if v["version"] == selected and v["status"] == "ready"), None)
         if entry is None:

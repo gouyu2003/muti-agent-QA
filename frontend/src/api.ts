@@ -8,6 +8,8 @@ import type {
   SystemOptions,
   KnowledgeSource,
   ChunkPage,
+  ExperimentOption,
+  ManagedSystem, SystemDocument, SystemDraftFields, RunSelection,
 } from './types'
 
 const API_PREFIX = '/api/v1'
@@ -27,6 +29,8 @@ function historyQuery(filters: RunFilters): URLSearchParams {
   if (filters.entrypoint) query.set('entrypoint', filters.entrypoint)
   if (filters.methodId) query.set('method_id', filters.methodId)
   if (filters.startedFrom) query.set('started_from', filters.startedFrom)
+  if (filters.experimentId) query.set('experiment_id', filters.experimentId)
+  if (filters.systemId) query.set('system_id', filters.systemId)
   return query
 }
 
@@ -42,8 +46,13 @@ export function getRuns(
   return getJson(`${API_PREFIX}/runs?${query}`, signal)
 }
 
-export function getRunDetail(runId: string, signal?: AbortSignal): Promise<StoredRunDetail> {
-  return getJson(`${API_PREFIX}/runs/${encodeURIComponent(runId)}`, signal)
+export function getRunDetail(runId: string, signal?: AbortSignal, experimentId?: string): Promise<StoredRunDetail> {
+  const query = historyQuery({ experimentId })
+  return getJson(`${API_PREFIX}/runs/${encodeURIComponent(runId)}${query.size ? `?${query}` : ''}`, signal)
+}
+
+export function getExperiments(signal?: AbortSignal): Promise<ExperimentOption[]> {
+  return getJson(`${API_PREFIX}/experiments`, signal)
 }
 
 export function getRunStats(filters: RunFilters, signal?: AbortSignal): Promise<RunStatsSummary> {
@@ -86,7 +95,7 @@ async function knowledgeJson<T>(url: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const detail = data.detail
     throw new KnowledgeImportError(
-      typeof detail === 'object' && detail?.message ? detail.message : `知识源请求失败（HTTP ${response.status}）`,
+      typeof detail === 'string' ? detail : typeof detail === 'object' && detail?.message ? detail.message : `请求失败（HTTP ${response.status}）`,
       detail?.source_id, detail?.version,
     )
   }
@@ -95,6 +104,27 @@ async function knowledgeJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 export function getKnowledgeSources(signal?: AbortSignal): Promise<{ items: KnowledgeSource[] }> {
   return knowledgeJson(`${API_PREFIX}/knowledge/sources`, { signal })
+}
+
+export function getManagedSystems(signal?: AbortSignal): Promise<{ items: ManagedSystem[] }> {
+  return knowledgeJson(`${API_PREFIX}/systems`, { signal })
+}
+
+export function getManagedSystem(id: string): Promise<ManagedSystem> {
+  return knowledgeJson(`${API_PREFIX}/systems/${encodeURIComponent(id)}`)
+}
+
+export function saveManagedSystem(fields: SystemDraftFields, id?: string, revision?: number): Promise<ManagedSystem> {
+  return knowledgeJson(`${API_PREFIX}/systems${id ? `/${encodeURIComponent(id)}/draft` : ''}`, {
+    method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...fields, ...(id ? { expected_revision: revision } : {}) }),
+  })
+}
+
+export function publishManagedSystem(id: string, revision: number): Promise<SystemDocument> {
+  return knowledgeJson(`${API_PREFIX}/systems/${encodeURIComponent(id)}/versions`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expected_revision: revision }),
+  })
 }
 
 export function getKnowledgeSource(sourceId: string, signal?: AbortSignal): Promise<KnowledgeSource> {
@@ -135,17 +165,18 @@ export async function streamQuestion(
   question: string,
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal,
-  selection?: { workflowId: string; sourceId: string; sourceVersion?: number },
+  selection?: RunSelection,
 ): Promise<void> {
   const response = await fetch(`${API_PREFIX}/qa/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, workflow_id: selection?.workflowId, source_id: selection?.sourceId, source_version: selection?.sourceVersion }),
+    body: JSON.stringify({ question, workflow_id: selection?.workflowId, source_id: selection?.sourceId, source_version: selection?.sourceVersion,
+      system_id: selection?.systemId, system_version: selection?.systemVersion, draft_revision: selection?.draftRevision }),
     signal,
   })
 
   if (!response.ok) {
-    if (response.status === 422) {
+    if ([404, 409, 422].includes(response.status)) {
       const data = await response.json().catch(() => null) as { detail?: unknown } | null
       const detail = typeof data?.detail === 'string' ? data.detail : '问题或所选配置无效。'
       throw new Error(detail)

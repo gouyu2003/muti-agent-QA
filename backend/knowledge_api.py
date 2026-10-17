@@ -1,7 +1,6 @@
 """Bounded multipart imports and previews of local user knowledge."""
 from __future__ import annotations
 
-import os
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
@@ -9,13 +8,14 @@ from fastapi.responses import JSONResponse
 
 from src.knowledge.corpus import MAX_FILE_BYTES, MAX_FILES, ImportFailure
 from src.knowledge.store import KnowledgeStore
-from src.runtime.system import DEFAULT_CATALOG_PATH, resolve_system
 
 router = APIRouter(prefix="/api/v1/knowledge")
 
 
 def scope() -> str:
-    return resolve_system(catalog_path=os.getenv("MAQA_SYSTEM_CONFIG_PATH") or DEFAULT_CATALOG_PATH).system_id
+    # Legacy store signatures retain the first argument for CLI compatibility;
+    # knowledge belongs to this local workspace, independent of any QA system.
+    return 'local'
 
 
 def get_store(request: Request) -> KnowledgeStore:

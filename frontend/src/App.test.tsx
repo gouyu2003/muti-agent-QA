@@ -1,16 +1,18 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { getRunDetail, getRuns, getRunStats, getSystemInfo, getSystemOptions, streamQuestion } from './api'
+import { getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats, getSystemInfo, getSystemOptions, streamQuestion } from './api'
 import type { RunStatsSummary, StoredRunDetail, StoredRunRecord, SystemInfo, SystemOptions } from './types'
 
 vi.mock('./api', () => ({
+  getManagedSystems: vi.fn(async () => ({ items: [] })),
   getSystemInfo: vi.fn(),
   getSystemOptions: vi.fn(),
   streamQuestion: vi.fn(),
   getRuns: vi.fn(),
   getRunStats: vi.fn(),
   getRunDetail: vi.fn(),
+  getExperiments: vi.fn(),
   getRunsExportUrl: vi.fn(() => '/api/v1/exports/runs.jsonl'),
 }))
 
@@ -129,6 +131,7 @@ describe('App', () => {
     vi.mocked(getRuns).mockResolvedValue({ items: [archivedRun], total: 1, limit: 10, offset: 0 })
     vi.mocked(getRunStats).mockResolvedValue(archivedStats)
     vi.mocked(getRunDetail).mockResolvedValue(archivedDetail)
+    vi.mocked(getExperiments).mockResolvedValue([])
   })
 
   it('renders the V0 workbench with Ant Design controls and system metadata', async () => {
@@ -177,6 +180,55 @@ describe('App', () => {
     expect(await screen.findByText('还没有运行记录。先去实时运行发起一次问答。')).toBeInTheDocument()
     expect(screen.getByText('选择一条运行，查看完整轨迹与答案。')).toBeInTheDocument()
     expect(getRunDetail).not.toHaveBeenCalled()
+  })
+
+  it('browses V0/V1 batch archives, filters a group and opens a failed sample with its metadata', async () => {
+    const experiments = [{ experiment_id: 'v0', name: 'Smoke-10 · V0 原始基线' },
+      { experiment_id: 'v1', name: 'Smoke-10 · V1 问答修复' }]
+    vi.mocked(getExperiments).mockResolvedValue(experiments)
+    const runs: StoredRunRecord[] = ['v1', 'v0'].flatMap((experiment) => Array.from({ length: 10 }, (_, index) => ({
+      ...archivedRun,
+      context: { ...archivedRun.context, run_id: `${experiment}-${index}`, question: `Batch ${experiment}-${index}`,
+        entrypoint: 'batch', experiment_id: experiment, sample_id: `sample-${index}`,
+        method_id: `multi_agent_adaptive_${experiment}` },
+      status: experiment === 'v0' && index === 0 ? 'failed' : 'completed',
+      error: experiment === 'v0' && index === 0 ? { error_type: 'execution_error', message: 'Preserved failure' } : null,
+    })))
+    const selected = (filters: Parameters<typeof getRuns>[0]) => runs.filter((run) =>
+      (!filters.entrypoint || filters.entrypoint === run.context.entrypoint)
+      && (!filters.experimentId || filters.experimentId === run.context.experiment_id))
+    vi.mocked(getRuns).mockImplementation(async (filters, limit, offset) => {
+      const items = selected(filters)
+      return { items: items.slice(offset, offset + limit), total: items.length, limit, offset }
+    })
+    vi.mocked(getRunStats).mockImplementation(async (filters) => ({ ...archivedStats, total_runs: selected(filters).length }))
+    vi.mocked(getRunDetail).mockImplementation(async (id) => ({
+      run: runs.find((run) => run.context.run_id === id)!,
+      events: [{ ...archivedDetail.events[0], run_id: id, event_type: id === 'v0-0' ? 'run_failed' : 'run_completed',
+        payload: id === 'v0-0' ? { message: 'Preserved failure' } : {} }],
+    }))
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /运行历史/ }))
+    await screen.findByText('20 条')
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '入口筛选' }))
+    fireEvent.click(await screen.findByText('批量实验', { selector: '.ant-select-item-option-content' }))
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '实验筛选' }))
+    fireEvent.click(await screen.findByText('Smoke-10 · V0 原始基线', { selector: '.ant-select-item-option-content' }))
+    await screen.findByText('10 条')
+    const list = within(screen.getByLabelText('历史运行列表'))
+    fireEvent.click(await list.findByRole('button', { name: /Batch v0-0/ }))
+    const config = within(await screen.findByLabelText('生效配置'))
+    expect(config.getByText('实验').parentElement).toHaveTextContent('Smoke-10 · V0 原始基线')
+    expect(config.getByText('样本编号').parentElement).toHaveTextContent('sample-0')
+    expect(await screen.findByText('运行失败')).toBeInTheDocument()
+    expect(screen.getAllByText('Preserved failure').length).toBeGreaterThan(0)
+    expect(getRunDetail).toHaveBeenCalledWith('v0-0', expect.any(AbortSignal), 'v0')
+    expect(getRunsExportUrl).toHaveBeenLastCalledWith(expect.objectContaining({ entrypoint: 'batch', experimentId: 'v0' }))
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '入口筛选' }))
+    fireEvent.click(await screen.findByText('API / 前端', { selector: '.ant-select-item-option-content' }))
+    await waitFor(() => expect(getRuns).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entrypoint: 'api', experimentId: undefined }), 10, 0, expect.any(AbortSignal)))
+    expect(screen.queryByRole('combobox', { name: '实验筛选' })).not.toBeInTheDocument()
   })
 
   it('shows the default selection and records its IDs in the stream request', async () => {

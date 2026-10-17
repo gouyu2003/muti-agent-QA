@@ -1044,6 +1044,9 @@ textarea {
 .history-filters .ant-select,
 .history-filters .ant-input-search { width: 100%; }
 
+.history-filters .history-experiment-select { grid-column: 1 / -1; }
+.history-experiment-label { display: block; margin: 5px 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+
 .history-main-grid {
   display: grid;
   grid-template-columns: minmax(295px, 0.72fr) minmax(0, 1.28fr);
@@ -1424,3 +1427,19 @@ textarea {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Workspace system composition and immutable version previews. */
+.systems-workspace { max-width: 1500px; margin: auto; padding: 28px; display: grid; gap: 20px; }
+.systems-grid { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 24px; align-items: start; }
+.systems-list, .systems-editor { display: grid; gap: 16px; min-width: 0; }
+.systems-list button { padding: 18px; text-align: left; display: grid; gap: 10px; border: 1px solid #dbe2e8; background: white; border-radius: 10px; cursor: pointer; overflow-wrap: anywhere; }
+.systems-list button.selected { border-color: #008b87; background: #ecfaf7; }
+.systems-list span { color: #657681; font-size: 12px; }
+.system-fields { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 16px; align-items: center; }
+.system-fields .ant-select { width: 100%; }
+.system-actions, .system-run-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
+.system-config-preview { overflow-wrap: anywhere; }
+.system-config-preview small { display: block; margin: 16px 0; color: #657681; }
+.system-prompt { white-space: pre-wrap; line-height: 1.8; }
+.workspace-nav { flex-wrap: wrap; }
+@media (max-width: 900px) { .systems-grid { grid-template-columns: 1fr; } .systems-list { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); } .system-fields { grid-template-columns: 1fr; gap: 10px; } }

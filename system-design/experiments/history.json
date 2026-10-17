@@ -1,0 +1,14 @@
+{
+  "experiments": [
+    {
+      "experiment_id": "smoke-v0-01",
+      "name": "Smoke-10 · V0 原始基线",
+      "database": "stage4/smoke-v0-01/runs.sqlite3"
+    },
+    {
+      "experiment_id": "smoke-v1-validated",
+      "name": "Smoke-10 · V1 问答修复",
+      "database": "stage4/smoke-v1-validated/runs.sqlite3"
+    }
+  ]
+}

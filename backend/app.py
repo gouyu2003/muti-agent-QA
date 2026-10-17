@@ -10,7 +10,7 @@ from typing import Callable
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 
 from backend.schemas import (
     AgentInfo,
@@ -27,6 +27,8 @@ from backend.schemas import (
 from src.config_loader import load_json
 from backend.streaming import stream_qa_events
 from backend.knowledge_api import router as knowledge_router
+from backend.systems_api import router as systems_router
+from src.runtime.system_store import SystemStore, SystemFailure
 from src.knowledge.store import KnowledgeStore
 from src.knowledge.corpus import ImportFailure
 from src.runtime.context import build_v0_run_context
@@ -41,6 +43,8 @@ from src.runtime.models import (
 from src.runtime.service import RunService
 from src.runtime.sqlite_repository import SQLiteRunRepository
 from src.runtime.system import DEFAULT_CATALOG_PATH, resolve_system
+from src.runtime.history import HistoryReader, ExperimentOption, summarize_history
+from src.runtime.repository import RepositoryError
 
 
 RunServiceFactory = Callable[[], RunService]
@@ -56,12 +60,14 @@ def build_api_run_context(
     question: str, run_id: str | None = None,
     *, workflow_id: str | None = None, source_id: str | None = None,
     source_version: int | None = None,
+    system_id: str | None = None, system_version: str | None = None, draft_revision: int | None = None,
 ) -> RunContext:
     """根据当前 V0 配置生成一次 API 运行的可复现实验上下文。"""
 
     return build_v0_run_context(
         question,
         entrypoint="api",
+        **({"system_id": system_id, "system_version": system_version, "draft_revision": draft_revision} if system_id else {}),
         run_id=run_id,
         workflow_id=workflow_id,
         source_id=source_id,
@@ -74,6 +80,7 @@ async def lifespan(app: FastAPI):
     # 应用入口负责加载本地环境变量，不输出其中的值。
     load_dotenv()
     app.state.run_service = app.state.run_service_factory()
+    app.state.system_store = SystemStore()
     app.state.knowledge_store = KnowledgeStore()
     app.state.knowledge_store.recover_interrupted()
     try:
@@ -81,6 +88,7 @@ async def lifespan(app: FastAPI):
     finally:
         del app.state.run_service
         del app.state.knowledge_store
+        del app.state.system_store
 
 
 app = FastAPI(
@@ -90,12 +98,13 @@ app = FastAPI(
 )
 app.state.run_service_factory = build_default_run_service
 app.include_router(knowledge_router)
+app.include_router(systems_router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT"],
     allow_headers=["Content-Type"],
 )
 
@@ -104,6 +113,25 @@ def aware_started_from(started_from: datetime | None = None) -> datetime | None:
     if started_from is not None and started_from.utcoffset() is None:
         raise HTTPException(status_code=422, detail="started_from 必须包含时区")
     return started_from
+
+
+def history_reader(request: Request) -> HistoryReader:
+    return HistoryReader(request.app.state.run_service.repository)
+
+
+@app.exception_handler(SystemFailure)
+async def system_failure_handler(_request: Request, exc: SystemFailure):
+    return JSONResponse(status_code=exc.status, content={"detail": str(exc)})
+
+
+@app.exception_handler(RepositoryError)
+async def history_repository_error(_request: Request, _exc: RepositoryError):
+    return JSONResponse(status_code=503, content={"detail": "运行档案读取失败，请检查实验档案是否已完成并可用。"})
+
+
+@app.get('/api/v1/experiments', response_model=list[ExperimentOption])
+def list_experiments(request: Request):
+    return history_reader(request).experiments()
 
 
 @app.get("/api/v1/health", response_model=HealthResponse)
@@ -262,8 +290,11 @@ def stream_question(body: QuestionRequest, request: Request) -> StreamingRespons
     try:
         context = build_api_run_context(
             body.question, workflow_id=body.workflow_id, source_id=body.source_id,
+            **({"system_id": body.system_id, "system_version": body.system_version, "draft_revision": body.draft_revision} if body.system_id else {}),
             **({"source_version": body.source_version} if body.source_version is not None else {}),
         )
+    except SystemFailure as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return StreamingResponse(
@@ -286,36 +317,43 @@ def list_runs(
     entrypoint: RunEntryPoint | None = None,
     method_id: str | None = Query(default=None, min_length=1),
     started_from: datetime | None = Depends(aware_started_from),
+    experiment_id: str | None = Query(default=None, min_length=1),
+    system_id: str | None = Query(default=None, min_length=1),
 ) -> RunListResponse:
-    repository = request.app.state.run_service.repository
+    reader = history_reader(request)
     filters = {
         "status": status,
         "entrypoint": entrypoint,
         "method_id": method_id,
         "started_from": started_from,
+        "experiment_id": experiment_id,
+        "system_id": system_id,
     }
+    records = reader.records(**filters)
     return RunListResponse(
-        items=repository.list_runs(limit=limit, offset=offset, **filters),
-        total=repository.count_runs(**filters),
+        items=records[offset:offset + limit],
+        total=len(records),
         limit=limit,
         offset=offset,
     )
 
 
 @app.get("/api/v1/runs/{run_id}", response_model=RunDetail)
-def get_run_detail(run_id: str, request: Request) -> RunDetail:
-    detail = request.app.state.run_service.repository.get_run_detail(run_id)
+def get_run_detail(run_id: str, request: Request,
+                   experiment_id: str | None = Query(default=None, min_length=1)) -> RunDetail:
+    detail = history_reader(request).detail(run_id, experiment_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="运行记录不存在")
     return detail
 
 
 @app.get("/api/v1/runs/{run_id}/events", response_model=list[TraceEvent])
-def get_run_events(run_id: str, request: Request) -> list[TraceEvent]:
-    repository = request.app.state.run_service.repository
-    if repository.get_run(run_id) is None:
+def get_run_events(run_id: str, request: Request,
+                   experiment_id: str | None = Query(default=None, min_length=1)) -> list[TraceEvent]:
+    detail = history_reader(request).detail(run_id, experiment_id)
+    if detail is None:
         raise HTTPException(status_code=404, detail="运行记录不存在")
-    return repository.get_events(run_id)
+    return detail.events
 
 
 @app.get("/api/v1/stats/summary", response_model=RunStatsSummary)
@@ -325,11 +363,14 @@ def get_stats_summary(
     entrypoint: RunEntryPoint | None = None,
     method_id: str | None = Query(default=None, min_length=1),
     started_from: datetime | None = Depends(aware_started_from),
+    experiment_id: str | None = Query(default=None, min_length=1),
+    system_id: str | None = Query(default=None, min_length=1),
 ) -> RunStatsSummary:
-    return request.app.state.run_service.repository.get_stats_summary(
+    return summarize_history(history_reader(request).records(
         status=status, entrypoint=entrypoint, method_id=method_id,
         started_from=started_from,
-    )
+        experiment_id=experiment_id, system_id=system_id,
+    ))
 
 
 @app.get(
@@ -348,10 +389,13 @@ def export_runs_jsonl(
     entrypoint: RunEntryPoint | None = None,
     method_id: str | None = Query(default=None, min_length=1),
     started_from: datetime | None = Depends(aware_started_from),
+    experiment_id: str | None = Query(default=None, min_length=1),
+    system_id: str | None = Query(default=None, min_length=1),
 ) -> StreamingResponse:
-    lines = request.app.state.run_service.repository.export_runs_jsonl(
+    lines = history_reader(request).export(
         status=status, entrypoint=entrypoint, method_id=method_id,
         started_from=started_from,
+        experiment_id=experiment_id, system_id=system_id,
     )
     return StreamingResponse(
         lines,

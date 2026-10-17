@@ -1,0 +1,187 @@
+{
+  "systems": [
+    {
+      "system_id": "sys_f45fbc0a3aef4338bc523bc4adec5978",
+      "draft_revision": 2,
+      "versions": [
+        "v2",
+        "v1"
+      ],
+      "name": "阶段4.1 · 研究问答验收",
+      "draft_config_sha256": "eaa3bd4cfa7f34acccb32143dea24bb080f69f7045f9ccd8f55bd544d9caa26d",
+      "published_configurations": [
+        {
+          "version": "v2",
+          "draft_revision": 2,
+          "config_sha256": "6db48ed482caa5a913ab8887fdb8264413e8bae95befba01037fcef30fb01f9a",
+          "workflow_id": "multi_hop_qa_v0",
+          "source_id": "user_65607c34be684d9a91c7ba39ea9aed2b",
+          "source_version": 1,
+          "source_sha256": "8f878f0be15ec068b480423b53065be4b2e49d64280fb3a58fe0a4a8697c0fc3",
+          "index_sha256": "208f6ef06c3551d49d02c55e2ccb353d6772500b424b8d6a19e9e7744d593f86"
+        },
+        {
+          "version": "v1",
+          "draft_revision": 1,
+          "config_sha256": "d7148df096e74afc6ee11bef1071a51b78389d4c1eb7eba6e88ca5b982534efc",
+          "workflow_id": "multi_hop_qa_v0",
+          "source_id": "user_65607c34be684d9a91c7ba39ea9aed2b",
+          "source_version": 1,
+          "source_sha256": "8f878f0be15ec068b480423b53065be4b2e49d64280fb3a58fe0a4a8697c0fc3",
+          "index_sha256": "208f6ef06c3551d49d02c55e2ccb353d6772500b424b8d6a19e9e7744d593f86"
+        }
+      ]
+    },
+    {
+      "system_id": "sys_d14bd0cce54344c58d7f721ef20a719d",
+      "draft_revision": 1,
+      "versions": [
+        "v1"
+      ],
+      "name": "阶段4.1 · 项目问答验收",
+      "draft_config_sha256": "365a4bca91a1d0cfa2cba7dbbd2d09a86bf24676407b2893908053cb475e863a",
+      "published_configurations": [
+        {
+          "version": "v1",
+          "draft_revision": 1,
+          "config_sha256": "95040b549e4f8ec3164a2e414444992d3d445dd76050c3b1afc1c151609286b0",
+          "workflow_id": "multi_hop_qa_fixed",
+          "source_id": "user_a83f5c8282c748d6931fbab4581602b4",
+          "source_version": 1,
+          "source_sha256": "9c922f75a43023c159477391627d48b72963a2f122d327feb81ee38c84ff60d3",
+          "index_sha256": "fe3be041b7608b52f5fe1cbeff3adead12c54678caaf7d7b47afe4ecb9d2691a"
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "run_id": "a8f4566c-ef19-44cd-aae9-894249458f69",
+      "status": "completed",
+      "system_ref": {
+        "draft_revision": 1,
+        "kind": "draft",
+        "name": "阶段4.1 · 研究问答验收",
+        "system_id": "sys_f45fbc0a3aef4338bc523bc4adec5978",
+        "system_version": null
+      },
+      "config_sha256": "eaa3bd4cfa7f34acccb32143dea24bb080f69f7045f9ccd8f55bd544d9caa26d",
+      "source_id": "user_65607c34be684d9a91c7ba39ea9aed2b",
+      "source_version": 1,
+      "answer": "Northbridge",
+      "verified": true,
+      "supporting_evidence": [
+        {
+          "char_end": 96,
+          "char_start": 19,
+          "chunk_id": "423e32e4f06426356f69dce014ab3132fe17ba623db67b649afcdcc465b05977",
+          "document_id": "56a25999e2d51ebe6d979dc7f9b5d67bbfeda27a2fa5c8eaa8b664475bcb00f6",
+          "filename": "institute.md",
+          "heading_path": [
+            "Institute notes"
+          ],
+          "line_end": 4,
+          "line_start": 3,
+          "source_id": "user_65607c34be684d9a91c7ba39ea9aed2b",
+          "source_title": "institute.md",
+          "source_version": 1,
+          "sq_id": "sq_1",
+          "text": "Cedar Institute is located in Northbridge.\nMara Vale founded Cedar Institute."
+        }
+      ],
+      "metrics": {
+        "duration_ms": 12467,
+        "node_call_count": 3,
+        "llm_call_count": 2,
+        "prompt_tokens": 805,
+        "completion_tokens": 673,
+        "total_tokens": 1478,
+        "estimated_cost_usd": null,
+        "plan_retry_count": 0,
+        "retrieval_retry_count": 0,
+        "validation_retry_count": 1
+      },
+      "citations_resolved": true
+    },
+    {
+      "run_id": "662705d2-9db4-47cf-877d-5ef714a37f63",
+      "status": "completed",
+      "system_ref": {
+        "draft_revision": 1,
+        "kind": "published",
+        "name": "阶段4.1 · 项目问答验收",
+        "system_id": "sys_d14bd0cce54344c58d7f721ef20a719d",
+        "system_version": "v1"
+      },
+      "config_sha256": "95040b549e4f8ec3164a2e414444992d3d445dd76050c3b1afc1c151609286b0",
+      "source_id": "user_a83f5c8282c748d6931fbab4581602b4",
+      "source_version": 1,
+      "answer": "2019",
+      "verified": true,
+      "supporting_evidence": [
+        {
+          "char_end": 82,
+          "char_start": 0,
+          "chunk_id": "408109d7669244e06c53a19e38c51b1ffce095a30ce2334aa8d20a20a4041c87",
+          "document_id": "5b0a72f001036783a4a7e9be9b2fc18e6c3d6974688860a446d7b90c2657f42f",
+          "filename": "project.txt",
+          "heading_path": [],
+          "line_end": 1,
+          "line_start": 1,
+          "source_id": "user_a83f5c8282c748d6931fbab4581602b4",
+          "source_title": "project.txt",
+          "source_version": 1,
+          "sq_id": "sq_1",
+          "text": "The Orion project was launched in 2019. The project headquarters are in Westhaven."
+        }
+      ],
+      "metrics": {
+        "duration_ms": 23507,
+        "node_call_count": 3,
+        "llm_call_count": 2,
+        "prompt_tokens": 825,
+        "completion_tokens": 2022,
+        "total_tokens": 2847,
+        "estimated_cost_usd": null,
+        "plan_retry_count": 0,
+        "retrieval_retry_count": 0,
+        "validation_retry_count": 1
+      },
+      "citations_resolved": true
+    }
+  ],
+  "browser_checks": {
+    "published_version_switch": true,
+    "two_systems_created": true,
+    "draft_saved_tested": true,
+    "unsaved_actions_disabled": true,
+    "published_runs_bound": true,
+    "system_history_scoped": true,
+    "desktop_tablet_no_horizontal_overflow": true,
+    "browser_reload_persistent": true,
+    "backend_restart_persistent": true,
+    "legacy_twenty_experiments_unchanged": true
+  },
+  "date": "2026-10-17",
+  "validation": {
+    "backend_offline_passed": 218,
+    "existing_integration_deselected": 3,
+    "frontend_passed": 28,
+    "typescript": "passed",
+    "production_build": "passed"
+  },
+  "legacy_history": {
+    "batch_records": 20,
+    "v0_records": 10,
+    "v1_records": 10,
+    "failed_records": 1,
+    "failed_trace_visible": true,
+    "experiment_sample_metadata_visible": true,
+    "desktop_tablet_horizontal_overflow": false,
+    "archives_unchanged": true
+  },
+  "archive_sha256": {
+    "D:\\multi-agent\\muti-agent-QA\\data\\experiments\\stage4\\smoke-v0-01\\runs.sqlite3": "DB74DA5A8102A8B83DA9678FF9EDE2F3BC8F24E19075EDB3710CB51209CEB45E",
+    "D:\\multi-agent\\muti-agent-QA\\data\\experiments\\stage4\\smoke-v1-validated\\runs.sqlite3": "870E99CF2CC09D97C4C06B089A1F0A46C4FB07031A274A73A210C10DD79BF6CA"
+  }
+}

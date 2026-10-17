@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { getRuns, getRunsExportUrl, parseSseBlock, streamQuestion, importKnowledge } from './api'
+import { getRuns, getRunsExportUrl, getRunStats, getRunDetail, parseSseBlock, streamQuestion, importKnowledge } from './api'
 
 describe('parseSseBlock', () => {
   it('parses an event and preserves Chinese payload text', () => {
@@ -32,14 +32,21 @@ describe('history API', () => {
       entrypoint: 'api' as const,
       methodId: 'multi_agent_adaptive_v0',
       startedFrom: '2026-09-22T08:00:00.000Z',
+      experimentId: 'smoke-v1-validated',
+      systemId: 'sys_a',
     }
 
     try {
       await getRuns(filters, 10, 20)
       const listUrl = new URL(fetchMock.mock.calls[0][0] as string, 'http://localhost')
       const exportUrl = new URL(getRunsExportUrl(filters), 'http://localhost')
-      for (const key of ['status', 'entrypoint', 'method_id', 'started_from']) {
+      await getRunStats(filters)
+      const statsUrl = new URL(fetchMock.mock.calls[1][0] as string, 'http://localhost')
+      await getRunDetail('run-1', undefined, filters.experimentId)
+      expect(new URL(fetchMock.mock.calls[2][0] as string, 'http://localhost').searchParams.get('experiment_id')).toBe(filters.experimentId)
+      for (const key of ['status', 'entrypoint', 'method_id', 'started_from', 'experiment_id', 'system_id']) {
         expect(listUrl.searchParams.get(key)).toBe(exportUrl.searchParams.get(key))
+        expect(listUrl.searchParams.get(key)).toBe(statsUrl.searchParams.get(key))
       }
       expect(listUrl.searchParams.get('offset')).toBe('20')
     } finally {
@@ -49,6 +56,17 @@ describe('history API', () => {
 })
 
 describe('configured stream API', () => {
+  it('sends an explicit system version without temporary source overrides', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
+      ok: true, body: new ReadableStream({ start(controller) { controller.close() } }),
+    } as Response))
+    try {
+      await streamQuestion('Q?', () => {}, undefined, { systemId: 'sys_a', systemVersion: 'v1' })
+      expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({ question: 'Q?', system_id: 'sys_a', system_version: 'v1' })
+      await streamQuestion('Q?', () => {}, undefined, { systemId: 'sys_a', draftRevision: 3 })
+      expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toEqual({ question: 'Q?', system_id: 'sys_a', draft_revision: 3 })
+    } finally { fetchMock.mockRestore() }
+  })
   it('sends the selected workflow and knowledge source IDs', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,

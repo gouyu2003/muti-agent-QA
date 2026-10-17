@@ -1,6 +1,6 @@
 # Multi-Agent QA
 
-基于 LangGraph 的多智能体协同问答系统，已实现运行轨迹持久化、配置驱动的协作流程、用户材料导入与知识源版本管理，并增加阶段 4.0 的问答修复与最小 HotpotQA 批量评测。当前自适应方法标识为 `multi_agent_adaptive_v1`。
+基于 LangGraph 的多智能体协同问答系统，已实现运行轨迹持久化、配置驱动的协作流程、用户材料导入与知识源版本管理、阶段 4.0 的问答修复与最小 HotpotQA 批量评测，以及阶段 4.1 的用户问答系统配置管理。当前自适应方法标识为 `multi_agent_adaptive_v1`。
 
 系统使用 Planner、Retriever、Answer-Validator 三个智能体，支持“固定三节点”和“反馈重试”两种流程。知识源可选择预置 HotpotQA 记录，也可通过界面或 CLI 导入一组英文 UTF-8 TXT/MD 文件。用户可以选择知识源及版本、测试问答，并从实时结果和历史记录追溯到具体文件与原文位置。
 
@@ -10,13 +10,18 @@
 
 阶段 4.0 的验收与复跑说明见 [docs/stage4-validation.md](docs/stage4-validation.md)。最小实验入口为 `python -m src.evaluation.batch`，输入数据与实验数据库保存在被 Git 忽略的 `data/experiments/`，固定样本清单和可审阅报告保存在 `docs/`。
 
+运行历史现可只读查看已登记的独立实验库：在“入口筛选”选择“批量实验”，再选择 V0 或 V1，可查看每组十题及失败记录的答案、证据、用量和轨迹。登记表为 `system-design/experiments/history.json`；本地需保留对应实验数据。接口、存储隔离和验收说明见 [docs/experiment-history-validation.md](docs/experiment-history-validation.md)。
+
 ## 系统结构
+
+阶段 4.1 可在“我的系统”创建多套系统，组合现有流程与工作区共享的知识源固定版本，保存草稿、试运行并发布不可覆盖的 v1/v2。问答与历史记录关联当时的完整配置，原入口保留为“临时问答”。三个智能体仍使用只读预置配置，动态创建和编辑留到后续阶段。使用步骤、接口、迁移与真实验收结果见 [docs/stage41-validation.md](docs/stage41-validation.md)。
 
 ```text
 React + TypeScript (frontend/)
   ├─ 实时问答：选择流程、知识源和版本
   ├─ 运行历史：轨迹、证据、统计、JSONL 导出
-  └─ 知识源：多文件上传、版本查看、片段预览
+  ├─ 知识源：多文件上传、版本查看、片段预览
+  └─ 我的系统：草稿、试运行、不可变发布版本与运行关联
           │ HTTP / SSE
           ▼
 FastAPI (backend/)              CLI (main.py / src.knowledge.cli)
