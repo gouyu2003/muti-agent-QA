@@ -34,11 +34,12 @@ def build_v0_run_context(
         from src.runtime.system_store import SystemStore
         snapshot = SystemStore().run_snapshot(request.system_id, request.system_version, request.draft_revision)
         workflow = snapshot['workflow_spec']
-        first = next(iter(snapshot['agents'].values()))
+        models = {agent['model_config']['model_name'] for agent in snapshot['agents'].values()
+                  if agent.get('model_config', {}).get('model_name')}
         return RunContext(run_id=run_id or str(uuid4()), entrypoint=entrypoint, question=request.question,
-                          source_id=snapshot['source']['source_id'], record_id=snapshot.get('dataset', {}).get('record_id'),
+                          source_id=snapshot.get('source', {}).get('source_id'), record_id=snapshot.get('dataset', {}).get('record_id'),
                           workflow_id=workflow['protocol_id'], method_id=workflow['method_id'],
-                          model_name=first['model_config']['model_name'], protocol_id=workflow['protocol_id'],
+                          model_name=next(iter(models)) if len(models) == 1 else 'multiple', protocol_id=workflow['protocol_id'],
                           code_version=code_version(), config_snapshot=snapshot)
     system = resolve_system(
         request.workflow_id, request.source_id,

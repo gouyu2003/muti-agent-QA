@@ -1,0 +1,1018 @@
+{
+  "date": "2026-10-20",
+  "timezone": "Asia/Shanghai",
+  "status": "implementation_and_automated_api_checks_passed_browser_pending",
+  "browser_acceptance": {
+    "status": "deferred_by_user",
+    "visual_layout_verified": false
+  },
+  "base_commit": "5cd238096a985d22c1a28191b630b4bc3b86fd86",
+  "source_sha256": "b69f3f238abd9ff036568243a13bc0d1d34321ba98b4a51edf0f640a4b4e7ccf",
+  "validation": {
+    "backend_offline_passed": 239,
+    "existing_integration_deselected": 3,
+    "frontend_passed": 33,
+    "typescript": "passed",
+    "production_build": "passed",
+    "build_warning": "single JavaScript chunk exceeds 500 kB"
+  },
+  "checks": {
+    "expected_answers": true,
+    "sse_history_parity": true,
+    "pinned_sources": true,
+    "parallel_overlap": true,
+    "single_reviewer_join": true,
+    "immutable_v1": true,
+    "scoped_export": true,
+    "per_instance_usage_persisted": true,
+    "citations_match_original_chunks": true,
+    "final_source_recheck": true,
+    "backend_restart_persistent": true
+  },
+  "restart_before_sha256": "1357eccebf9a7657b2de840d1b14ec72cb1cbfead5ce88660cdb6a20af8d16ae",
+  "restart_after_sha256": "1357eccebf9a7657b2de840d1b14ec72cb1cbfead5ce88660cdb6a20af8d16ae",
+  "storage": {
+    "mode": "isolated_acceptance",
+    "directory": ".pytest-live-stage42",
+    "raw_report": ".pytest-live-stage42/final-api-results.json"
+  },
+  "systems": [
+    {
+      "system_id": "sys_0941645bca054b3a97c2a282420f8bd0",
+      "name": "阶段4.2 · 自定义流水线 API 验收 · 最终核验",
+      "draft_revision": 1,
+      "versions": [
+        {
+          "version": "v1",
+          "config_sha256": "7645fdf6ba92904086400b0cebf5d6c563e58d5049a19c641bce3fa1891e41dd",
+          "execution_mode": "sequential",
+          "instance_ids": [
+            "research_planner",
+            "notes_search",
+            "evidence_reviewer"
+          ],
+          "sources": {
+            "notes_search": {
+              "source_id": "user_2b7f52edcf0247f2920c575d5a603ce6",
+              "name": "Stage42 geography",
+              "version": 1,
+              "sha256": "8c7930ce12d2d6c8aed2496a026be891b14edd0f97f8aa5a5351e01d28ef9d1c",
+              "index_sha256": "0c4f374402ecf43b92cb80a1e86e1cedb241c4f1c2b4dd8df49d275603a882f1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "system_id": "sys_984ddd9b162b4b3dbc007ae740e186ea",
+      "name": "阶段4.2 · 双专家 API 验收 · 最终核验",
+      "draft_revision": 2,
+      "versions": [
+        {
+          "version": "v2",
+          "config_sha256": "7f3b5ece023a9bcf00d072751e2dc2da4fc6b4a579344b1b2b0cd55ec6a32f40",
+          "execution_mode": "parallel",
+          "instance_ids": [
+            "team_planner",
+            "geography_expert",
+            "history_expert",
+            "team_reviewer"
+          ],
+          "sources": {
+            "geography_expert": {
+              "source_id": "user_2b7f52edcf0247f2920c575d5a603ce6",
+              "name": "Stage42 geography",
+              "version": 1,
+              "sha256": "8c7930ce12d2d6c8aed2496a026be891b14edd0f97f8aa5a5351e01d28ef9d1c",
+              "index_sha256": "0c4f374402ecf43b92cb80a1e86e1cedb241c4f1c2b4dd8df49d275603a882f1"
+            },
+            "history_expert": {
+              "source_id": "user_ad2622d3bb7e439fa6eb70a1d0deeab0",
+              "name": "Stage42 history",
+              "version": 1,
+              "sha256": "580e440e2b4ab76c54a7ec7f1c4d29d327f9a4ad4bcbf30f08aa1803e8dd2be4",
+              "index_sha256": "d569156815bace21c2396eecf1fe758b0f863df2128d269fbf6ef5019d15e0b4"
+            }
+          }
+        },
+        {
+          "version": "v1",
+          "config_sha256": "ead4bdf20aceed782e2a9e9b6b55139b6e9a509b52ecfe05aebf34ff1e3e1f10",
+          "execution_mode": "sequential",
+          "instance_ids": [
+            "team_planner",
+            "geography_expert",
+            "history_expert",
+            "team_reviewer"
+          ],
+          "sources": {
+            "geography_expert": {
+              "source_id": "user_2b7f52edcf0247f2920c575d5a603ce6",
+              "name": "Stage42 geography",
+              "version": 1,
+              "sha256": "8c7930ce12d2d6c8aed2496a026be891b14edd0f97f8aa5a5351e01d28ef9d1c",
+              "index_sha256": "0c4f374402ecf43b92cb80a1e86e1cedb241c4f1c2b4dd8df49d275603a882f1"
+            },
+            "history_expert": {
+              "source_id": "user_ad2622d3bb7e439fa6eb70a1d0deeab0",
+              "name": "Stage42 history",
+              "version": 1,
+              "sha256": "580e440e2b4ab76c54a7ec7f1c4d29d327f9a4ad4bcbf30f08aa1803e8dd2be4",
+              "index_sha256": "d569156815bace21c2396eecf1fe758b0f863df2128d269fbf6ef5019d15e0b4"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "label": "pipeline_saved_draft",
+      "run_id": "95f0d3fc-b107-403c-acfc-0c6ece0a9c35",
+      "status": "completed",
+      "system_ref": {
+        "draft_revision": 1,
+        "kind": "draft",
+        "name": "阶段4.2 · 自定义流水线 API 验收 · 最终核验",
+        "system_id": "sys_0941645bca054b3a97c2a282420f8bd0",
+        "system_version": null
+      },
+      "code_version": "git:5cd238096a985d22c1a28191b630b4bc3b86fd86+source-sha256:1b2bed9413b880495a4f77764c2d5e282985b8cab5e48c7347fdc3299662bf72",
+      "config_sha256": "ddebff4b437253dcdce9bd45b0ae9086837eb7491274c4e60072478d1acb96e7",
+      "workflow_id": "multi_hop_qa_fixed",
+      "execution_mode": "sequential",
+      "answer": "Northbridge",
+      "verified": true,
+      "metrics": {
+        "duration_ms": 35466,
+        "node_call_count": 3,
+        "llm_call_count": 2,
+        "prompt_tokens": 863,
+        "completion_tokens": 606,
+        "total_tokens": 1469,
+        "estimated_cost_usd": null,
+        "plan_retry_count": 0,
+        "retrieval_retry_count": 0,
+        "validation_retry_count": 1,
+        "agent_usage": {
+          "evidence_reviewer": {
+            "call_count": 1,
+            "completion_tokens": 423,
+            "prompt_tokens": 653,
+            "total_tokens": 1076
+          },
+          "notes_search": {
+            "call_count": 0,
+            "completion_tokens": null,
+            "prompt_tokens": null,
+            "total_tokens": null
+          },
+          "research_planner": {
+            "call_count": 1,
+            "completion_tokens": 183,
+            "prompt_tokens": 210,
+            "total_tokens": 393
+          }
+        }
+      },
+      "supporting_evidence": [
+        {
+          "char_end": 77,
+          "char_start": 0,
+          "chunk_id": "857364c5296b067d0a90a4c5f82f87f8d8e138d3e835c854d7b78a0028fb75c7",
+          "document_id": "2a59393b80366a8227a4a32cb4d288d80dc2dd1eb14a0a36e0d38512d1a08243",
+          "filename": "notes.txt",
+          "heading_path": [],
+          "line_end": 1,
+          "line_start": 1,
+          "source_id": "user_2b7f52edcf0247f2920c575d5a603ce6",
+          "source_title": "notes.txt",
+          "source_version": 1,
+          "sq_id": "sq_1",
+          "text": "Mara Vale founded Cedar Institute. Cedar Institute is located in Northbridge."
+        }
+      ],
+      "experts": {},
+      "events": [
+        {
+          "sequence": 0,
+          "event_type": "run_started",
+          "node": null,
+          "timestamp": "2026-10-20T08:03:29.789126Z"
+        },
+        {
+          "sequence": 1,
+          "event_type": "node_started",
+          "node": "research_planner",
+          "timestamp": "2026-10-20T08:03:29.835808Z"
+        },
+        {
+          "sequence": 2,
+          "event_type": "node_completed",
+          "node": "research_planner",
+          "timestamp": "2026-10-20T08:03:59.939094Z"
+        },
+        {
+          "sequence": 3,
+          "event_type": "node_started",
+          "node": "notes_search",
+          "timestamp": "2026-10-20T08:04:00.147329Z"
+        },
+        {
+          "sequence": 4,
+          "event_type": "node_completed",
+          "node": "notes_search",
+          "timestamp": "2026-10-20T08:04:00.185150Z"
+        },
+        {
+          "sequence": 5,
+          "event_type": "node_started",
+          "node": "evidence_reviewer",
+          "timestamp": "2026-10-20T08:04:00.211165Z"
+        },
+        {
+          "sequence": 6,
+          "event_type": "node_completed",
+          "node": "evidence_reviewer",
+          "timestamp": "2026-10-20T08:04:05.187777Z"
+        },
+        {
+          "sequence": 7,
+          "event_type": "route_decided",
+          "node": "evidence_reviewer",
+          "timestamp": "2026-10-20T08:04:05.209797Z"
+        },
+        {
+          "sequence": 8,
+          "event_type": "run_completed",
+          "node": null,
+          "timestamp": "2026-10-20T08:04:05.232816Z"
+        }
+      ]
+    },
+    {
+      "label": "pipeline_published_v1",
+      "run_id": "85987a1a-1497-4460-b56a-c786eb6549d0",
+      "status": "completed",
+      "system_ref": {
+        "draft_revision": 1,
+        "kind": "published",
+        "name": "阶段4.2 · 自定义流水线 API 验收 · 最终核验",
+        "system_id": "sys_0941645bca054b3a97c2a282420f8bd0",
+        "system_version": "v1"
+      },
+      "code_version": "git:5cd238096a985d22c1a28191b630b4bc3b86fd86+source-sha256:1b2bed9413b880495a4f77764c2d5e282985b8cab5e48c7347fdc3299662bf72",
+      "config_sha256": "7645fdf6ba92904086400b0cebf5d6c563e58d5049a19c641bce3fa1891e41dd",
+      "workflow_id": "multi_hop_qa_fixed",
+      "execution_mode": "sequential",
+      "answer": "Northbridge",
+      "verified": true,
+      "metrics": {
+        "duration_ms": 8344,
+        "node_call_count": 3,
+        "llm_call_count": 2,
+        "prompt_tokens": 863,
+        "completion_tokens": 530,
+        "total_tokens": 1393,
+        "estimated_cost_usd": null,
+        "plan_retry_count": 0,
+        "retrieval_retry_count": 0,
+        "validation_retry_count": 1,
+        "agent_usage": {
+          "evidence_reviewer": {
+            "call_count": 1,
+            "completion_tokens": 346,
+            "prompt_tokens": 653,
+            "total_tokens": 999
+          },
+          "notes_search": {
+            "call_count": 0,
+            "completion_tokens": null,
+            "prompt_tokens": null,
+            "total_tokens": null
+          },
+          "research_planner": {
+            "call_count": 1,
+            "completion_tokens": 184,
+            "prompt_tokens": 210,
+            "total_tokens": 394
+          }
+        }
+      },
+      "supporting_evidence": [
+        {
+          "char_end": 77,
+          "char_start": 0,
+          "chunk_id": "857364c5296b067d0a90a4c5f82f87f8d8e138d3e835c854d7b78a0028fb75c7",
+          "document_id": "2a59393b80366a8227a4a32cb4d288d80dc2dd1eb14a0a36e0d38512d1a08243",
+          "filename": "notes.txt",
+          "heading_path": [],
+          "line_end": 1,
+          "line_start": 1,
+          "source_id": "user_2b7f52edcf0247f2920c575d5a603ce6",
+          "source_title": "notes.txt",
+          "source_version": 1,
+          "sq_id": "sq_1",
+          "text": "Mara Vale founded Cedar Institute. Cedar Institute is located in Northbridge."
+        }
+      ],
+      "experts": {},
+      "events": [
+        {
+          "sequence": 0,
+          "event_type": "run_started",
+          "node": null,
+          "timestamp": "2026-10-20T08:04:05.528193Z"
+        },
+        {
+          "sequence": 1,
+          "event_type": "node_started",
+          "node": "research_planner",
+          "timestamp": "2026-10-20T08:04:05.553634Z"
+        },
+        {
+          "sequence": 2,
+          "event_type": "node_completed",
+          "node": "research_planner",
+          "timestamp": "2026-10-20T08:04:09.650757Z"
+        },
+        {
+          "sequence": 3,
+          "event_type": "node_started",
+          "node": "notes_search",
+          "timestamp": "2026-10-20T08:04:09.671572Z"
+        },
+        {
+          "sequence": 4,
+          "event_type": "node_completed",
+          "node": "notes_search",
+          "timestamp": "2026-10-20T08:04:09.693633Z"
+        },
+        {
+          "sequence": 5,
+          "event_type": "node_started",
+          "node": "evidence_reviewer",
+          "timestamp": "2026-10-20T08:04:09.713086Z"
+        },
+        {
+          "sequence": 6,
+          "event_type": "node_completed",
+          "node": "evidence_reviewer",
+          "timestamp": "2026-10-20T08:04:13.808722Z"
+        },
+        {
+          "sequence": 7,
+          "event_type": "route_decided",
+          "node": "evidence_reviewer",
+          "timestamp": "2026-10-20T08:04:13.829152Z"
+        },
+        {
+          "sequence": 8,
+          "event_type": "run_completed",
+          "node": null,
+          "timestamp": "2026-10-20T08:04:13.850853Z"
+        }
+      ]
+    },
+    {
+      "label": "team_sequential_draft",
+      "run_id": "a3cd9b63-5c87-4741-939d-6c7ac461eca4",
+      "status": "completed",
+      "system_ref": {
+        "draft_revision": 1,
+        "kind": "draft",
+        "name": "阶段4.2 · 双专家 API 验收 · 最终核验",
+        "system_id": "sys_984ddd9b162b4b3dbc007ae740e186ea",
+        "system_version": null
+      },
+      "code_version": "git:5cd238096a985d22c1a28191b630b4bc3b86fd86+source-sha256:1b2bed9413b880495a4f77764c2d5e282985b8cab5e48c7347fdc3299662bf72",
+      "config_sha256": "b4fc0a61c9b85df986bfdda323c1b3129e07d15f690abff8ac9362beb17a7b1f",
+      "workflow_id": "multi_expert",
+      "execution_mode": "sequential",
+      "answer": "Northbridge, 2008",
+      "verified": true,
+      "metrics": {
+        "duration_ms": 132205,
+        "node_call_count": 4,
+        "llm_call_count": 6,
+        "prompt_tokens": 4299,
+        "completion_tokens": 11609,
+        "total_tokens": 15908,
+        "estimated_cost_usd": null,
+        "plan_retry_count": 0,
+        "retrieval_retry_count": 0,
+        "validation_retry_count": 1,
+        "agent_usage": {
+          "geography_expert": {
+            "call_count": 1,
+            "completion_tokens": 2190,
+            "prompt_tokens": 822,
+            "total_tokens": 3012
+          },
+          "history_expert": {
+            "call_count": 1,
+            "completion_tokens": 1799,
+            "prompt_tokens": 794,
+            "total_tokens": 2593
+          },
+          "team_planner": {
+            "call_count": 3,
+            "completion_tokens": 5269,
+            "prompt_tokens": 654,
+            "total_tokens": 5923
+          },
+          "team_reviewer": {
+            "call_count": 1,
+            "completion_tokens": 2351,
+            "prompt_tokens": 2029,
+            "total_tokens": 4380
+          }
+        }
+      },
+      "supporting_evidence": [
+        {
+          "char_end": 77,
+          "char_start": 0,
+          "chunk_id": "857364c5296b067d0a90a4c5f82f87f8d8e138d3e835c854d7b78a0028fb75c7",
+          "document_id": "2a59393b80366a8227a4a32cb4d288d80dc2dd1eb14a0a36e0d38512d1a08243",
+          "evidence_id": "bba03aecf09e2aaaa94ba438b1b51c311cc3b54a07e9de9c6052a9b856d2a63b",
+          "filename": "notes.txt",
+          "heading_path": [],
+          "line_end": 1,
+          "line_start": 1,
+          "source_id": "user_2b7f52edcf0247f2920c575d5a603ce6",
+          "source_title": "notes.txt",
+          "source_version": 1,
+          "sq_id": "sq_1",
+          "text": "Mara Vale founded Cedar Institute. Cedar Institute is located in Northbridge."
+        },
+        {
+          "char_end": 36,
+          "char_start": 0,
+          "chunk_id": "35dc8a8aade5f2860ed6ba5d3814146d99eb6a133848c2fc8f6efea527900b4c",
+          "document_id": "8c49321f2a5359717d8122d7df30effccdc004bc27dd90e8cbbe8867d5867ca9",
+          "evidence_id": "3352387a63f8f1b6d9dea02c59a2f282016145da92c496142054781637ae0371",
+          "filename": "notes.txt",
+          "heading_path": [],
+          "line_end": 1,
+          "line_start": 1,
+          "source_id": "user_ad2622d3bb7e439fa6eb70a1d0deeab0",
+          "source_title": "notes.txt",
+          "source_version": 1,
+          "sq_id": "sq_2",
+          "text": "Cedar Institute was founded in 2008."
+        }
+      ],
+      "experts": {
+        "geography_expert": {
+          "agent_name": "geography_expert",
+          "answer": "Northbridge; unknown",
+          "verified": false,
+          "verification_note": "The notes state Cedar Institute is located in Northbridge, so the city is supported. However, the notes do not provide a founding year, so the full original question cannot be fully answered.",
+          "supporting_evidence": [
+            {
+              "char_end": 77,
+              "char_start": 0,
+              "chunk_id": "857364c5296b067d0a90a4c5f82f87f8d8e138d3e835c854d7b78a0028fb75c7",
+              "document_id": "2a59393b80366a8227a4a32cb4d288d80dc2dd1eb14a0a36e0d38512d1a08243",
+              "evidence_id": "bba03aecf09e2aaaa94ba438b1b51c311cc3b54a07e9de9c6052a9b856d2a63b",
+              "filename": "notes.txt",
+              "heading_path": [],
+              "line_end": 1,
+              "line_start": 1,
+              "source_id": "user_2b7f52edcf0247f2920c575d5a603ce6",
+              "source_title": "notes.txt",
+              "source_version": 1,
+              "sq_id": "sq_1",
+              "text": "Mara Vale founded Cedar Institute. Cedar Institute is located in Northbridge."
+            }
+          ]
+        },
+        "history_expert": {
+          "agent_name": "history_expert",
+          "answer": "unknown, 2008",
+          "verified": false,
+          "verification_note": "The evidence states Cedar Institute was founded in 2008, supporting sq_2. It does not provide any city or location for Cedar Institute, so sq_1 remains unanswered and the full original question cannot be fully verified.",
+          "supporting_evidence": [
+            {
+              "char_end": 36,
+              "char_start": 0,
+              "chunk_id": "35dc8a8aade5f2860ed6ba5d3814146d99eb6a133848c2fc8f6efea527900b4c",
+              "document_id": "8c49321f2a5359717d8122d7df30effccdc004bc27dd90e8cbbe8867d5867ca9",
+              "evidence_id": "3352387a63f8f1b6d9dea02c59a2f282016145da92c496142054781637ae0371",
+              "filename": "notes.txt",
+              "heading_path": [],
+              "line_end": 1,
+              "line_start": 1,
+              "source_id": "user_ad2622d3bb7e439fa6eb70a1d0deeab0",
+              "source_title": "notes.txt",
+              "source_version": 1,
+              "sq_id": "sq_2",
+              "text": "Cedar Institute was founded in 2008."
+            }
+          ]
+        }
+      },
+      "events": [
+        {
+          "sequence": 0,
+          "event_type": "run_started",
+          "node": null,
+          "timestamp": "2026-10-20T08:04:14.099787Z"
+        },
+        {
+          "sequence": 1,
+          "event_type": "node_started",
+          "node": "team_planner",
+          "timestamp": "2026-10-20T08:04:14.121575Z"
+        },
+        {
+          "sequence": 2,
+          "event_type": "node_completed",
+          "node": "team_planner",
+          "timestamp": "2026-10-20T08:05:13.682320Z"
+        },
+        {
+          "sequence": 3,
+          "event_type": "node_started",
+          "node": "geography_expert",
+          "timestamp": "2026-10-20T08:05:13.706497Z"
+        },
+        {
+          "sequence": 4,
+          "event_type": "node_completed",
+          "node": "geography_expert",
+          "timestamp": "2026-10-20T08:05:36.783278Z"
+        },
+        {
+          "sequence": 5,
+          "event_type": "node_started",
+          "node": "history_expert",
+          "timestamp": "2026-10-20T08:05:36.812278Z"
+        },
+        {
+          "sequence": 6,
+          "event_type": "node_completed",
+          "node": "history_expert",
+          "timestamp": "2026-10-20T08:05:59.170227Z"
+        },
+        {
+          "sequence": 7,
+          "event_type": "node_started",
+          "node": "team_reviewer",
+          "timestamp": "2026-10-20T08:05:59.191138Z"
+        },
+        {
+          "sequence": 8,
+          "event_type": "node_completed",
+          "node": "team_reviewer",
+          "timestamp": "2026-10-20T08:06:26.244647Z"
+        },
+        {
+          "sequence": 9,
+          "event_type": "route_decided",
+          "node": "team_reviewer",
+          "timestamp": "2026-10-20T08:06:26.265425Z"
+        },
+        {
+          "sequence": 10,
+          "event_type": "run_completed",
+          "node": null,
+          "timestamp": "2026-10-20T08:06:26.286330Z"
+        }
+      ]
+    },
+    {
+      "label": "team_parallel_published_v2",
+      "run_id": "03c1c124-ee56-42d3-8428-b556c2c39c73",
+      "status": "completed",
+      "system_ref": {
+        "draft_revision": 2,
+        "kind": "published",
+        "name": "阶段4.2 · 双专家 API 验收 · 最终核验",
+        "system_id": "sys_984ddd9b162b4b3dbc007ae740e186ea",
+        "system_version": "v2"
+      },
+      "code_version": "git:5cd238096a985d22c1a28191b630b4bc3b86fd86+source-sha256:1b2bed9413b880495a4f77764c2d5e282985b8cab5e48c7347fdc3299662bf72",
+      "config_sha256": "7f3b5ece023a9bcf00d072751e2dc2da4fc6b4a579344b1b2b0cd55ec6a32f40",
+      "workflow_id": "multi_expert",
+      "execution_mode": "parallel",
+      "answer": "Northbridge, 2008",
+      "verified": true,
+      "metrics": {
+        "duration_ms": 90799,
+        "node_call_count": 4,
+        "llm_call_count": 6,
+        "prompt_tokens": 3411,
+        "completion_tokens": 8534,
+        "total_tokens": 11945,
+        "estimated_cost_usd": null,
+        "plan_retry_count": 0,
+        "retrieval_retry_count": 0,
+        "validation_retry_count": 1,
+        "agent_usage": {
+          "geography_expert": {
+            "call_count": 1,
+            "completion_tokens": 885,
+            "prompt_tokens": 586,
+            "total_tokens": 1471
+          },
+          "history_expert": {
+            "call_count": 1,
+            "completion_tokens": 684,
+            "prompt_tokens": 572,
+            "total_tokens": 1256
+          },
+          "team_planner": {
+            "call_count": 3,
+            "completion_tokens": 6144,
+            "prompt_tokens": 654,
+            "total_tokens": 6798
+          },
+          "team_reviewer": {
+            "call_count": 1,
+            "completion_tokens": 821,
+            "prompt_tokens": 1599,
+            "total_tokens": 2420
+          }
+        }
+      },
+      "supporting_evidence": [
+        {
+          "char_end": 77,
+          "char_start": 0,
+          "chunk_id": "857364c5296b067d0a90a4c5f82f87f8d8e138d3e835c854d7b78a0028fb75c7",
+          "document_id": "2a59393b80366a8227a4a32cb4d288d80dc2dd1eb14a0a36e0d38512d1a08243",
+          "evidence_id": "bba03aecf09e2aaaa94ba438b1b51c311cc3b54a07e9de9c6052a9b856d2a63b",
+          "filename": "notes.txt",
+          "heading_path": [],
+          "line_end": 1,
+          "line_start": 1,
+          "source_id": "user_2b7f52edcf0247f2920c575d5a603ce6",
+          "source_title": "notes.txt",
+          "source_version": 1,
+          "sq_id": "sq_1",
+          "text": "Mara Vale founded Cedar Institute. Cedar Institute is located in Northbridge."
+        },
+        {
+          "char_end": 36,
+          "char_start": 0,
+          "chunk_id": "35dc8a8aade5f2860ed6ba5d3814146d99eb6a133848c2fc8f6efea527900b4c",
+          "document_id": "8c49321f2a5359717d8122d7df30effccdc004bc27dd90e8cbbe8867d5867ca9",
+          "evidence_id": "d81398e36b62b6c83895d0efe3c7fe10758b0503b90819caa59fac9769d80da7",
+          "filename": "notes.txt",
+          "heading_path": [],
+          "line_end": 1,
+          "line_start": 1,
+          "source_id": "user_ad2622d3bb7e439fa6eb70a1d0deeab0",
+          "source_title": "notes.txt",
+          "source_version": 1,
+          "sq_id": "sq_1",
+          "text": "Cedar Institute was founded in 2008."
+        }
+      ],
+      "experts": {
+        "geography_expert": {
+          "agent_name": "Geography expert · parallel version",
+          "answer": "Northbridge; founding year unknown",
+          "verified": false,
+          "verification_note": "The evidence states Cedar Institute is located in Northbridge, so the city is Northbridge. It does not provide a founding year; it only says Mara Vale founded Cedar Institute. Thus the original two-part question cannot be fully answered.",
+          "supporting_evidence": [
+            {
+              "char_end": 77,
+              "char_start": 0,
+              "chunk_id": "857364c5296b067d0a90a4c5f82f87f8d8e138d3e835c854d7b78a0028fb75c7",
+              "document_id": "2a59393b80366a8227a4a32cb4d288d80dc2dd1eb14a0a36e0d38512d1a08243",
+              "evidence_id": "bba03aecf09e2aaaa94ba438b1b51c311cc3b54a07e9de9c6052a9b856d2a63b",
+              "filename": "notes.txt",
+              "heading_path": [],
+              "line_end": 1,
+              "line_start": 1,
+              "source_id": "user_2b7f52edcf0247f2920c575d5a603ce6",
+              "source_title": "notes.txt",
+              "source_version": 1,
+              "sq_id": "sq_1",
+              "text": "Mara Vale founded Cedar Institute. Cedar Institute is located in Northbridge."
+            }
+          ]
+        },
+        "history_expert": {
+          "agent_name": "history_expert",
+          "answer": "Unknown city; founded in 2008",
+          "verified": false,
+          "verification_note": "The supplied evidence states Cedar Institute was founded in 2008, satisfying the founding-year part. It does not provide the city, so the original two-part question is not fully answerable with the available evidence.",
+          "supporting_evidence": [
+            {
+              "char_end": 36,
+              "char_start": 0,
+              "chunk_id": "35dc8a8aade5f2860ed6ba5d3814146d99eb6a133848c2fc8f6efea527900b4c",
+              "document_id": "8c49321f2a5359717d8122d7df30effccdc004bc27dd90e8cbbe8867d5867ca9",
+              "evidence_id": "d81398e36b62b6c83895d0efe3c7fe10758b0503b90819caa59fac9769d80da7",
+              "filename": "notes.txt",
+              "heading_path": [],
+              "line_end": 1,
+              "line_start": 1,
+              "source_id": "user_ad2622d3bb7e439fa6eb70a1d0deeab0",
+              "source_title": "notes.txt",
+              "source_version": 1,
+              "sq_id": "sq_1",
+              "text": "Cedar Institute was founded in 2008."
+            }
+          ]
+        }
+      },
+      "events": [
+        {
+          "sequence": 0,
+          "event_type": "run_started",
+          "node": null,
+          "timestamp": "2026-10-20T08:06:26.568898Z"
+        },
+        {
+          "sequence": 1,
+          "event_type": "node_started",
+          "node": "team_planner",
+          "timestamp": "2026-10-20T08:06:26.598341Z"
+        },
+        {
+          "sequence": 2,
+          "event_type": "node_completed",
+          "node": "team_planner",
+          "timestamp": "2026-10-20T08:07:38.750884Z"
+        },
+        {
+          "sequence": 3,
+          "event_type": "node_started",
+          "node": "geography_expert",
+          "timestamp": "2026-10-20T08:07:38.771358Z"
+        },
+        {
+          "sequence": 4,
+          "event_type": "node_started",
+          "node": "history_expert",
+          "timestamp": "2026-10-20T08:07:38.791867Z"
+        },
+        {
+          "sequence": 5,
+          "event_type": "node_completed",
+          "node": "history_expert",
+          "timestamp": "2026-10-20T08:07:48.027156Z"
+        },
+        {
+          "sequence": 6,
+          "event_type": "node_completed",
+          "node": "geography_expert",
+          "timestamp": "2026-10-20T08:07:48.463887Z"
+        },
+        {
+          "sequence": 7,
+          "event_type": "node_started",
+          "node": "team_reviewer",
+          "timestamp": "2026-10-20T08:07:48.485466Z"
+        },
+        {
+          "sequence": 8,
+          "event_type": "node_completed",
+          "node": "team_reviewer",
+          "timestamp": "2026-10-20T08:07:57.309360Z"
+        },
+        {
+          "sequence": 9,
+          "event_type": "route_decided",
+          "node": "team_reviewer",
+          "timestamp": "2026-10-20T08:07:57.330787Z"
+        },
+        {
+          "sequence": 10,
+          "event_type": "run_completed",
+          "node": null,
+          "timestamp": "2026-10-20T08:07:57.349058Z"
+        }
+      ]
+    },
+    {
+      "label": "final_source_recheck_parallel_v2",
+      "run_id": "e3ea807e-3f4e-4a34-bed0-3780a4fd1c0c",
+      "status": "completed",
+      "system_ref": {
+        "draft_revision": 2,
+        "kind": "published",
+        "name": "阶段4.2 · 双专家 API 验收 · 最终核验",
+        "system_id": "sys_984ddd9b162b4b3dbc007ae740e186ea",
+        "system_version": "v2"
+      },
+      "code_version": "git:5cd238096a985d22c1a28191b630b4bc3b86fd86+source-sha256:b69f3f238abd9ff036568243a13bc0d1d34321ba98b4a51edf0f640a4b4e7ccf",
+      "config_sha256": "7f3b5ece023a9bcf00d072751e2dc2da4fc6b4a579344b1b2b0cd55ec6a32f40",
+      "workflow_id": "multi_expert",
+      "execution_mode": "parallel",
+      "answer": "Northbridge; 2008",
+      "verified": true,
+      "metrics": {
+        "duration_ms": 119211,
+        "node_call_count": 4,
+        "llm_call_count": 5,
+        "prompt_tokens": 6135,
+        "completion_tokens": 10442,
+        "total_tokens": 16577,
+        "estimated_cost_usd": null,
+        "plan_retry_count": 0,
+        "retrieval_retry_count": 0,
+        "validation_retry_count": 1,
+        "agent_usage": {
+          "geography_expert": {
+            "call_count": 1,
+            "completion_tokens": 2050,
+            "prompt_tokens": 1081,
+            "total_tokens": 3131
+          },
+          "history_expert": {
+            "call_count": 2,
+            "completion_tokens": 5229,
+            "prompt_tokens": 2086,
+            "total_tokens": 7315
+          },
+          "team_planner": {
+            "call_count": 1,
+            "completion_tokens": 1140,
+            "prompt_tokens": 218,
+            "total_tokens": 1358
+          },
+          "team_reviewer": {
+            "call_count": 1,
+            "completion_tokens": 2023,
+            "prompt_tokens": 2750,
+            "total_tokens": 4773
+          }
+        }
+      },
+      "supporting_evidence": [
+        {
+          "char_end": 77,
+          "char_start": 0,
+          "chunk_id": "857364c5296b067d0a90a4c5f82f87f8d8e138d3e835c854d7b78a0028fb75c7",
+          "document_id": "2a59393b80366a8227a4a32cb4d288d80dc2dd1eb14a0a36e0d38512d1a08243",
+          "evidence_id": "bc1e4daf5f287c37f459d28427b98cf7647fede3124a89b7ddbf210e41593b35",
+          "filename": "notes.txt",
+          "heading_path": [],
+          "line_end": 1,
+          "line_start": 1,
+          "source_id": "user_2b7f52edcf0247f2920c575d5a603ce6",
+          "source_title": "notes.txt",
+          "source_version": 1,
+          "sq_id": "sq_2",
+          "text": "Mara Vale founded Cedar Institute. Cedar Institute is located in Northbridge."
+        },
+        {
+          "char_end": 36,
+          "char_start": 0,
+          "chunk_id": "35dc8a8aade5f2860ed6ba5d3814146d99eb6a133848c2fc8f6efea527900b4c",
+          "document_id": "8c49321f2a5359717d8122d7df30effccdc004bc27dd90e8cbbe8867d5867ca9",
+          "evidence_id": "2411bf08bbe84637b0e1cc1c1af6ea639c59274f01d289f43a3267f2fb71e67b",
+          "filename": "notes.txt",
+          "heading_path": [],
+          "line_end": 1,
+          "line_start": 1,
+          "source_id": "user_ad2622d3bb7e439fa6eb70a1d0deeab0",
+          "source_title": "notes.txt",
+          "source_version": 1,
+          "sq_id": "sq_3",
+          "text": "Cedar Institute was founded in 2008."
+        }
+      ],
+      "experts": {
+        "geography_expert": {
+          "agent_name": "Geography expert · parallel version",
+          "answer": "Northbridge; unknown",
+          "verified": false,
+          "verification_note": "Evidence directly states Cedar Institute is located in Northbridge, but it does not provide the founding year, so only the city is supported and the year remains unknown.",
+          "supporting_evidence": [
+            {
+              "char_end": 77,
+              "char_start": 0,
+              "chunk_id": "857364c5296b067d0a90a4c5f82f87f8d8e138d3e835c854d7b78a0028fb75c7",
+              "document_id": "2a59393b80366a8227a4a32cb4d288d80dc2dd1eb14a0a36e0d38512d1a08243",
+              "evidence_id": "bba03aecf09e2aaaa94ba438b1b51c311cc3b54a07e9de9c6052a9b856d2a63b",
+              "filename": "notes.txt",
+              "heading_path": [],
+              "line_end": 1,
+              "line_start": 1,
+              "source_id": "user_2b7f52edcf0247f2920c575d5a603ce6",
+              "source_title": "notes.txt",
+              "source_version": 1,
+              "sq_id": "sq_1",
+              "text": "Mara Vale founded Cedar Institute. Cedar Institute is located in Northbridge."
+            },
+            {
+              "char_end": 77,
+              "char_start": 0,
+              "chunk_id": "857364c5296b067d0a90a4c5f82f87f8d8e138d3e835c854d7b78a0028fb75c7",
+              "document_id": "2a59393b80366a8227a4a32cb4d288d80dc2dd1eb14a0a36e0d38512d1a08243",
+              "evidence_id": "bc1e4daf5f287c37f459d28427b98cf7647fede3124a89b7ddbf210e41593b35",
+              "filename": "notes.txt",
+              "heading_path": [],
+              "line_end": 1,
+              "line_start": 1,
+              "source_id": "user_2b7f52edcf0247f2920c575d5a603ce6",
+              "source_title": "notes.txt",
+              "source_version": 1,
+              "sq_id": "sq_2",
+              "text": "Mara Vale founded Cedar Institute. Cedar Institute is located in Northbridge."
+            }
+          ]
+        },
+        "history_expert": {
+          "agent_name": "history_expert",
+          "answer": "City: unknown; Year: 2008",
+          "verified": false,
+          "verification_note": "The only provided evidence states that Cedar Institute was founded in 2008. It does not identify which Cedar Institute is meant or provide its city/location. Therefore the founding year is supported, but the city cannot be answered.",
+          "supporting_evidence": [
+            {
+              "char_end": 36,
+              "char_start": 0,
+              "chunk_id": "35dc8a8aade5f2860ed6ba5d3814146d99eb6a133848c2fc8f6efea527900b4c",
+              "document_id": "8c49321f2a5359717d8122d7df30effccdc004bc27dd90e8cbbe8867d5867ca9",
+              "evidence_id": "2411bf08bbe84637b0e1cc1c1af6ea639c59274f01d289f43a3267f2fb71e67b",
+              "filename": "notes.txt",
+              "heading_path": [],
+              "line_end": 1,
+              "line_start": 1,
+              "source_id": "user_ad2622d3bb7e439fa6eb70a1d0deeab0",
+              "source_title": "notes.txt",
+              "source_version": 1,
+              "sq_id": "sq_3",
+              "text": "Cedar Institute was founded in 2008."
+            }
+          ]
+        }
+      },
+      "events": [
+        {
+          "sequence": 0,
+          "event_type": "run_started",
+          "node": null,
+          "timestamp": "2026-10-20T08:10:18.583418Z"
+        },
+        {
+          "sequence": 1,
+          "event_type": "node_started",
+          "node": "team_planner",
+          "timestamp": "2026-10-20T08:10:18.655413Z"
+        },
+        {
+          "sequence": 2,
+          "event_type": "node_completed",
+          "node": "team_planner",
+          "timestamp": "2026-10-20T08:10:56.865924Z"
+        },
+        {
+          "sequence": 3,
+          "event_type": "node_started",
+          "node": "geography_expert",
+          "timestamp": "2026-10-20T08:10:56.884356Z"
+        },
+        {
+          "sequence": 4,
+          "event_type": "node_started",
+          "node": "history_expert",
+          "timestamp": "2026-10-20T08:10:56.902468Z"
+        },
+        {
+          "sequence": 5,
+          "event_type": "node_completed",
+          "node": "geography_expert",
+          "timestamp": "2026-10-20T08:11:21.165602Z"
+        },
+        {
+          "sequence": 6,
+          "event_type": "node_completed",
+          "node": "history_expert",
+          "timestamp": "2026-10-20T08:11:54.508230Z"
+        },
+        {
+          "sequence": 7,
+          "event_type": "node_started",
+          "node": "team_reviewer",
+          "timestamp": "2026-10-20T08:11:54.542146Z"
+        },
+        {
+          "sequence": 8,
+          "event_type": "node_completed",
+          "node": "team_reviewer",
+          "timestamp": "2026-10-20T08:12:17.726366Z"
+        },
+        {
+          "sequence": 9,
+          "event_type": "route_decided",
+          "node": "team_reviewer",
+          "timestamp": "2026-10-20T08:12:17.752049Z"
+        },
+        {
+          "sequence": 10,
+          "event_type": "run_completed",
+          "node": null,
+          "timestamp": "2026-10-20T08:12:17.773381Z"
+        }
+      ]
+    }
+  ]
+}

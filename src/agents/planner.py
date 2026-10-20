@@ -5,9 +5,10 @@
 """
 from __future__ import annotations 
 from typing import Any,Optional,Protocol
+import json
 
 from src.agents.json_utils import as_list, as_str, extract_json_object
-from src.agents.llm_retry import invoke_text
+from src.agents.structured_output import invoke_json
 from src.config_loader import load_agent_configs
 from src.llm_usage import LLMUsageCollector
 from src.state import AgentState, SubQuestion
@@ -126,7 +127,16 @@ def planner_fn(
 
     prompt = build_prompt(state, config["model_config"]["system_prompt"])
     max_retries = config.get("failure_handling", {}).get("max_retries", 2)
-    raw = invoke_text(chat, prompt, max_retries, usage_collector)
+    def validate(data):
+        if not isinstance(data.get('sub_questions'), list) or not data['sub_questions']:
+            raise ValueError('sub_questions required')
+        if any(not isinstance(sq, dict) or not isinstance(sq.get('question'), str) or not sq['question'].strip()
+               for sq in data['sub_questions']):
+            raise ValueError('question required')
+        parse_plan(json.dumps(data))
+    data, diagnostics = invoke_json(chat, prompt, max_retries, usage_collector,
+        validate=validate, max_tokens=config['model_config'].get('max_tokens'))
+    raw = json.dumps(data) if data is not None else ''
     try:
         plan = parse_plan(raw, state.get("question", ""))
     except ValueError:
@@ -145,4 +155,5 @@ def planner_fn(
         "conflict_pairs": [],
         "retrieval_supplement_request": None,
         "insufficient_sq_ids": [],
+        "model_diagnostics": {**diagnostics, "fallback_used": data is None},
     }

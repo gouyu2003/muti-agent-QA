@@ -1,11 +1,12 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats, getSystemInfo, getSystemOptions, streamQuestion } from './api'
-import type { RunStatsSummary, StoredRunDetail, StoredRunRecord, SystemInfo, SystemOptions } from './types'
+import { getManagedSystems, getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats, getSystemInfo, getSystemOptions, streamQuestion } from './api'
+import type { ManagedSystem, RunStatsSummary, StoredRunDetail, StoredRunRecord, SystemInfo, SystemOptions } from './types'
 
 vi.mock('./api', () => ({
   getManagedSystems: vi.fn(async () => ({ items: [] })),
+  getAgentTemplates: vi.fn(async () => ({ items: [] })),
   getSystemInfo: vi.fn(),
   getSystemOptions: vi.fn(),
   streamQuestion: vi.fn(),
@@ -125,6 +126,7 @@ describe('App', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(getManagedSystems).mockResolvedValue({ items: [] })
     vi.mocked(getSystemInfo).mockResolvedValue(systemInfo)
     vi.mocked(getSystemOptions).mockResolvedValue(systemOptions)
     vi.mocked(streamQuestion).mockResolvedValue()
@@ -142,6 +144,35 @@ describe('App', () => {
     expect(screen.getByDisplayValue('A multi-hop question?')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /开始协同问答/ })).toBeEnabled()
     expect(screen.getByText('hard · bridge · 10 个上下文 · 3 条支撑事实')).toBeInTheDocument()
+  })
+
+  it('runs a published multi-source system without requiring a global knowledge source', async () => {
+    const managed: ManagedSystem = { system_id: 'sys_team', draft_revision: 1, created_at: 'now', updated_at: 'now', versions: [], draft: {
+      name: 'Expert team', description: '', workflow_id: 'multi_expert', source_id: null, source_version: null,
+      snapshot: { config_sha256: 'a'.repeat(64), schema_version: '2', execution_mode: 'parallel', protocol: { protocol_name: '多专家汇总' },
+        agents: { expert_a: { agent_name: 'Geography specialist', role: 'expert', model_config: { model_name: 'model-a', system_prompt: 'A', temperature: 0, max_tokens: 1024 } },
+          expert_b: { agent_name: 'History specialist', role: 'expert', model_config: { model_name: 'model-b', system_prompt: 'B', temperature: 0, max_tokens: 1024 } },
+          judge: { agent_name: 'Evidence reviewer', role: 'answer_validator', model_config: { model_name: 'model-a', system_prompt: 'Review', temperature: 0, max_tokens: 1024 } } },
+        sources: { expert_a: { source_id: 'source_a', name: 'Geography notes', version: 1, sha256: 'a' }, expert_b: { source_id: 'source_b', name: 'History notes', version: 2, sha256: 'b' } },
+        workflow_spec: { protocol_id: 'multi_expert', method_id: 'multi_expert_v1', entry_node: 'expert_a', agents: ['expert_a', 'expert_b', 'judge'], edges: [
+          { from: 'expert_a', to: 'judge', route_name: 'always' }, { from: 'expert_b', to: 'judge', route_name: 'always' }, { from: 'judge', to: 'END', route_name: 'always' },
+        ], max_cycles: {} },
+      },
+    } }
+    managed.versions = [{ ...managed.draft, version: 'v1', draft_revision: 1 }]
+    vi.mocked(getManagedSystems).mockResolvedValue({ items: [managed] })
+    render(<App />)
+    await screen.findByText('服务正常')
+    fireEvent.click(screen.getByRole('button', { name: /我的系统/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Expert team/ }))
+    fireEvent.click(screen.getByRole('button', { name: '使用此版本问答' }))
+    expect(screen.getByText('多个模型')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: '知识源' })).not.toBeInTheDocument()
+    const start = screen.getByRole('button', { name: /开始协同问答/ })
+    expect(start).toBeEnabled()
+    fireEvent.click(start)
+    await waitFor(() => expect(streamQuestion).toHaveBeenCalledWith(expect.any(String), expect.any(Function), expect.any(AbortSignal),
+      { systemId: 'sys_team', systemVersion: 'v1', draftRevision: undefined }))
   })
 
   it('shows persisted runs, timeline, evidence and export in the history view', async () => {

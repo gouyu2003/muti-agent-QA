@@ -7,6 +7,19 @@ function event(type: StreamEvent['type'], payload: Record<string, unknown>): Str
 }
 
 describe('runReducer', () => {
+  it('keeps both dynamic parallel instances visible until each completes', () => {
+    let state = runReducer(initialRunState, { type: 'reset' })
+    for (const node of ['medical_a', 'medical_b']) state = runReducer(state, { type: 'stream_event',
+      event: event('node_started', { node, agent_type: 'expert', agent_name: node, cycle: 1 }) })
+    expect(state.steps.filter(s => s.status === 'running')).toHaveLength(2)
+    state = runReducer(state, { type: 'stream_event', event: event('node_completed', { node: 'medical_b', output: { expert_results: { medical_b: { answer: 'B' } } } }) })
+    expect(state.activeNode).toBe('medical_a')
+    expect(state.steps[1].agentType).toBe('expert')
+    expect(state.steps[1].output?.expert_results?.medical_b.answer).toBe('B')
+    state = runReducer(state, { type: 'stream_event', event: event('node_completed', { node: 'medical_a', output: {} }) })
+    expect(state.steps.every(s => s.status === 'completed')).toBe(true)
+    expect(state.activeNode).toBeUndefined()
+  })
   it('keeps repeated node cycles as separate trace steps', () => {
     let state = runReducer(initialRunState, { type: 'reset' })
     state = runReducer(state, {

@@ -40,6 +40,8 @@ import HistoryView from './HistoryView'
 import KnowledgeView from './KnowledgeView'
 import SystemsView from './SystemsView'
 import EvidenceLocation from './EvidenceLocation'
+import AgentResults from './AgentResults'
+import ModelDiagnostics from './ModelDiagnostics'
 import { initialRunState, runReducer } from './runState'
 import type {
   ManagedSelection,
@@ -85,6 +87,12 @@ const NODE_META: Record<
     color: '#c77816',
     icon: <SafetyCertificateOutlined />,
   },
+  expert_v0: { shortName: '领域专家', english: 'EXPERT', color: '#7355a5', icon: <RobotOutlined /> },
+}
+
+function nodeMeta(id: string, role?: string, name?: string) {
+  const meta = NODE_META[`${role}_v0`] ?? NODE_META[id] ?? NODE_META.expert_v0
+  return { ...meta, shortName: name ?? meta.shortName }
 }
 
 function formatDuration(value?: number) {
@@ -116,11 +124,12 @@ function ProtocolRail({
   steps: TraceStep[]
 }) {
   const agentMap = new Map(agents.map((agent) => [agent.agent_id, agent]))
+  const nodeOrder = workflow?.agents ?? agents.map(a => a.agent_id)
   const feedbackEdges = workflow?.edges.filter((edge) =>
     edge.route_name === 'insufficient_retry' || edge.route_name === 'conflict_retry') ?? []
 
   return (
-    <section className="protocol-rail" aria-label="三智能体协同协议">
+    <section className="protocol-rail" aria-label="智能体协同协议">
       <div className="section-heading compact">
         <div>
           <span className="section-kicker">RUNTIME PROTOCOL</span>
@@ -132,11 +141,11 @@ function ProtocolRail({
       </div>
 
       <div className="agent-track">
-        {NODE_ORDER.map((node, index) => {
-          const meta = NODE_META[node]
+        {nodeOrder.map((node, index) => {
           const agent = agentMap.get(node)
+          const meta = nodeMeta(node, agent?.role, agent?.name)
           const hasCompleted = steps.some((step) => step.node === node && step.status === 'completed')
-          const state = activeNode === node ? 'active' : hasCompleted ? 'completed' : 'waiting'
+          const state = steps.some(s => s.node === node && s.status === 'running') ? 'active' : steps.some(s => s.node === node && s.status === 'failed') ? 'failed' : hasCompleted ? 'completed' : 'waiting'
           const cycles = steps.filter((step) => step.node === node).length
 
           return (
@@ -155,22 +164,19 @@ function ProtocolRail({
                       ? '正在处理当前状态'
                       : state === 'completed'
                         ? `已完成${cycles > 1 ? ` · 第 ${cycles} 轮` : ''}`
-                        : index === 0
-                          ? '负责拆解问题与规划路径'
-                          : index === 1
-                            ? '负责检索与组织证据'
-                            : '负责作答、校验与路由'}
+                        : agent?.description || '等待上游节点完成'}
                   </small>
                 </div>
                 <div className={`agent-node-status ${state}`}>
                   {state === 'active' ? <LoadingOutlined spin /> : null}
                   {state === 'completed' ? <CheckCircleFilled /> : null}
+                  {state === 'failed' ? <CloseCircleFilled /> : null}
                   {state === 'waiting' ? <span /> : null}
                 </div>
               </article>
-              {index < NODE_ORDER.length - 1 ? (
-                <div className={`track-connector ${activeNode === NODE_ORDER[index + 1] ? 'active' : ''}`}>
-                  <ArrowRightOutlined />
+              {index < nodeOrder.length - 1 ? (
+                <div className={`track-connector ${activeNode === nodeOrder[index + 1] ? 'active' : ''}`}>
+                  {workflow?.execution_mode === 'parallel' && agent?.role === 'expert' && agentMap.get(nodeOrder[index + 1])?.role === 'expert' ? <span>并行</span> : <ArrowRightOutlined />}
                 </div>
               ) : null}
             </div>
@@ -185,7 +191,7 @@ function ProtocolRail({
             <span>{edge.route_name === 'insufficient_retry' ? '证据不足' : '证据冲突'}</span>
             <strong>{edge.route_name === 'insufficient_retry' ? '返回检索' : '重新规划'}</strong>
           </div>
-        )) : <p>固定顺序执行一次，验证后结束。</p>}
+        )) : <p>{workflow?.workflow_id === 'multi_expert' ? (workflow.execution_mode === 'parallel' ? '专家并行独立作答，全部完成后统一审核。' : '专家顺序独立作答，全部完成后统一审核。') : workflow?.workflow_id === 'single_expert' ? '专家检索固定材料，独立作答并校验引用。' : '固定顺序执行一次，验证后结束。'}</p>}
       </div>
       {workflow && Object.keys(workflow.retry_limits).length > 0 ? (
         <p className="protocol-limits">
@@ -204,6 +210,7 @@ function PlannerOutput({ result }: { result: Partial<RunResult> }) {
         <Tag color="blue">{questions.length} 个子问题</Tag>
         <Text type="secondary">策略：{result.retrieval_strategy ?? 'sequential'}</Text>
       </div>
+      <ModelDiagnostics diagnostics={result.model_diagnostics} />
       {questions.map((item) => (
         <div className="subquestion-row" key={item.id}>
           <span>{item.id}</span>
@@ -258,14 +265,16 @@ function ValidatorOutput({ result }: { result: Partial<RunResult> }) {
       </div>
       {result.answer ? <Paragraph className="trace-answer">{result.answer}</Paragraph> : null}
       <Text type="secondary">{result.verification_note || '验证智能体未返回说明'}</Text>
+      <ModelDiagnostics diagnostics={result.model_diagnostics} />
     </div>
   )
 }
 
 function StepOutput({ step }: { step: TraceStep }) {
   if (!step.output) return <Skeleton active paragraph={{ rows: 2 }} />
-  if (step.node === 'planner_v0') return <PlannerOutput result={step.output} />
-  if (step.node === 'retriever_v0') return <RetrieverOutput result={step.output} />
+  if (step.agentType === 'planner' || step.node === 'planner_v0') return <PlannerOutput result={step.output} />
+  if (step.agentType === 'retriever' || step.node === 'retriever_v0') return <RetrieverOutput result={step.output} />
+  if (step.output.expert_results) return <AgentResults results={step.output.expert_results} />
   return <ValidatorOutput result={step.output} />
 }
 
@@ -289,7 +298,7 @@ function ExecutionTrace({ steps }: { steps: TraceStep[] }) {
   }
 
   const items = steps.map((step, index) => {
-    const meta = NODE_META[step.node]
+    const meta = nodeMeta(step.node, step.agentType, step.agentName)
     return {
       key: step.key,
       label: (
@@ -301,7 +310,7 @@ function ExecutionTrace({ steps }: { steps: TraceStep[] }) {
           <div>
             <strong>{meta.shortName}</strong>
             <small>
-              第 {step.cycle} 轮 · {step.status === 'running' ? '执行中' : '已完成'}
+              第 {step.cycle} 轮 · {{ running: '执行中', completed: '已完成', failed: '失败', cancelled: '已取消' }[step.status]}
             </small>
           </div>
         </div>
@@ -402,6 +411,7 @@ function ResultPanel({ result, durationMs, source }: { result?: RunResult; durat
         </div>
         <Tag>{result.evidence_chunks?.reduce((sum, group) => sum + group.chunks.length, 0) ?? 0} 条</Tag>
       </div>
+      <AgentResults results={result.expert_results} />
       <EvidenceLedger groups={result.evidence_chunks ?? []} source={source} />
       {result.supporting_evidence?.length ? <section className="supporting-evidence">
         <h3>最终支撑证据</h3>
@@ -468,16 +478,18 @@ export default function App() {
     [system, managedSelection],
   )
   const frozen = managedSelection?.document.snapshot
-  const currentWorkflow: WorkflowOption | undefined = frozen ? {
+  const currentWorkflow: WorkflowOption | undefined = frozen?.workflow_spec ? {
     workflow_id: frozen.workflow_spec.protocol_id, name: frozen.protocol.protocol_name ?? frozen.workflow_spec.protocol_id,
     description: frozen.protocol.description ?? '', method_id: frozen.workflow_spec.method_id,
     entry_node: frozen.workflow_spec.entry_node, agents: frozen.workflow_spec.agents,
     edges: frozen.workflow_spec.edges.map(edge => ({ source: edge.from, target: edge.to, route_name: edge.route_name })),
     retry_limits: frozen.workflow_spec.max_cycles,
+    execution_mode: frozen.execution_mode,
   } : options?.workflows.find((item) => item.workflow_id === workflowId)
   const sourceOption = options?.sources.find((item) => item.source_id === sourceId)
   const versionInfo = sourceOption?.version_details?.find((item) => item.version === sourceVersion)
-  const currentSource: SourceOption | undefined = frozen?.source ? { record_id: null, question_type: null, level: null, context_count: null, supporting_fact_count: null, example_question: null, ...sourceOption, ...frozen.source, is_demo: sourceOption?.is_demo ?? false } : sourceOption ? { ...sourceOption, ...(versionInfo ?? {}) } : undefined
+  const currentSource: SourceOption | undefined = frozen?.source ? { record_id: null, question_type: null, level: null, context_count: null, supporting_fact_count: null, example_question: null, ...sourceOption, ...frozen.source, is_demo: sourceOption?.is_demo ?? false } : !frozen && sourceOption ? { ...sourceOption, ...(versionInfo ?? {}) } : undefined
+  const selectedModels = [...new Set(Object.values(frozen?.agents ?? {}).map(a => a.model_config.model_name).filter(Boolean))]
   const shownWorkflow = submittedSelection && run.status !== 'idle'
     ? managedSelection ? currentWorkflow : options?.workflows.find((item) => item.workflow_id === submittedSelection.workflowId)
     : currentWorkflow
@@ -500,7 +512,12 @@ export default function App() {
 
   async function refreshOptions() {
     try {
-      setOptions(await getSystemOptions())
+      const choices = await getSystemOptions()
+      setOptions(choices)
+      if (!managedSelection && sourceId && !choices.sources.some(source => source.source_id === sourceId)) {
+        setSourceId('')
+        setSourceVersion(undefined)
+      }
       setSystemError('')
     } catch (reason) {
       setSystemError(reason instanceof Error ? reason.message : '配置选项加载失败')
@@ -523,7 +540,7 @@ export default function App() {
       dispatch({ type: 'client_error', message: '请输入问题后再运行。' })
       return
     }
-    if (!currentWorkflow || !currentSource) {
+    if (!currentWorkflow || (!managedSelection && !currentSource)) {
       dispatch({ type: 'client_error', message: '所选流程或知识源不可用，请重新加载配置。' })
       return
     }
@@ -531,7 +548,7 @@ export default function App() {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
-    const selection = { workflowId: currentWorkflow.workflow_id, sourceId: currentSource.source_id,
+    const selection = { workflowId: currentWorkflow.workflow_id, sourceId: currentSource?.source_id ?? '',
       ...(sourceVersion !== undefined ? { sourceVersion } : {}) }
     setSubmittedSelection(selection)
     setSubmittedSource(currentSource)
@@ -596,7 +613,7 @@ export default function App() {
         </nav>
         <div className="system-badges">
           <Tag variant="filled">{shownWorkflow?.workflow_id ?? '等待配置'}</Tag>
-          <Tag variant="filled">{(managedSelection ? Object.values(managedSelection.document.snapshot.agents)[0]?.model_config.model_name : system?.model_name) ?? 'DeepSeek · Bailian'}</Tag>
+          <Tag variant="filled">{managedSelection ? (selectedModels.length > 1 ? '多个模型' : selectedModels[0] ?? '本地检索') : system?.model_name ?? 'DeepSeek · Bailian'}</Tag>
           <Badge status={systemError ? 'error' : options ? 'success' : 'processing'} text={systemError ? '配置不可用' : options ? '服务正常' : '正在连接'} />
         </div>
       </header>
@@ -616,14 +633,14 @@ export default function App() {
             </div>
             <div>
               <span className="section-kicker">KNOWLEDGE SOURCE</span>
-              <strong>{shownSource?.name ?? '等待知识源'}</strong>
+              <strong>{shownSource?.name ?? (managedSelection ? '按实例绑定的固定材料' : '等待知识源')}</strong>
               {shownSource?.is_demo ? <Tag color="orange">演示材料</Tag> : null}
               <p>
                 {shownSource?.source_type === 'document_corpus'
                   ? `版本 ${shownSource.version} · ${shownSource.file_count} 个文件 · ${shownSource.chunk_count} 个片段`
                   : shownSource
                   ? `${shownSource.level} · ${shownSource.question_type} · ${shownSource.context_count} 个上下文 · ${shownSource.supporting_fact_count} 条支撑事实`
-                  : '正在加载本地知识源'}
+                  : managedSelection ? `${Object.keys(frozen?.sources ?? {}).length} 个实例已绑定材料` : '正在加载本地知识源'}
               </p>
               {shownSource ? <small>来源：{shownSource.source_id}{shownSource.record_id ? ` · 记录：${shownSource.record_id}` : ''}</small> : null}
             </div>
@@ -668,7 +685,7 @@ export default function App() {
             <div className="system-run-banner"><strong>{managedSelection ? `${managedSelection.name} · ${managedSelection.systemVersion ?? `草稿试运行 r${managedSelection.draftRevision}`}` : '临时问答'}</strong>
               {managedSelection ? <Button disabled={isRunning} onClick={() => { setManagedSelection(undefined); setSubmittedSelection(undefined); dispatch({ type: 'clear' }) }}>切回临时问答</Button> : null}
             </div>
-            <div className="configuration-controls">
+            {!managedSelection ? <div className="configuration-controls">
               <label>
                 <span>协作流程</span>
                 <Select
@@ -698,7 +715,8 @@ export default function App() {
                   disabled={isRunning || Boolean(managedSelection)}
                   onChange={(version) => { setSourceVersion(version); setSubmittedSelection(undefined); dispatch({ type: 'clear' }) }} />
               </label> : null}
-            </div>
+            </div> : <div className="managed-source-bindings">{Object.entries(frozen?.sources ?? {}).map(([id, s]) =>
+              <p key={id}>{frozen?.agents[id]?.agent_name ?? id}：{s.name} · {s.version ? `版本 ${s.version}` : '固定内容哈希'}</p>)}</div>}
             {currentWorkflow ? (
               <div className="configuration-preview">
                 <strong>{currentWorkflow.name}</strong>
@@ -737,7 +755,7 @@ export default function App() {
                   type="primary"
                   icon={<PlayCircleFilled />}
                   onClick={handleRun}
-                  disabled={Boolean(systemError) || !options || !currentWorkflow || !currentSource || !question.trim()}
+                  disabled={Boolean(systemError) || !options || !currentWorkflow || (!managedSelection && !currentSource) || !question.trim()}
                 >
                   开始协同问答
                 </Button>
@@ -746,7 +764,7 @@ export default function App() {
           </Card>
 
           {submittedSelection && run.status !== 'idle' ? (
-            <p className="run-selection">本次运行：{shownWorkflow?.name ?? submittedSelection.workflowId} · {shownSource?.name ?? submittedSelection.sourceId}{submittedSelection.sourceVersion ? ` · 版本 ${submittedSelection.sourceVersion}` : ''}</p>
+            <p className="run-selection">本次运行：{shownWorkflow?.name ?? submittedSelection.workflowId} · {shownSource?.name ?? (managedSelection ? '按实例绑定材料' : submittedSelection.sourceId)}{submittedSelection.sourceVersion ? ` · 版本 ${submittedSelection.sourceVersion}` : ''}</p>
           ) : null}
 
           {run.error ? <Alert type="error" showIcon message="运行未完成" description={run.error} /> : null}

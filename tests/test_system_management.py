@@ -110,7 +110,7 @@ def test_v1_knowledge_migration_backup_idempotence_and_shared_ownership(tmp_path
     KnowledgeStore(root)
     assert list(root.glob('knowledge.pre-workspace-*.sqlite3')) == backups
     with store.connection() as db:
-        assert db.execute('PRAGMA user_version').fetchone()[0] == 2
+        assert db.execute('PRAGMA user_version').fetchone()[0] == 3
 
 
 def test_migration_rolls_back_added_column_on_failure(tmp_path, monkeypatch):

@@ -1,12 +1,12 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import KnowledgeView from './KnowledgeView'
-import { getKnowledgeChunks, getKnowledgeSource, getKnowledgeSources, importKnowledge, KnowledgeImportError } from './api'
+import { deleteKnowledgeSource, getKnowledgeChunks, getKnowledgeSource, getKnowledgeSources, importKnowledge, KnowledgeImportError } from './api'
 import type { KnowledgeSource } from './types'
 
 vi.mock('./api', async (original) => ({
   ...await original<typeof import('./api')>(),
-  getKnowledgeChunks: vi.fn(), getKnowledgeSource: vi.fn(), getKnowledgeSources: vi.fn(), importKnowledge: vi.fn(),
+  getKnowledgeChunks: vi.fn(), getKnowledgeSource: vi.fn(), getKnowledgeSources: vi.fn(), importKnowledge: vi.fn(), deleteKnowledgeSource: vi.fn(),
 }))
 
 const source: KnowledgeSource = {
@@ -24,6 +24,7 @@ beforeEach(() => {
   vi.mocked(getKnowledgeSource).mockResolvedValue(source)
   vi.mocked(getKnowledgeChunks).mockResolvedValue(chunks)
   vi.mocked(importKnowledge).mockResolvedValue(source)
+  vi.mocked(deleteKnowledgeSource).mockResolvedValue({ source_id: source.source_id, deleted: true })
 })
 afterEach(cleanup)
 
@@ -81,5 +82,66 @@ describe('KnowledgeView', () => {
     expect(await screen.findByText('请使用 UTF-8 编码')).toBeInTheDocument()
     await waitFor(() => expect(getKnowledgeSource).toHaveBeenCalledWith('user_notes'))
     expect(onChanged).not.toHaveBeenCalled()
+  })
+
+  it('confirms deletion, clears the preview and import target, and updates runtime choices', async () => {
+    const onChanged = vi.fn().mockResolvedValue(undefined)
+    render(<KnowledgeView disabled={false} onChanged={onChanged} onUse={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: /English notes/ }))
+    await screen.findByText('Mara Vale founded Cedar Institute.')
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '导入目标' }))
+    fireEvent.click(await screen.findByText('English notes：导入新版本', { selector: '.ant-select-item-option-content' }))
+    fireEvent.click(screen.getByRole('button', { name: '删除知识源' }))
+    expect(deleteKnowledgeSource).not.toHaveBeenCalled()
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^取\s*消$/ }))
+    expect(deleteKnowledgeSource).not.toHaveBeenCalled()
+    expect(screen.getByText('Mara Vale founded Cedar Institute.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '删除知识源' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '确认删除' }))
+    await screen.findByText('还没有用户知识源，请先导入材料。')
+    expect(deleteKnowledgeSource).toHaveBeenCalledExactlyOnceWith('user_notes')
+    expect(onChanged).toHaveBeenCalledOnce()
+    expect(screen.queryByText('Mara Vale founded Cedar Institute.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: '材料版本' })).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '导入目标' }).closest('.ant-select')).toHaveTextContent('创建新知识源')
+    expect(screen.getByRole('textbox', { name: '知识源名称' })).toBeInTheDocument()
+  })
+
+  it('keeps the source and shows the server explanation when deletion is rejected', async () => {
+    vi.mocked(deleteKnowledgeSource).mockRejectedValue(new Error('知识源正在导入，请等待完成后再删除。'))
+    const onChanged = vi.fn()
+    render(<KnowledgeView disabled={false} onChanged={onChanged} onUse={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: /English notes/ }))
+    fireEvent.click(screen.getByRole('button', { name: '删除知识源' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '确认删除' }))
+    await screen.findByText('知识源正在导入，请等待完成后再删除。')
+    expect(screen.getByRole('button', { name: /English notes/ })).toBeInTheDocument()
+    expect(onChanged).not.toHaveBeenCalled()
+  })
+
+  it('disables deletion during a run or while a version is importing', async () => {
+    const view = render(<KnowledgeView disabled onChanged={vi.fn()} onUse={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: /English notes/ }))
+    expect(screen.getByRole('button', { name: '删除知识源' })).toBeDisabled()
+    view.unmount()
+    vi.mocked(getKnowledgeSources).mockResolvedValue({ items: [{ ...source,
+      versions: [{ version: 3, status: 'importing', created_at: 'now', error: null }, ...source.versions] }] })
+    render(<KnowledgeView disabled={false} onChanged={vi.fn()} onUse={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: /English notes/ }))
+    expect(screen.getByRole('button', { name: '删除知识源' })).toBeDisabled()
+    expect(deleteKnowledgeSource).not.toHaveBeenCalled()
+  })
+
+  it('allows deleting a failed import and reports refresh failure without undoing deletion', async () => {
+    vi.mocked(getKnowledgeSources).mockResolvedValue({ items: [{ ...source, status: 'failed', current_version: null,
+      versions: [{ version: 1, status: 'failed', created_at: 'now', error: null }] }] })
+    const onChanged = vi.fn().mockRejectedValue(new Error('offline'))
+    render(<KnowledgeView disabled={false} onChanged={onChanged} onUse={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: /English notes/ }))
+    fireEvent.click(screen.getByRole('button', { name: '删除知识源' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '确认删除' }))
+    await screen.findByText('知识源已删除，但更新问答选项失败，请刷新页面。')
+    expect(screen.getByText('还没有用户知识源，请先导入材料。')).toBeInTheDocument()
+    expect(deleteKnowledgeSource).toHaveBeenCalledOnce()
   })
 })

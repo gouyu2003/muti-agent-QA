@@ -6,7 +6,7 @@ from functools import partial
 from typing import Any, Callable, Optional
 
 from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, START, StateGraph
 
 from src.agents.answer_validator import answer_validator_fn
 from src.agents.planner import planner_fn
@@ -62,9 +62,21 @@ def build_graph(
 
     for node in workflow.agents:
         graph.add_node(node, impl[node])
-    graph.set_entry_point(workflow.entry_node)
+    if workflow.start_nodes:
+        for node in workflow.start_nodes:
+            graph.add_edge(START, node)
+    else:
+        graph.set_entry_point(workflow.entry_node)
+    if workflow.join_sources:
+        graph.add_edge(workflow.join_sources, workflow.join_target)
     for node in workflow.agents:
         edges = [edge for edge in workflow.edges if edge.source == node]
+        if node in workflow.join_sources:
+            continue
+        if len(edges) > 1 and all(edge.route_name == 'always' for edge in edges):
+            for edge in edges:
+                graph.add_edge(node, edge.target)
+            continue
         if len(edges) == 1 and edges[0].route_name == "always":
             graph.add_edge(node, END if edges[0].target == "END" else edges[0].target)
         else:
@@ -75,6 +87,9 @@ def build_graph(
                 {target: target for target in targets},
             )
 
-    return graph.compile(
+    compiled = graph.compile(
         checkpointer=checkpointer if checkpointer is not None else InMemorySaver()
     )
+    # Wake the synchronous consumer for task events while other branches run.
+    compiled.stream_eager = True
+    return compiled

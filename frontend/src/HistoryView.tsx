@@ -10,6 +10,8 @@ import {
 import { Alert, Button, Empty, Input, Pagination, Select, Skeleton, Tag, Tooltip } from 'antd'
 import { getManagedSystems, getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats } from './api'
 import EvidenceLocation from './EvidenceLocation'
+import AgentResults from './AgentResults'
+import ModelDiagnostics, { ModelCalls } from './ModelDiagnostics'
 import type {
   RunEntryPoint,
   RunFilters,
@@ -84,7 +86,7 @@ function asObject(value: unknown): Record<string, unknown> {
 }
 
 function eventHeading(event: StoredTraceEvent): string {
-  const node = NODE_LABELS[event.node ?? ''] ?? event.node ?? '运行'
+  const node = typeof event.payload.agent_name === 'string' ? event.payload.agent_name : NODE_LABELS[event.node ?? ''] ?? event.node ?? '运行'
   if (event.event_type === 'node_started') return `${node}开始`
   if (event.event_type === 'node_completed') return `${node}完成`
   if (event.event_type === 'route_decided') return '路由决定'
@@ -111,27 +113,30 @@ function EventBody({ event }: { event: StoredTraceEvent }) {
   if (event.event_type !== 'node_completed') return null
 
   const output = asObject(payload.output) as Partial<RunResult>
-  if (event.node === 'planner_v0') {
+  if (event.node === 'planner_v0' || payload.agent_type === 'planner') {
     return (
       <div className="history-event-detail">
         {(output.sub_questions ?? []).map((item) => (
           <p key={item.id}><code>{item.id}</code> {item.question}</p>
         ))}
         {output.retrieval_strategy ? <small>检索策略：{output.retrieval_strategy}</small> : null}
+        <ModelDiagnostics diagnostics={output.model_diagnostics} />
       </div>
     )
   }
-  if (event.node === 'retriever_v0') {
+  if (event.node === 'retriever_v0' || payload.agent_type === 'retriever') {
     const groups = output.evidence_chunks ?? []
     const count = groups.reduce((sum, group) => sum + group.chunks.length, 0)
     return <p className="history-event-note">覆盖 {groups.length} 个子问题 · 返回 {count} 条候选证据</p>
   }
-  if (event.node === 'answer_validator_v0') {
+  if (output.expert_results) return <AgentResults results={output.expert_results} />
+  if (event.node === 'answer_validator_v0' || payload.agent_type === 'answer_validator') {
     return (
-      <p className="history-event-note">
+      <div className="history-event-note">
         {output.verified ? '验证通过' : `验证未通过：${output.failure_type ?? '原因未记录'}`}
         {output.verification_note ? ` · ${output.verification_note}` : ''}
-      </p>
+        <ModelDiagnostics diagnostics={output.model_diagnostics} />
+      </div>
     )
   }
   return null
@@ -235,7 +240,7 @@ function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDetail; e
         {systemLabel(snapshot) ? <><div><span>所属问答系统</span><strong>{systemLabel(snapshot)}</strong></div><div><span>系统 ID</span><code>{String(asObject(snapshot.system_ref).system_id)}</code></div></> : null}
         <div><span>协作流程</span><strong>{run.context.workflow_id}</strong></div>
         <div><span>方法</span><strong>{run.context.method_id}</strong></div>
-        <div><span>知识源</span><strong>{sourceName || sourceId || '未记录'}</strong></div>
+        <div><span>知识源</span><strong>{sourceName || sourceId || (Object.keys(asObject(snapshot.sources)).length ? '多个固定知识源' : '未记录')}</strong></div>
         {sourceId ? <div><span>知识源 ID</span><code>{sourceId}</code></div> : null}
         {typeof sourceSnapshot.version === 'number' ? <div><span>知识源版本</span><strong>{sourceSnapshot.version}</strong></div> : null}
         {run.context.record_id ? <div><span>材料记录</span><strong>{run.context.record_id}</strong></div> : null}
@@ -244,6 +249,19 @@ function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDetail; e
         <div><span>配置摘要 SHA-256</span><code>{configHash}</code></div>
         <div><span>知识源 SHA-256</span><code>{sourceHash}</code></div>
       </div>
+      {snapshot.schema_version === '2' ? <section className="history-instance-config"><h3>本次智能体配置</h3>
+        {Object.entries(asObject(snapshot.agents)).map(([id, value]) => {
+          const a = asObject(value), model = asObject(a.model_config), s = asObject(asObject(snapshot.sources)[id])
+          const usage = run.metrics.agent_usage?.[id]
+          return <details key={id}><summary>{String(a.agent_name)} · {String(a.role)} · {String(model.model_name ?? '本地 BM25')}</summary>
+            <p>实例：{id} · 温度 {String(model.temperature ?? '—')} · Token 上限 {String(model.max_tokens ?? '—')}</p>
+            {s.source_id ? <p>材料：{String(s.name)} · 版本 {String(s.version ?? '固定内容')} · SHA-256 <code>{String(s.sha256)}</code></p> : null}
+            {model.system_prompt ? <p className="system-prompt">{String(model.system_prompt)}</p> : null}
+            {usage ? <p>LLM 调用 {usage.call_count} · Token {usage.total_tokens ?? '未知'}</p> : null}
+            <ModelCalls calls={usage?.calls} />
+          </details>
+        })}
+      </section> : null}
       <div className="history-run-facts">
         <div><span>耗时</span><strong>{formatDuration(run.metrics.duration_ms)}</strong></div>
         <div><span>节点调用</span><strong>{run.metrics.node_call_count}</strong></div>
@@ -275,6 +293,7 @@ function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDetail; e
         ) : null}
       </section>
       <RunTimeline events={events} />
+      <AgentResults results={result?.expert_results} />
       <RunEvidence result={result} source={source} />
     </article>
   )

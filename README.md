@@ -1,8 +1,8 @@
 # Multi-Agent QA
 
-基于 LangGraph 的多智能体协同问答系统，已实现运行轨迹持久化、配置驱动的协作流程、用户材料导入与知识源版本管理、阶段 4.0 的问答修复与最小 HotpotQA 批量评测，以及阶段 4.1 的用户问答系统配置管理。当前自适应方法标识为 `multi_agent_adaptive_v1`。
+基于 LangGraph 的多智能体协同问答系统，已实现运行轨迹持久化、配置驱动的协作流程、用户材料导入与知识源版本管理、阶段 4.0 的问答修复与最小 HotpotQA 批量评测、阶段 4.1 的用户问答系统配置管理，以及阶段 4.2 的动态智能体实例与配置编辑。当前自适应方法标识为 `multi_agent_adaptive_v1`。
 
-系统使用 Planner、Retriever、Answer-Validator 三个智能体，支持“固定三节点”和“反馈重试”两种流程。知识源可选择预置 HotpotQA 记录，也可通过界面或 CLI 导入一组英文 UTF-8 TXT/MD 文件。用户可以选择知识源及版本、测试问答，并从实时结果和历史记录追溯到具体文件与原文位置。
+默认流程使用 Planner、Retriever、Answer-Validator 三个智能体，保留“固定流水线”和“反馈重试”。用户系统另支持单专家问答、多专家串行或并行汇总，可创建 1～5 个独立实例。知识源可选择预置 HotpotQA 记录，也可通过界面或 CLI 导入一组英文 UTF-8 TXT/MD 文件。用户可以选择知识源及版本、测试问答，并从实时结果和历史记录追溯到具体文件与原文位置。
 
 原 V0 的真实 HotpotQA `bridge` 样本仍作为默认演示与回归基线保留。反馈重试流程支持证据不足时补充检索、证据冲突时重新规划；固定流程在一次验证后结束。
 
@@ -14,14 +14,16 @@
 
 ## 系统结构
 
-阶段 4.1 可在“我的系统”创建多套系统，组合现有流程与工作区共享的知识源固定版本，保存草稿、试运行并发布不可覆盖的 v1/v2。问答与历史记录关联当时的完整配置，原入口保留为“临时问答”。三个智能体仍使用只读预置配置，动态创建和编辑留到后续阶段。使用步骤、接口、迁移与真实验收结果见 [docs/stage41-validation.md](docs/stage41-validation.md)。
+阶段 4.1 可在“我的系统”创建多套系统，组合现有流程与工作区共享的知识源固定版本，保存草稿、试运行并发布不可覆盖的 v1/v2。问答与历史记录关联当时的完整配置，原入口保留为“临时问答”。阶段 4.1 的历史验收记录见 [docs/stage41-validation.md](docs/stage41-validation.md)。
+
+阶段 4.2 可从角色模板新增、复制、删除实例，包括从其他系统复制；修改名称、提示词、模型参数和检索材料。Expert 使用自己的固定材料检索并调用 LLM，Retriever 仍是本地 BM25 节点。多专家结果按实例隔离，全部完成后统一审核；已发布版本只读。实现、接口与验收说明见 [docs/stage42-validation.md](docs/stage42-validation.md)。浏览器人工验收由用户稍后进行。
 
 ```text
 React + TypeScript (frontend/)
   ├─ 实时问答：选择流程、知识源和版本
   ├─ 运行历史：轨迹、证据、统计、JSONL 导出
   ├─ 知识源：多文件上传、版本查看、片段预览
-  └─ 我的系统：草稿、试运行、不可变发布版本与运行关联
+  └─ 我的系统：动态实例编辑、草稿、试运行、不可变发布版本
           │ HTTP / SSE
           ▼
 FastAPI (backend/)              CLI (main.py / src.knowledge.cli)
@@ -143,6 +145,7 @@ TXT 按空行分段，Markdown 识别以 `#` 至 `######` 加空白开头的标�
 原始文件同时保留，证据正文始终从实际索引片段回填。
 
 更新知识源时选择“导入新版本”，上传整套材料。旧版本保留；失败版本不能运行，上一个成功版本继续可用。
+删除时，在知识源列表选中一项，点击详情标题旁的“删除知识源”并确认。删除会移除该来源及全部版本的列表与新绑定入口，禁止继续导入版本；已保存系统快照和历史记录引用的本地原件、片段及索引仍保留，以支持旧版本运行和追溯。这不是磁盘文件的永久擦除。正在导入的来源需等待完成后再删除，失败记录可以删除。
 问答开始前固定所选版本，实时证据和运行历史显示知识源版本、文件、标题位置和行号。
 普通文档使用本地 BM25；为了支持很小的语料，普通文档的非正 IDF 使用正数下限，HotpotQA 评分不变。
 `verified` 是模型的内部验证结果，不能代替标准答案准确率。
@@ -163,7 +166,7 @@ $knowledgeImport.source_id
 
 默认存储为 `data/knowledge/knowledge.sqlite3` 和 `data/knowledge/<source_id>/<version>/`，已加入 Git 忽略规则。
 可用 `MAQA_KNOWLEDGE_DIR` 指定目录；CLI 导入也支持全局 `--knowledge-dir` 和 `--system-config`。
-自定义目录时，问答 API/CLI 需使用同一个 `MAQA_KNOWLEDGE_DIR`；CLI 全局参数放在 `create`、`add-version` 或 `list` 子命令之前。用户知识源按系统清单的 `system_id` 管理，导入与问答应使用同一系统配置。
+自定义目录时，问答 API/CLI 需使用同一个 `MAQA_KNOWLEDGE_DIR`；CLI 全局参数放在 `create`、`add-version` 或 `list` 子命令之前。用户知识源属于本机工作区，不同系统和实例可引用同一材料的固定版本。
 支持本地单用户、单后端进程；导入为同步操作，重启后中断的导入标记为失败，可重新导入。
 
 HTTP 接口：
@@ -173,6 +176,7 @@ HTTP 接口：
 | `POST /api/v1/knowledge/sources` | multipart 字段 `name`、多个 `files`，创建知识源 |
 | `GET /api/v1/knowledge/sources` | 查看知识源列表 |
 | `GET /api/v1/knowledge/sources/{source_id}` | 查看版本、文件概况和错误 |
+| `DELETE /api/v1/knowledge/sources/{source_id}` | 删除可选来源，保留快照材料；重复删除返回成功，导入中返回 409 |
 | `POST /api/v1/knowledge/sources/{source_id}/versions` | multipart 多个 `files`，导入整套材料的新版本 |
 | `GET /api/v1/knowledge/sources/{source_id}/versions/{version}/chunks` | 使用 `limit`、`offset` 分页预览片段 |
 
@@ -222,6 +226,6 @@ npm run build
 
 ## 当前边界
 
-当前支持已注册的三类智能体、两种流程模板、HotpotQA 单条记录和英文 TXT/MD 多文件知识源。
-前端提供实时问答、运行历史和知识源导入、版本查看。DOCX/PDF、中文检索、OCR、向量检索和多知识源联合检索尚未实现。
-系统包导出、异机启动、智能体配置编辑、拖拽式设计器和稳定的非流式对外问答 API 属于后续阶段。
+当前支持四类注册角色、四种执行模板、每套系统 1～5 个实例、HotpotQA 单条记录和英文 TXT/MD 多文件知识源。前端提供实例配置、实时问答、运行历史和材料版本管理。
+每个检索角色首版绑定一个材料版本；多专家可以分别绑定不同材料，由审核者汇总证据。DOCX/PDF、中文检索、OCR、向量检索和单个实例联合检索多个知识源尚未实现。
+Lead Agent、Debate、独立智能体库、系统包导出、异机启动、自由图编辑和稳定的非流式对外问答 API 属于后续阶段。

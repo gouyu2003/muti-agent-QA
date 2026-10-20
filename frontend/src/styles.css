@@ -1441,5 +1441,47 @@ textarea {
 .system-config-preview { overflow-wrap: anywhere; }
 .system-config-preview small { display: block; margin: 16px 0; color: #657681; }
 .system-prompt { white-space: pre-wrap; line-height: 1.8; }
+.prompt-facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 12px; }
+.prompt-facts span { padding: 2px 9px; border: 1px solid #dbe2e8; border-radius: 6px; background: #fff; color: #445169; font-family: Consolas, "SFMono-Regular", monospace; font-size: 11px; }
+.prompt-block { --prompt-color: #3157d5; margin: 0 0 4px; border: 1px solid #d8e1ec; border-left: 3px solid var(--prompt-color); border-radius: 10px; background: #f8fafc; overflow: hidden; }
+.prompt-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-height: 40px; padding: 5px 8px 5px 12px; border-bottom: 1px solid #e7ecf3; }
+.prompt-tag { color: var(--prompt-color); font-family: Consolas, "SFMono-Regular", monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; }
+.prompt-meta { color: #8190a4; font-family: Consolas, "SFMono-Regular", monospace; font-size: 11px; }
+.prompt-meta.done { color: #138a8a; }
+.prompt-meta.failed { color: #c44444; }
+.prompt-tools { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.prompt-tools .ant-btn { min-width: 28px; height: 28px; }
+.prompt-body { position: relative; }
+.prompt-body pre { margin: 0; padding: 12px 14px; max-height: 13.2rem; overflow: auto; color: #243149; font-family: Consolas, "SFMono-Regular", ui-monospace, "Microsoft YaHei", monospace; font-size: 12.5px; line-height: 1.75; tab-size: 2; }
+.prompt-body pre:focus-visible { outline: 2px solid #3157d5; outline-offset: -2px; }
+.prompt-body pre.wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.prompt-body pre.nowrap { white-space: pre; }
+.prompt-body.masked pre { overflow: hidden; }
+.prompt-body.masked::after { content: ""; position: absolute; inset: auto 0 0 0; height: 3rem; background: linear-gradient(to bottom, rgba(248, 250, 252, 0), #f8fafc 78%); pointer-events: none; }
+.prompt-block.expanded .prompt-body pre { max-height: none; }
+.prompt-foot { display: flex; justify-content: flex-end; padding: 0 8px 6px; }
 .workspace-nav { flex-wrap: wrap; }
+.agent-editor { margin: 24px 0; min-width: 0; }
+.agent-editor-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.agent-editor-heading h3 { margin: 0 0 8px; }
+.agent-editor-heading p, .agent-role-requirement { color: #425463; line-height: 1.7; }
+.agent-editor-add { margin: 12px 0 20px; }
+.agent-copy-source { display: grid; gap: 8px; margin: 0 0 20px; }
+.agent-copy-source .ant-select { width: 100%; }
+.agent-instance-fields { display: grid; gap: 16px; min-width: 0; }
+.agent-instance-fields label { display: grid; gap: 8px; color: #293b49; }
+.agent-instance-fields .ant-select { width: 100%; }
+.agent-instance-fields code, .history-instance-config code { overflow-wrap: anywhere; }
+.agent-number-fields { display: flex; flex-wrap: wrap; gap: 24px; }
+.expert-results { margin: 20px 0; overflow-wrap: anywhere; min-width: 0; }
+.history-instance-config { margin: 24px 0; overflow-wrap: anywhere; }
+.history-instance-config details { padding: 12px 0; border-bottom: 1px solid #dbe2e8; }
+.history-instance-config summary { cursor: pointer; }
+.agent-track { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.agent-instance-fields :focus-visible { outline: 2px solid #3157d5; outline-offset: 2px; }
 @media (max-width: 900px) { .systems-grid { grid-template-columns: 1fr; } .systems-list { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); } .system-fields { grid-template-columns: 1fr; gap: 10px; } }
+@media (max-width: 760px) {
+  .prompt-body pre { padding: 10px; max-height: 11rem; font-size: 12px; }
+  .prompt-tools .ant-btn { min-width: 36px; height: 36px; }
+  .prompt-tag { display: none; }
+}

@@ -13,17 +13,19 @@ export type RunAction =
   | { type: 'stream_event'; event: StreamEvent }
 
 function isNodeId(value: unknown): value is NodeId {
-  return value === 'planner_v0' || value === 'retriever_v0' || value === 'answer_validator_v0'
+  return typeof value === 'string' && value.length > 0
 }
 
 export function runReducer(state: RunViewState, action: RunAction): RunViewState {
   if (action.type === 'clear') return initialRunState
   if (action.type === 'reset') return { status: 'running', steps: [] }
   if (action.type === 'cancel') {
-    return { ...state, status: 'cancelled', activeNode: undefined, error: undefined }
+    return { ...state, status: 'cancelled', activeNode: undefined, error: undefined,
+      steps: state.steps.map(s => s.status === 'running' ? { ...s, status: 'cancelled' } : s) }
   }
   if (action.type === 'client_error') {
-    return { ...state, status: 'failed', activeNode: undefined, error: action.message }
+    return { ...state, status: 'failed', activeNode: undefined, error: action.message,
+      steps: state.steps.map(s => s.status === 'running' ? { ...s, status: 'failed' } : s) }
   }
 
   const { event } = action
@@ -43,6 +45,8 @@ export function runReducer(state: RunViewState, action: RunAction): RunViewState
         {
           key: `${node}-${cycle}-${state.steps.length}`,
           node,
+          agentName: typeof event.payload.agent_name === 'string' ? event.payload.agent_name : undefined,
+          agentType: typeof event.payload.agent_type === 'string' ? event.payload.agent_type : undefined,
           cycle,
           status: 'running',
           timestamp: event.timestamp,
@@ -65,6 +69,8 @@ export function runReducer(state: RunViewState, action: RunAction): RunViewState
       steps.push({
         key: `${node}-${cycle}-${steps.length}`,
         node,
+        agentName: typeof event.payload.agent_name === 'string' ? event.payload.agent_name : undefined,
+        agentType: typeof event.payload.agent_type === 'string' ? event.payload.agent_type : undefined,
         cycle,
         status: 'completed',
         timestamp: event.timestamp,
@@ -73,7 +79,7 @@ export function runReducer(state: RunViewState, action: RunAction): RunViewState
     } else {
       steps[index] = { ...steps[index], status: 'completed', output }
     }
-    return { ...state, steps }
+    return { ...state, steps, activeNode: [...steps].reverse().find(step => step.status === 'running')?.node }
   }
 
   if (event.type === 'run_completed') {
@@ -92,7 +98,12 @@ export function runReducer(state: RunViewState, action: RunAction): RunViewState
       status: 'failed',
       activeNode: undefined,
       error: String(event.payload.message ?? '多智能体流程运行失败。'),
+      steps: state.steps.map(s => s.status === 'running' ? { ...s, status: 'failed' } : s),
     }
+  }
+  if (event.type === 'run_cancelled') {
+    return { ...state, status: 'cancelled', activeNode: undefined,
+      steps: state.steps.map(s => s.status === 'running' ? { ...s, status: 'cancelled' } : s) }
   }
 
   return state

@@ -43,4 +43,9 @@ def build_chat_model(agent_config: dict[str, Any]) -> ChatOpenAI:
         base_url=base_url,
         temperature=model_config.get("temperature", 0.0),
         max_tokens=model_config.get("max_tokens"),
+        model_kwargs={"response_format": {"type": "json_object"}},
+        # These nodes extract short structured answers, not open-ended reasoning.
+        extra_body={"thinking": {"type": "disabled"}} if model_name.lower().startswith("deepseek") else {},
+        timeout=120,
+        max_retries=0,
     )

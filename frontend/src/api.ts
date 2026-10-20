@@ -10,9 +10,14 @@ import type {
   ChunkPage,
   ExperimentOption,
   ManagedSystem, SystemDocument, SystemDraftFields, RunSelection,
+  AgentTemplate,
 } from './types'
 
 const API_PREFIX = '/api/v1'
+
+export function getAgentTemplates(signal?: AbortSignal): Promise<{ items: AgentTemplate[] }> {
+  return knowledgeJson(`${API_PREFIX}/agent-templates`, { signal })
+}
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal })
@@ -95,7 +100,7 @@ async function knowledgeJson<T>(url: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const detail = data.detail
     throw new KnowledgeImportError(
-      typeof detail === 'string' ? detail : typeof detail === 'object' && detail?.message ? detail.message : `请求失败（HTTP ${response.status}）`,
+      typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map(item => `${item.loc?.join(' / ')}：${item.msg}`).join('；') : typeof detail === 'object' && detail?.message ? detail.message : `请求失败（HTTP ${response.status}）`,
       detail?.source_id, detail?.version,
     )
   }
@@ -104,6 +109,10 @@ async function knowledgeJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 export function getKnowledgeSources(signal?: AbortSignal): Promise<{ items: KnowledgeSource[] }> {
   return knowledgeJson(`${API_PREFIX}/knowledge/sources`, { signal })
+}
+
+export function deleteKnowledgeSource(sourceId: string): Promise<{ source_id: string; deleted: boolean }> {
+  return knowledgeJson(`${API_PREFIX}/knowledge/sources/${encodeURIComponent(sourceId)}`, { method: 'DELETE' })
 }
 
 export function getManagedSystems(signal?: AbortSignal): Promise<{ items: ManagedSystem[] }> {

@@ -13,6 +13,8 @@ from uuid import uuid4
 
 from src.runtime.system import DEFAULT_CATALOG_PATH, resolve_system, retriever_from_snapshot
 from src.runtime.specs import WorkflowSpec
+from src.runtime.instances import (validate_instances, legacy_instances, compile_workflow,
+                                   agent_config, TEMPLATE_NAMES)
 
 
 class SystemFailure(ValueError):
@@ -79,6 +81,8 @@ class SystemStore:
                 'versions': releases, 'created_at': row['created_at'], 'updated_at': row['updated_at']}
 
     def _draft(self, system_id, fields, previous=None):
+        if fields.get('agents') is not None or (previous and previous['snapshot'].get('schema_version') == '2'):
+            return self._instance_draft(system_id, fields, previous)
         name = fields['name'].strip()
         if not name or len(name) > 100:
             raise SystemFailure('系统名称需为 1 至 100 个字符。')
@@ -114,6 +118,63 @@ class SystemStore:
         return {'name': name, 'description': fields.get('description', '').strip(),
                 'workflow_id': workflow_id, 'source_id': source_id, 'source_version': source_version, 'snapshot': base}
 
+    def _instance_draft(self, system_id, fields, previous):
+        name = fields['name'].strip()
+        if not name or len(name) > 100:
+            raise SystemFailure('系统名称需为 1 至 100 个字符。')
+        old = previous['snapshot'] if previous else None
+        try:
+            agents = validate_instances(fields.get('agents') if fields.get('agents') is not None else legacy_instances(old),
+                                        legacy_instances(old) if old else None)
+            mode = fields.get('execution_mode') or (old or {}).get('execution_mode', 'sequential')
+            if mode not in ('sequential', 'parallel'):
+                raise ValueError('执行方式必须为 sequential 或 parallel。')
+            configs = {a.agent_id: agent_config(a, (old or {}).get('agents', {}).get(a.agent_id)) for a in agents}
+            sources = {}
+            errors = []
+            for a in agents:
+                if a.agent_type not in ('expert', 'retriever'):
+                    continue
+                if not a.source_id:
+                    errors.append(f'{a.name}：请选择知识源。'); continue
+                previous_source = (old or {}).get('sources', {}).get(a.agent_id)
+                if previous_source is None and old and old.get('source', {}).get('source_id') == a.source_id:
+                    previous_source = old['source']
+                if previous_source and (previous_source['source_id'], previous_source.get('version')) == (a.source_id, a.source_version):
+                    sources[a.agent_id] = deepcopy(previous_source)
+                elif a.source_id.startswith('user_') and a.source_version is None:
+                    errors.append(f'{a.name}：请选择明确的知识源版本。'); continue
+                else:
+                    selected = template_snapshot(source_id=a.source_id, source_version=a.source_version,
+                        catalog_path=os.getenv('MAQA_SYSTEM_CONFIG_PATH') or DEFAULT_CATALOG_PATH)
+                    if selected['source']['source_type'] == 'document_corpus' and a.source_version is None:
+                        errors.append(f'{a.name}：请选择明确的知识源版本。'); continue
+                    sources[a.agent_id] = selected['source']
+                configs[a.agent_id]['knowledge_sources'] = [{'source_id': a.source_id,
+                    'source_version': a.source_version, 'source_type': sources[a.agent_id]['source_type']}]
+            workflow_id = fields.get('workflow_id')
+            try:
+                workflow = compile_workflow(workflow_id, agents, mode).model_dump(by_alias=True)
+            except ValueError as exc:
+                errors.append(str(exc)); workflow = None
+            snapshot = {'schema_version': '2', 'system_id': system_id, 'system_version': 'draft',
+                'instances': [a.model_dump(by_alias=True) for a in agents], 'agents': configs,
+                'agent_types': {a.agent_id: a.agent_type for a in agents}, 'sources': sources,
+                'execution_mode': mode, 'workflow_spec': workflow,
+                'protocol': {'protocol_name': TEMPLATE_NAMES.get(workflow_id, '尚未选择')},
+                'configuration_errors': errors}
+            unique = {(s['source_id'], s.get('version')) for s in sources.values()}
+            if len(unique) == 1:
+                snapshot['source'] = deepcopy(next(iter(sources.values())))
+            snapshot['config_sha256'] = fingerprint(snapshot)
+            return {'name': name, 'description': fields.get('description', '').strip(),
+                'workflow_id': workflow_id, 'source_id': None, 'source_version': None,
+                'agents': snapshot['instances'], 'execution_mode': mode, 'snapshot': snapshot}
+        except (ValueError, OSError) as exc:
+            if isinstance(exc, SystemFailure):
+                raise
+            raise SystemFailure(str(exc)) from exc
+
     def create(self, fields):
         system_id = 'sys_' + uuid4().hex
         document = self._draft(system_id, fields)
@@ -136,6 +197,22 @@ class SystemStore:
 
     @staticmethod
     def validate(document):
+        if document['snapshot'].get('schema_version') == '2':
+            snapshot = document['snapshot']
+            if snapshot.get('configuration_errors'):
+                raise SystemFailure('；'.join(snapshot['configuration_errors']))
+            if fingerprint(snapshot) != snapshot['config_sha256']:
+                raise SystemFailure('保存的配置校验失败。')
+            try:
+                agents = validate_instances(snapshot['instances'])
+                expected = compile_workflow(document['workflow_id'], agents, snapshot['execution_mode'])
+                if expected.model_dump(by_alias=True) != snapshot['workflow_spec']:
+                    raise ValueError('保存的流程与实例不一致。')
+                for source in snapshot['sources'].values():
+                    retriever_from_snapshot({'source': source})
+            except (ValueError, OSError) as exc:
+                raise SystemFailure(f'配置或知识源材料校验失败：{exc}') from exc
+            return
         if not document.get('workflow_id') or not document.get('source_id'):
             raise SystemFailure('请先选择协作流程和知识源并保存草稿。')
         snapshot = document['snapshot']

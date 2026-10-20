@@ -1,0 +1,832 @@
+{
+  "baseline": {
+    "run_id": "207a5c18-dc6c-420d-baf3-36740b703d5f",
+    "duration_ms": 176788,
+    "llm_call_count": 6,
+    "completion_tokens": 14594
+  },
+  "passed": true,
+  "browser_tested": false,
+  "backend_tests": 255,
+  "frontend_tests": 44,
+  "runs": [
+    {
+      "mode": "sequential",
+      "run_id": "c823f5f3-2cc5-440a-b851-57fc0d386ad8",
+      "code_version": "git:5cd238096a985d22c1a28191b630b4bc3b86fd86+source-sha256:d8d693615b22792ab136f41255ab903daef5522005fd88c3fcb7ee5805d3b238",
+      "system_ref": {
+        "draft_revision": 1,
+        "kind": "draft",
+        "name": "Qinghe output repair acceptance",
+        "system_id": "sys_08df369502604dd1abd8c9fe30de2b6d",
+        "system_version": null
+      },
+      "config_sha256": "9bff0a280496029f04746c433925d524910df5ccbe6d143be662cd830d421d35",
+      "metrics": {
+        "duration_ms": 16960,
+        "node_call_count": 4,
+        "llm_call_count": 4,
+        "prompt_tokens": 9794,
+        "completion_tokens": 928,
+        "total_tokens": 10722,
+        "estimated_cost_usd": null,
+        "plan_retry_count": 0,
+        "retrieval_retry_count": 0,
+        "validation_retry_count": 1,
+        "agent_usage": {
+          "expert_a": {
+            "call_count": 1,
+            "calls": [
+              {
+                "attempt": 1,
+                "completion_tokens": 194,
+                "duration_ms": 2609,
+                "finish_reason": "stop",
+                "outcome": "ok",
+                "output_chars": 615,
+                "prompt_tokens": 2186,
+                "reasoning_tokens": null,
+                "request_policy": {
+                  "response_format": {
+                    "type": "json_object"
+                  },
+                  "thinking": {
+                    "type": "disabled"
+                  }
+                },
+                "token_limit_reached": false,
+                "total_tokens": 2380
+              }
+            ],
+            "completion_tokens": 194,
+            "prompt_tokens": 2186,
+            "total_tokens": 2380
+          },
+          "expert_b": {
+            "call_count": 1,
+            "calls": [
+              {
+                "attempt": 1,
+                "completion_tokens": 162,
+                "duration_ms": 2079,
+                "finish_reason": "stop",
+                "outcome": "ok",
+                "output_chars": 577,
+                "prompt_tokens": 2185,
+                "reasoning_tokens": null,
+                "request_policy": {
+                  "response_format": {
+                    "type": "json_object"
+                  },
+                  "thinking": {
+                    "type": "disabled"
+                  }
+                },
+                "token_limit_reached": false,
+                "total_tokens": 2347
+              }
+            ],
+            "completion_tokens": 162,
+            "prompt_tokens": 2185,
+            "total_tokens": 2347
+          },
+          "planner": {
+            "call_count": 1,
+            "calls": [
+              {
+                "attempt": 1,
+                "completion_tokens": 247,
+                "duration_ms": 2436,
+                "finish_reason": "stop",
+                "outcome": "ok",
+                "output_chars": 790,
+                "prompt_tokens": 222,
+                "reasoning_tokens": null,
+                "request_policy": {
+                  "response_format": {
+                    "type": "json_object"
+                  },
+                  "thinking": {
+                    "type": "disabled"
+                  }
+                },
+                "token_limit_reached": false,
+                "total_tokens": 469
+              }
+            ],
+            "completion_tokens": 247,
+            "prompt_tokens": 222,
+            "total_tokens": 469
+          },
+          "reviewer": {
+            "call_count": 1,
+            "calls": [
+              {
+                "attempt": 1,
+                "completion_tokens": 325,
+                "duration_ms": 3697,
+                "finish_reason": "stop",
+                "outcome": "ok",
+                "output_chars": 946,
+                "prompt_tokens": 5201,
+                "reasoning_tokens": null,
+                "request_policy": {
+                  "response_format": {
+                    "type": "json_object"
+                  },
+                  "thinking": {
+                    "type": "disabled"
+                  }
+                },
+                "token_limit_reached": false,
+                "total_tokens": 5526
+              }
+            ],
+            "completion_tokens": 325,
+            "prompt_tokens": 5201,
+            "total_tokens": 5526
+          }
+        }
+      },
+      "answer": "Official start date: 18 April 2026; Project manager: Chen Yu; First pilot city: Suzhou; Approved total budget: CNY 1,200,000.",
+      "verified": true,
+      "expert_results": {
+        "expert_a": {
+          "agent_name": "expert_a",
+          "answer": "Qinghe Project officially started on 18 April 2026; the project manager is Chen Yu.",
+          "answer_scope": "partial",
+          "conflict_flag": false,
+          "conflict_note": "",
+          "conflict_pairs": [],
+          "failure_type": "none",
+          "insufficient_sq_ids": [],
+          "missing_information": [
+            "first pilot city",
+            "approved total budget"
+          ],
+          "model_diagnostics": {
+            "calls": [
+              {
+                "attempt": 1,
+                "completion_tokens": 194,
+                "duration_ms": 2609,
+                "finish_reason": "stop",
+                "outcome": "ok",
+                "output_chars": 615,
+                "prompt_tokens": 2186,
+                "reasoning_tokens": null,
+                "request_policy": {
+                  "response_format": {
+                    "type": "json_object"
+                  },
+                  "thinking": {
+                    "type": "disabled"
+                  }
+                },
+                "token_limit_reached": false,
+                "total_tokens": 2380
+              }
+            ],
+            "output_error": null,
+            "retry_count": 0
+          },
+          "retrieval_supplement_request": null,
+          "supporting_evidence": [
+            {
+              "char_end": 173,
+              "char_start": 30,
+              "chunk_id": "e3a7acd6a7e68303ab108a12873a522ebae7e7ec8dfaf1d2e02a9a6667a4969e",
+              "document_id": "158568d305576456c5f6e253527ab3a2bb153f219b741381ee91a948ae6a14be",
+              "evidence_id": "3d84c481b1241c6c9599b4d2c9bbf06d604588581d75ecb49dd992933549e568",
+              "filename": "qinghe_launch.txt",
+              "heading_path": [],
+              "line_end": 5,
+              "line_start": 3,
+              "source_id": "user_0d7f142fb6ce4b6f82cabfb232e5edb6",
+              "source_title": "qinghe_launch.txt",
+              "source_version": 1,
+              "sq_id": "sq_2",
+              "text": "The Qinghe Project officially started on 18 April 2026.\nThe project manager is Chen Yu.\nThe project is organized by Starbridge Research Center."
+            },
+            {
+              "char_end": 173,
+              "char_start": 30,
+              "chunk_id": "e3a7acd6a7e68303ab108a12873a522ebae7e7ec8dfaf1d2e02a9a6667a4969e",
+              "document_id": "158568d305576456c5f6e253527ab3a2bb153f219b741381ee91a948ae6a14be",
+              "evidence_id": "1e92b9dfb43d657316513297fee19e6c685211c49878228959ef574767b1fa5c",
+              "filename": "qinghe_launch.txt",
+              "heading_path": [],
+              "line_end": 5,
+              "line_start": 3,
+              "source_id": "user_0d7f142fb6ce4b6f82cabfb232e5edb6",
+              "source_title": "qinghe_launch.txt",
+              "source_version": 1,
+              "sq_id": "sq_3",
+              "text": "The Qinghe Project officially started on 18 April 2026.\nThe project manager is Chen Yu.\nThe project is organized by Starbridge Research Center."
+            }
+          ],
+          "validation_retry_count": 1,
+          "verification_note": "Evidence states: 'The Qinghe Project officially started on 18 April 2026.' and 'The project manager is Chen Yu.' No pilot city or budget provided.",
+          "verified": true
+        },
+        "expert_b": {
+          "agent_name": "expert_b",
+          "answer": "The first pilot city of the Qinghe Project is Suzhou. The approved total budget of the Qinghe Project is CNY 1,200,000.",
+          "answer_scope": "partial",
+          "conflict_flag": false,
+          "conflict_note": "",
+          "conflict_pairs": [],
+          "failure_type": "none",
+          "insufficient_sq_ids": [],
+          "missing_information": [
+            "Official start date of the Qinghe Project",
+            "Project manager of the Qinghe Project"
+          ],
+          "model_diagnostics": {
+            "calls": [
+              {
+                "attempt": 1,
+                "completion_tokens": 162,
+                "duration_ms": 2079,
+                "finish_reason": "stop",
+                "outcome": "ok",
+                "output_chars": 577,
+                "prompt_tokens": 2185,
+                "reasoning_tokens": null,
+                "request_policy": {
+                  "response_format": {
+                    "type": "json_object"
+                  },
+                  "thinking": {
+                    "type": "disabled"
+                  }
+                },
+                "token_limit_reached": false,
+                "total_tokens": 2347
+              }
+            ],
+            "output_error": null,
+            "retry_count": 0
+          },
+          "retrieval_supplement_request": null,
+          "supporting_evidence": [
+            {
+              "char_end": 238,
+              "char_start": 36,
+              "chunk_id": "59f350686a065fcef05c69a9ef2bd16576ab8dfafbbec8832da1bc584e5b27bb",
+              "document_id": "844a09b117a8bdada5ad009c69d9947f432b58cd2f6af1ed2bed2b64f15c474e",
+              "evidence_id": "28910f054f80eb8c70fc96bc8dc705c2fab93c12f51590bb0bbafa85e6f1eb34",
+              "filename": "qinghe_implementation.txt",
+              "heading_path": [],
+              "line_end": 5,
+              "line_start": 3,
+              "source_id": "user_5680729c37bc40faaf5227480d29ecde",
+              "source_title": "qinghe_implementation.txt",
+              "source_version": 1,
+              "sq_id": "sq_4",
+              "text": "The first pilot city of the Qinghe Project is Suzhou.\nThe approved total budget of the Qinghe Project is CNY 1,200,000.\nThe pilot activities include equipment deployment, staff training, and evaluation."
+            }
+          ],
+          "validation_retry_count": 1,
+          "verification_note": "Evidence states first pilot city is Suzhou and approved total budget is CNY 1,200,000; no start date or project manager provided.",
+          "verified": true
+        }
+      },
+      "supporting_evidence": [
+        {
+          "char_end": 173,
+          "char_start": 30,
+          "chunk_id": "e3a7acd6a7e68303ab108a12873a522ebae7e7ec8dfaf1d2e02a9a6667a4969e",
+          "document_id": "158568d305576456c5f6e253527ab3a2bb153f219b741381ee91a948ae6a14be",
+          "evidence_id": "3d84c481b1241c6c9599b4d2c9bbf06d604588581d75ecb49dd992933549e568",
+          "filename": "qinghe_launch.txt",
+          "heading_path": [],
+          "line_end": 5,
+          "line_start": 3,
+          "source_id": "user_0d7f142fb6ce4b6f82cabfb232e5edb6",
+          "source_title": "qinghe_launch.txt",
+          "source_version": 1,
+          "sq_id": "sq_2",
+          "text": "The Qinghe Project officially started on 18 April 2026.\nThe project manager is Chen Yu.\nThe project is organized by Starbridge Research Center."
+        },
+        {
+          "char_end": 173,
+          "char_start": 30,
+          "chunk_id": "e3a7acd6a7e68303ab108a12873a522ebae7e7ec8dfaf1d2e02a9a6667a4969e",
+          "document_id": "158568d305576456c5f6e253527ab3a2bb153f219b741381ee91a948ae6a14be",
+          "evidence_id": "1e92b9dfb43d657316513297fee19e6c685211c49878228959ef574767b1fa5c",
+          "filename": "qinghe_launch.txt",
+          "heading_path": [],
+          "line_end": 5,
+          "line_start": 3,
+          "source_id": "user_0d7f142fb6ce4b6f82cabfb232e5edb6",
+          "source_title": "qinghe_launch.txt",
+          "source_version": 1,
+          "sq_id": "sq_3",
+          "text": "The Qinghe Project officially started on 18 April 2026.\nThe project manager is Chen Yu.\nThe project is organized by Starbridge Research Center."
+        },
+        {
+          "char_end": 238,
+          "char_start": 36,
+          "chunk_id": "59f350686a065fcef05c69a9ef2bd16576ab8dfafbbec8832da1bc584e5b27bb",
+          "document_id": "844a09b117a8bdada5ad009c69d9947f432b58cd2f6af1ed2bed2b64f15c474e",
+          "evidence_id": "28910f054f80eb8c70fc96bc8dc705c2fab93c12f51590bb0bbafa85e6f1eb34",
+          "filename": "qinghe_implementation.txt",
+          "heading_path": [],
+          "line_end": 5,
+          "line_start": 3,
+          "source_id": "user_5680729c37bc40faaf5227480d29ecde",
+          "source_title": "qinghe_implementation.txt",
+          "source_version": 1,
+          "sq_id": "sq_4",
+          "text": "The first pilot city of the Qinghe Project is Suzhou.\nThe approved total budget of the Qinghe Project is CNY 1,200,000.\nThe pilot activities include equipment deployment, staff training, and evaluation."
+        }
+      ],
+      "node_events": [
+        {
+          "event_type": "node_started",
+          "node": "planner",
+          "timestamp": "2026-10-20T09:46:46.337181Z",
+          "duration_ms": null
+        },
+        {
+          "event_type": "node_completed",
+          "node": "planner",
+          "timestamp": "2026-10-20T09:46:54.302300Z",
+          "duration_ms": 7965
+        },
+        {
+          "event_type": "node_started",
+          "node": "expert_a",
+          "timestamp": "2026-10-20T09:46:54.344799Z",
+          "duration_ms": null
+        },
+        {
+          "event_type": "node_completed",
+          "node": "expert_a",
+          "timestamp": "2026-10-20T09:46:57.053592Z",
+          "duration_ms": 2710
+        },
+        {
+          "event_type": "node_started",
+          "node": "expert_b",
+          "timestamp": "2026-10-20T09:46:57.086462Z",
+          "duration_ms": null
+        },
+        {
+          "event_type": "node_completed",
+          "node": "expert_b",
+          "timestamp": "2026-10-20T09:46:59.292734Z",
+          "duration_ms": 2206
+        },
+        {
+          "event_type": "node_started",
+          "node": "reviewer",
+          "timestamp": "2026-10-20T09:46:59.357248Z",
+          "duration_ms": null
+        },
+        {
+          "event_type": "node_completed",
+          "node": "reviewer",
+          "timestamp": "2026-10-20T09:47:03.101326Z",
+          "duration_ms": 3743
+        }
+      ]
+    },
+    {
+      "mode": "parallel",
+      "run_id": "b6e393ae-6b30-460a-92a0-5b0279277aea",
+      "code_version": "git:5cd238096a985d22c1a28191b630b4bc3b86fd86+source-sha256:d8d693615b22792ab136f41255ab903daef5522005fd88c3fcb7ee5805d3b238",
+      "system_ref": {
+        "draft_revision": 2,
+        "kind": "draft",
+        "name": "Qinghe output repair acceptance",
+        "system_id": "sys_08df369502604dd1abd8c9fe30de2b6d",
+        "system_version": null
+      },
+      "config_sha256": "f1a3db566e9a3db314f9e4d33bff6c2259749255b8ddc44ebea1cf1433e834d7",
+      "metrics": {
+        "duration_ms": 20418,
+        "node_call_count": 4,
+        "llm_call_count": 5,
+        "prompt_tokens": 10340,
+        "completion_tokens": 1264,
+        "total_tokens": 11604,
+        "estimated_cost_usd": null,
+        "plan_retry_count": 0,
+        "retrieval_retry_count": 0,
+        "validation_retry_count": 1,
+        "agent_usage": {
+          "expert_a": {
+            "call_count": 1,
+            "calls": [
+              {
+                "attempt": 1,
+                "completion_tokens": 187,
+                "duration_ms": 2135,
+                "finish_reason": "stop",
+                "outcome": "ok",
+                "output_chars": 481,
+                "prompt_tokens": 2184,
+                "reasoning_tokens": null,
+                "request_policy": {
+                  "response_format": {
+                    "type": "json_object"
+                  },
+                  "thinking": {
+                    "type": "disabled"
+                  }
+                },
+                "token_limit_reached": false,
+                "total_tokens": 2371
+              }
+            ],
+            "completion_tokens": 187,
+            "prompt_tokens": 2184,
+            "total_tokens": 2371
+          },
+          "expert_b": {
+            "call_count": 1,
+            "calls": [
+              {
+                "attempt": 1,
+                "completion_tokens": 213,
+                "duration_ms": 2652,
+                "finish_reason": "stop",
+                "outcome": "ok",
+                "output_chars": 679,
+                "prompt_tokens": 2183,
+                "reasoning_tokens": null,
+                "request_policy": {
+                  "response_format": {
+                    "type": "json_object"
+                  },
+                  "thinking": {
+                    "type": "disabled"
+                  }
+                },
+                "token_limit_reached": false,
+                "total_tokens": 2396
+              }
+            ],
+            "completion_tokens": 213,
+            "prompt_tokens": 2183,
+            "total_tokens": 2396
+          },
+          "planner": {
+            "call_count": 2,
+            "calls": [
+              {
+                "attempt": 1,
+                "completion_tokens": 283,
+                "duration_ms": 9651,
+                "finish_reason": "stop",
+                "outcome": "invalid_schema",
+                "output_chars": 889,
+                "prompt_tokens": 222,
+                "reasoning_tokens": null,
+                "request_policy": {
+                  "response_format": {
+                    "type": "json_object"
+                  },
+                  "thinking": {
+                    "type": "disabled"
+                  }
+                },
+                "token_limit_reached": false,
+                "total_tokens": 505
+              },
+              {
+                "attempt": 2,
+                "completion_tokens": 195,
+                "duration_ms": 4305,
+                "finish_reason": "stop",
+                "outcome": "ok",
+                "output_chars": 680,
+                "prompt_tokens": 282,
+                "reasoning_tokens": null,
+                "request_policy": {
+                  "response_format": {
+                    "type": "json_object"
+                  },
+                  "thinking": {
+                    "type": "disabled"
+                  }
+                },
+                "token_limit_reached": false,
+                "total_tokens": 477
+              }
+            ],
+            "completion_tokens": 478,
+            "prompt_tokens": 504,
+            "total_tokens": 982
+          },
+          "reviewer": {
+            "call_count": 1,
+            "calls": [
+              {
+                "attempt": 1,
+                "completion_tokens": 386,
+                "duration_ms": 3554,
+                "finish_reason": "stop",
+                "outcome": "ok",
+                "output_chars": 1048,
+                "prompt_tokens": 5469,
+                "reasoning_tokens": null,
+                "request_policy": {
+                  "response_format": {
+                    "type": "json_object"
+                  },
+                  "thinking": {
+                    "type": "disabled"
+                  }
+                },
+                "token_limit_reached": false,
+                "total_tokens": 5855
+              }
+            ],
+            "completion_tokens": 386,
+            "prompt_tokens": 5469,
+            "total_tokens": 5855
+          }
+        }
+      },
+      "answer": "Official start date: 18 April 2026; Project manager: Chen Yu; First pilot city: Suzhou; Approved total budget: CNY 1,200,000.",
+      "verified": true,
+      "expert_results": {
+        "expert_a": {
+          "agent_name": "expert_a",
+          "answer": "官方启动日期为2026年4月18日；项目经理为Chen Yu。",
+          "answer_scope": "partial",
+          "conflict_flag": false,
+          "conflict_note": "",
+          "conflict_pairs": [],
+          "failure_type": "none",
+          "insufficient_sq_ids": [],
+          "missing_information": [
+            "首个试点城市",
+            "获批总预算"
+          ],
+          "model_diagnostics": {
+            "calls": [
+              {
+                "attempt": 1,
+                "completion_tokens": 187,
+                "duration_ms": 2135,
+                "finish_reason": "stop",
+                "outcome": "ok",
+                "output_chars": 481,
+                "prompt_tokens": 2184,
+                "reasoning_tokens": null,
+                "request_policy": {
+                  "response_format": {
+                    "type": "json_object"
+                  },
+                  "thinking": {
+                    "type": "disabled"
+                  }
+                },
+                "token_limit_reached": false,
+                "total_tokens": 2371
+              }
+            ],
+            "output_error": null,
+            "retry_count": 0
+          },
+          "retrieval_supplement_request": null,
+          "supporting_evidence": [
+            {
+              "char_end": 173,
+              "char_start": 30,
+              "chunk_id": "e3a7acd6a7e68303ab108a12873a522ebae7e7ec8dfaf1d2e02a9a6667a4969e",
+              "document_id": "158568d305576456c5f6e253527ab3a2bb153f219b741381ee91a948ae6a14be",
+              "evidence_id": "fda6d48594a283f9e0a5cf69b6a3e981ba5429c43caef430575c1d13b29e7d31",
+              "filename": "qinghe_launch.txt",
+              "heading_path": [],
+              "line_end": 5,
+              "line_start": 3,
+              "source_id": "user_0d7f142fb6ce4b6f82cabfb232e5edb6",
+              "source_title": "qinghe_launch.txt",
+              "source_version": 1,
+              "sq_id": "sq_1",
+              "text": "The Qinghe Project officially started on 18 April 2026.\nThe project manager is Chen Yu.\nThe project is organized by Starbridge Research Center."
+            },
+            {
+              "char_end": 173,
+              "char_start": 30,
+              "chunk_id": "e3a7acd6a7e68303ab108a12873a522ebae7e7ec8dfaf1d2e02a9a6667a4969e",
+              "document_id": "158568d305576456c5f6e253527ab3a2bb153f219b741381ee91a948ae6a14be",
+              "evidence_id": "3d84c481b1241c6c9599b4d2c9bbf06d604588581d75ecb49dd992933549e568",
+              "filename": "qinghe_launch.txt",
+              "heading_path": [],
+              "line_end": 5,
+              "line_start": 3,
+              "source_id": "user_0d7f142fb6ce4b6f82cabfb232e5edb6",
+              "source_title": "qinghe_launch.txt",
+              "source_version": 1,
+              "sq_id": "sq_2",
+              "text": "The Qinghe Project officially started on 18 April 2026.\nThe project manager is Chen Yu.\nThe project is organized by Starbridge Research Center."
+            }
+          ],
+          "validation_retry_count": 1,
+          "verification_note": "原文：The Qinghe Project officially started on 18 April 2026. The project manager is Chen Yu.",
+          "verified": true
+        },
+        "expert_b": {
+          "agent_name": "expert_b",
+          "answer": "The first pilot city of the Qinghe Project is Suzhou. The approved total budget of the Qinghe Project is CNY 1,200,000.",
+          "answer_scope": "partial",
+          "conflict_flag": false,
+          "conflict_note": "",
+          "conflict_pairs": [],
+          "failure_type": "none",
+          "insufficient_sq_ids": [],
+          "missing_information": [
+            "official start date of the Qinghe Project",
+            "project manager of the Qinghe Project"
+          ],
+          "model_diagnostics": {
+            "calls": [
+              {
+                "attempt": 1,
+                "completion_tokens": 213,
+                "duration_ms": 2652,
+                "finish_reason": "stop",
+                "outcome": "ok",
+                "output_chars": 679,
+                "prompt_tokens": 2183,
+                "reasoning_tokens": null,
+                "request_policy": {
+                  "response_format": {
+                    "type": "json_object"
+                  },
+                  "thinking": {
+                    "type": "disabled"
+                  }
+                },
+                "token_limit_reached": false,
+                "total_tokens": 2396
+              }
+            ],
+            "output_error": null,
+            "retry_count": 0
+          },
+          "retrieval_supplement_request": null,
+          "supporting_evidence": [
+            {
+              "char_end": 238,
+              "char_start": 36,
+              "chunk_id": "59f350686a065fcef05c69a9ef2bd16576ab8dfafbbec8832da1bc584e5b27bb",
+              "document_id": "844a09b117a8bdada5ad009c69d9947f432b58cd2f6af1ed2bed2b64f15c474e",
+              "evidence_id": "fb424379e114bc44f9f150f4d9b5661c499079f2d75a6b373c3a25db3795825f",
+              "filename": "qinghe_implementation.txt",
+              "heading_path": [],
+              "line_end": 5,
+              "line_start": 3,
+              "source_id": "user_5680729c37bc40faaf5227480d29ecde",
+              "source_title": "qinghe_implementation.txt",
+              "source_version": 1,
+              "sq_id": "sq_3",
+              "text": "The first pilot city of the Qinghe Project is Suzhou.\nThe approved total budget of the Qinghe Project is CNY 1,200,000.\nThe pilot activities include equipment deployment, staff training, and evaluation."
+            },
+            {
+              "char_end": 238,
+              "char_start": 36,
+              "chunk_id": "59f350686a065fcef05c69a9ef2bd16576ab8dfafbbec8832da1bc584e5b27bb",
+              "document_id": "844a09b117a8bdada5ad009c69d9947f432b58cd2f6af1ed2bed2b64f15c474e",
+              "evidence_id": "28910f054f80eb8c70fc96bc8dc705c2fab93c12f51590bb0bbafa85e6f1eb34",
+              "filename": "qinghe_implementation.txt",
+              "heading_path": [],
+              "line_end": 5,
+              "line_start": 3,
+              "source_id": "user_5680729c37bc40faaf5227480d29ecde",
+              "source_title": "qinghe_implementation.txt",
+              "source_version": 1,
+              "sq_id": "sq_4",
+              "text": "The first pilot city of the Qinghe Project is Suzhou.\nThe approved total budget of the Qinghe Project is CNY 1,200,000.\nThe pilot activities include equipment deployment, staff training, and evaluation."
+            }
+          ],
+          "validation_retry_count": 1,
+          "verification_note": "Evidence states first pilot city is Suzhou and approved total budget is CNY 1,200,000; no evidence for start date or project manager.",
+          "verified": true
+        }
+      },
+      "supporting_evidence": [
+        {
+          "char_end": 173,
+          "char_start": 30,
+          "chunk_id": "e3a7acd6a7e68303ab108a12873a522ebae7e7ec8dfaf1d2e02a9a6667a4969e",
+          "document_id": "158568d305576456c5f6e253527ab3a2bb153f219b741381ee91a948ae6a14be",
+          "evidence_id": "fda6d48594a283f9e0a5cf69b6a3e981ba5429c43caef430575c1d13b29e7d31",
+          "filename": "qinghe_launch.txt",
+          "heading_path": [],
+          "line_end": 5,
+          "line_start": 3,
+          "source_id": "user_0d7f142fb6ce4b6f82cabfb232e5edb6",
+          "source_title": "qinghe_launch.txt",
+          "source_version": 1,
+          "sq_id": "sq_1",
+          "text": "The Qinghe Project officially started on 18 April 2026.\nThe project manager is Chen Yu.\nThe project is organized by Starbridge Research Center."
+        },
+        {
+          "char_end": 173,
+          "char_start": 30,
+          "chunk_id": "e3a7acd6a7e68303ab108a12873a522ebae7e7ec8dfaf1d2e02a9a6667a4969e",
+          "document_id": "158568d305576456c5f6e253527ab3a2bb153f219b741381ee91a948ae6a14be",
+          "evidence_id": "3d84c481b1241c6c9599b4d2c9bbf06d604588581d75ecb49dd992933549e568",
+          "filename": "qinghe_launch.txt",
+          "heading_path": [],
+          "line_end": 5,
+          "line_start": 3,
+          "source_id": "user_0d7f142fb6ce4b6f82cabfb232e5edb6",
+          "source_title": "qinghe_launch.txt",
+          "source_version": 1,
+          "sq_id": "sq_2",
+          "text": "The Qinghe Project officially started on 18 April 2026.\nThe project manager is Chen Yu.\nThe project is organized by Starbridge Research Center."
+        },
+        {
+          "char_end": 238,
+          "char_start": 36,
+          "chunk_id": "59f350686a065fcef05c69a9ef2bd16576ab8dfafbbec8832da1bc584e5b27bb",
+          "document_id": "844a09b117a8bdada5ad009c69d9947f432b58cd2f6af1ed2bed2b64f15c474e",
+          "evidence_id": "fb424379e114bc44f9f150f4d9b5661c499079f2d75a6b373c3a25db3795825f",
+          "filename": "qinghe_implementation.txt",
+          "heading_path": [],
+          "line_end": 5,
+          "line_start": 3,
+          "source_id": "user_5680729c37bc40faaf5227480d29ecde",
+          "source_title": "qinghe_implementation.txt",
+          "source_version": 1,
+          "sq_id": "sq_3",
+          "text": "The first pilot city of the Qinghe Project is Suzhou.\nThe approved total budget of the Qinghe Project is CNY 1,200,000.\nThe pilot activities include equipment deployment, staff training, and evaluation."
+        },
+        {
+          "char_end": 238,
+          "char_start": 36,
+          "chunk_id": "59f350686a065fcef05c69a9ef2bd16576ab8dfafbbec8832da1bc584e5b27bb",
+          "document_id": "844a09b117a8bdada5ad009c69d9947f432b58cd2f6af1ed2bed2b64f15c474e",
+          "evidence_id": "28910f054f80eb8c70fc96bc8dc705c2fab93c12f51590bb0bbafa85e6f1eb34",
+          "filename": "qinghe_implementation.txt",
+          "heading_path": [],
+          "line_end": 5,
+          "line_start": 3,
+          "source_id": "user_5680729c37bc40faaf5227480d29ecde",
+          "source_title": "qinghe_implementation.txt",
+          "source_version": 1,
+          "sq_id": "sq_4",
+          "text": "The first pilot city of the Qinghe Project is Suzhou.\nThe approved total budget of the Qinghe Project is CNY 1,200,000.\nThe pilot activities include equipment deployment, staff training, and evaluation."
+        }
+      ],
+      "node_events": [
+        {
+          "event_type": "node_started",
+          "node": "planner",
+          "timestamp": "2026-10-20T09:47:03.482816Z",
+          "duration_ms": null
+        },
+        {
+          "event_type": "node_completed",
+          "node": "planner",
+          "timestamp": "2026-10-20T09:47:17.464543Z",
+          "duration_ms": 13981
+        },
+        {
+          "event_type": "node_started",
+          "node": "expert_a",
+          "timestamp": "2026-10-20T09:47:17.484698Z",
+          "duration_ms": null
+        },
+        {
+          "event_type": "node_started",
+          "node": "expert_b",
+          "timestamp": "2026-10-20T09:47:17.507807Z",
+          "duration_ms": null
+        },
+        {
+          "event_type": "node_completed",
+          "node": "expert_a",
+          "timestamp": "2026-10-20T09:47:19.670515Z",
+          "duration_ms": 2186
+        },
+        {
+          "event_type": "node_completed",
+          "node": "expert_b",
+          "timestamp": "2026-10-20T09:47:20.185699Z",
+          "duration_ms": 2677
+        },
+        {
+          "event_type": "node_started",
+          "node": "reviewer",
+          "timestamp": "2026-10-20T09:47:20.206789Z",
+          "duration_ms": null
+        },
+        {
+          "event_type": "node_completed",
+          "node": "reviewer",
+          "timestamp": "2026-10-20T09:47:23.788140Z",
+          "duration_ms": 3581
+        }
+      ]
+    }
+  ]
+}

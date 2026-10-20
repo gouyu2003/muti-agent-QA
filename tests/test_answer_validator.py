@@ -70,7 +70,8 @@ def test_parser_rejects_invalid_json_and_node_fails_closed():
     with pytest.raises(ValueError, match="JSON"):
         parse_verification("抱歉，我无法回答", STATE)
     result = answer_validator_fn(STATE, llm=FakeLLM("抱歉，我无法回答"))
-    assert not result['verified'] and result['failure_type'] == 'insufficient'
+    assert not result['verified'] and result['failure_type'] == 'output_error'
+    assert result['model_diagnostics']['retry_count'] == 2
 
 
 def test_drops_hallucinated_supporting_evidence():

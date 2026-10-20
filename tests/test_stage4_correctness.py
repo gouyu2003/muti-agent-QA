@@ -163,7 +163,7 @@ def test_bridge_passage_is_retrieved_even_when_second_question_repeats_first_hop
     assert len(groups[1]['chunks']) <= 3
 
 
-def test_empty_validator_responses_still_obey_protocol_retry_limit():
+def test_empty_validator_responses_stop_after_output_retries_without_retrieving_again():
     from src.graph import build_graph
     from src.knowledge.bm25_retriever import build_retriever
     from src.router import decide_route
@@ -188,8 +188,11 @@ def test_empty_validator_responses_still_obey_protocol_retry_limit():
     result = build_graph(nodes=nodes, workflow=workflow).invoke(
         {'question': 'Q'}, config={'configurable': {'thread_id': 'empty-validator-limit'}})
     assert not result['verified']
-    assert result['retrieval_retry_count'] == workflow.max_cycles['retrieval_retry_count']
-    assert result['validation_retry_count'] == workflow.max_cycles['retrieval_retry_count'] + 1
+    assert result['failure_type'] == 'output_error'
+    assert result['retrieval_retry_count'] == 0
+    assert result['validation_retry_count'] == 1
+    assert result['model_diagnostics']['retry_count'] == 2
+    assert decide_route(result, workflow).reason == 'terminal_fallback'
 
 
 def test_malformed_planner_response_falls_back_without_crashing():

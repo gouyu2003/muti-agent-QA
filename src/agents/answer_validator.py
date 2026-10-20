@@ -11,7 +11,7 @@ import json
 from typing import Any, Optional, Protocol
 
 from src.agents.json_utils import as_bool, as_list, as_str, extract_json_object
-from src.agents.llm_retry import invoke_text
+from src.agents.structured_output import invoke_json, ERROR_LABELS, InvalidCitation
 from src.config_loader import load_agent_configs
 from src.llm_usage import LLMUsageCollector
 from src.state import AgentState
@@ -61,7 +61,7 @@ def default_llm(agent_config: dict[str, Any] | None = None) -> ChatLike:
     return build_chat_model(agent_config or load_agent_configs()[AGENT_ID])
 
 
-def build_prompt(state: AgentState, system_prompt: str) -> str:
+def build_prompt(state: AgentState, system_prompt: str, *, expert_mode: bool = False) -> str:
     lines = [system_prompt, "", f"原始问题：{state.get('question', '')}", "", "子问题："]
     for sq in state.get("sub_questions", []):
         lines.append(f"- {sq['id']}: {sq['question']}")
@@ -75,6 +75,9 @@ def build_prompt(state: AgentState, system_prompt: str) -> str:
                         if chunk.get("chunk_id") else f"#{chunk.get('source_paragraph', '?')}")
             lines.append(f"  - ({chunk['source_title']} {location}) {text}")
             reference = {'sq_id': group['sq_id'], 'source_title': chunk['source_title']}
+            for field in ('evidence_id', 'source_id', 'source_version'):
+                if field in chunk:
+                    reference[field] = chunk[field]
             if chunk.get('chunk_id'):
                 reference['chunk_id'] = chunk['chunk_id']
             elif 'source_paragraph' in chunk:
@@ -83,6 +86,7 @@ def build_prompt(state: AgentState, system_prompt: str) -> str:
         if not group.get("chunks"):
             lines.append(f"  - 无证据：{group.get('insufficiency_note', '')}")
 
+    evidence_end = len(lines)
     lines += [
         "",
         "只输出一个 JSON 对象，字段：answer, verified, failure_type(none/insufficient/conflict),"
@@ -96,6 +100,26 @@ def build_prompt(state: AgentState, system_prompt: str) -> str:
         "答案只给简短实体、日期、数字或 yes/no，不解释；推理依据写入 verification_note。"
         "insufficient_sq_ids 和 retrieval_supplement_request 只描述阻碍原始问题作答的必要缺口。",
     ]
+    if state.get('expert_results'):
+        lines += ['', '各专家独立观点（依据证据判断，不按多数投票；不得将观点本身当作事实）：',
+                  json.dumps({key: {k: value.get(k) for k in ('answer', 'verified', 'verification_note', 'supporting_evidence')}
+                              for key, value in state['expert_results'].items()}, ensure_ascii=False)]
+    if any(chunk.get('evidence_id') for group in state.get('evidence_chunks', []) for chunk in group['chunks']):
+        lines += ['引用只需 {"sq_id":"原样复制","evidence_id":"原样复制"}；'
+                  '从上方“可直接复制的引用”取得这两个字段，不添加 source_paragraph、source_title 等多余字段，不编造或缩写 ID。']
+    if expert_mode:
+        # Replace full-question verification instructions for a team member.
+        lines = lines[:evidence_end]
+        lines += [
+            '你是团队专家，只负责提供本实例材料支持的事实，完整问题由最终审核者汇总。',
+            '只输出简短 JSON：{"answer":"有依据的局部答案","verified":true,'
+            '"failure_type":"none","answer_scope":"partial","missing_information":["材料未提供的请求项"],'
+            '"supporting_evidence":[{"sq_id":"sq_1","evidence_id":"复制提供的标识"}],"verification_note":"简短依据"}。',
+            'answer_scope 取 complete/partial/none。verified 仅核验你实际给出的事实，不要求独立覆盖整个问题。'
+            '能回答部分问题时保留局部答案及引用，其他缺口写 missing_information。'
+            '无可支持事实时 answer 为空、verified=false、failure_type=insufficient、answer_scope=none；'
+            '材料矛盾时 failure_type=conflict、verified=false。不得猜测缺失信息。'
+        ]
     return "\n".join(lines)
 
 
@@ -165,7 +189,7 @@ def parse_verification(raw: str, state: AgentState, *, require_citations: bool =
         if not isinstance(item, dict):
             continue
         candidates = [chunk for sq_id, chunk in known_entries if sq_id == as_str(item, 'sq_id')]
-        for field in ('source_title', 'source_id', 'chunk_id'):
+        for field in ('evidence_id', 'source_title', 'source_id', 'source_version', 'chunk_id'):
             if item.get(field) is not None and item.get(field) != '':
                 candidates = [chunk for chunk in candidates if chunk.get(field) == item[field]]
         if item.get('source_paragraph') is not None:
@@ -173,7 +197,7 @@ def parse_verification(raw: str, state: AgentState, *, require_citations: bool =
             if type(index) is not int or index < 0 or not item.get('source_title'):
                 continue
             candidates = [chunk for chunk in candidates if chunk.get('source_paragraph') == index]
-        elif not item.get('chunk_id'):
+        elif not item.get('chunk_id') and not item.get('evidence_id'):
             if item.get('source_title'):
                 candidates = [chunk for chunk in candidates if match_evidence(
                     as_str(item, 'text'), {normalize_text(chunk['text']): chunk['text']})]
@@ -232,7 +256,7 @@ def parse_verification(raw: str, state: AgentState, *, require_citations: bool =
 
 
 def _provenance(chunk: dict[str, Any]) -> dict[str, Any]:
-    fields = ("source_paragraph", "source_id", "source_version", "document_id", "chunk_id", "filename",
+    fields = ("evidence_id", "source_paragraph", "source_id", "source_version", "document_id", "chunk_id", "filename",
               "heading_path", "line_start", "line_end", "char_start", "char_end")
     return {key: chunk[key] for key in fields if key in chunk}
 
@@ -251,18 +275,34 @@ def answer_validator_fn(
     usage_collector: LLMUsageCollector | None = None,
     agent_config: dict[str, Any] | None = None,
     require_citations: bool = True,
+    expert_mode: bool = False,
 ) -> dict[str, Any]:
     config = agent_config or load_agent_configs()[AGENT_ID]
     chat = llm if llm is not None else default_llm(config)
 
-    prompt = build_prompt(state, config["model_config"]["system_prompt"])
+    prompt = build_prompt(state, config["model_config"]["system_prompt"], expert_mode=expert_mode)
     max_retries = config.get("failure_handling", {}).get("max_retries", 2)
-    raw = invoke_text(chat, prompt, max_retries, usage_collector)
-
-    try:
-        result = parse_verification(raw, state, require_citations=require_citations)
-    except ValueError:
+    def validate(data):
+        if not isinstance(data.get('answer'), str) or type(data.get('verified')) is not bool:
+            raise ValueError('answer and verified required')
+        if data.get('failure_type') not in FAILURE_TYPES or not isinstance(data.get('supporting_evidence', []), list):
+            raise ValueError('failure_type and supporting_evidence required')
+        if data['verified']:
+            parsed = parse_verification(json.dumps(data), state, require_citations=require_citations)
+            if data['answer'].strip() and not parsed['supporting_evidence']:
+                raise InvalidCitation()
+    data, diagnostics = invoke_json(chat, prompt, max_retries, usage_collector,
+        validate=validate, max_tokens=config['model_config'].get('max_tokens'))
+    if data is None:
         result = parse_verification('', state, require_citations=require_citations)
-        result['verification_note'] = '模型响应不是合法验证 JSON，按证据不足处理，不放行答案。'
+        result['failure_type'] = 'output_error'
+        result['verification_note'] = f"{ERROR_LABELS[diagnostics['output_error']]}；已调用 {len(diagnostics['calls'])} 次，未取得有效结构化结果。"
+    else:
+        result = parse_verification(json.dumps(data), state, require_citations=require_citations)
+        if expert_mode:
+            scope = data.get('answer_scope')
+            result['answer_scope'] = scope if scope in ('complete', 'partial', 'none') else ('partial' if result['answer'] else 'none')
+            result['missing_information'] = [s for s in data.get('missing_information', []) if isinstance(s, str)] if isinstance(data.get('missing_information'), list) else []
+    result['model_diagnostics'] = diagnostics
     result["validation_retry_count"] = int(state.get("validation_retry_count", 0)) + 1
     return result

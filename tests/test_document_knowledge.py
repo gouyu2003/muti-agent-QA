@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -159,3 +160,52 @@ def test_cli_process_imports_and_lists_the_same_store(store, tmp_path):
                              capture_output=True, text=True, encoding="utf-8", timeout=30)
     assert listing.returncode == 0, listing.stderr
     assert json.loads(listing.stdout)[0]["source_id"] == imported["source_id"]
+
+
+def test_deletion_survives_restart_and_frozen_material_is_still_retrievable(store):
+    imported = store.import_files("system", "Notes", FILES)
+    source_id = imported["source_id"]
+    snapshot = store.resolve("system", source_id, 1)
+    store.delete_source("system", source_id)
+    restarted = KnowledgeStore(store.root)
+    assert restarted.list_sources("system") == []
+    with pytest.raises(ImportFailure, match="未找到"):
+        restarted.resolve("system", source_id, 1)
+    assert retriever_from_corpus_snapshot(snapshot).search("Northbridge")
+    with restarted.connection() as db:
+        assert not db.execute("SELECT * FROM bindings WHERE source_id=?", (source_id,)).fetchall()
+
+
+def test_v2_deletion_migration_preserves_records_and_creates_one_backup(store):
+    imported = store.import_files("system", "Notes", FILES)
+    with store.connection() as db:
+        db.execute("ALTER TABLE sources DROP COLUMN deleted_at")
+        db.execute("PRAGMA user_version = 2")
+    migrated = KnowledgeStore(store.root)
+    assert migrated.detail("system", imported["source_id"]) == imported
+    backups = list(store.root.glob("knowledge.pre-deletion-*.sqlite3"))
+    assert len(backups) == 1
+    with sqlite3.connect(backups[0]) as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert "deleted_at" not in {row[1] for row in db.execute("PRAGMA table_info(sources)")}
+    KnowledgeStore(store.root)
+    assert list(store.root.glob("knowledge.pre-deletion-*.sqlite3")) == backups
+    migrated.delete_source("system", imported["source_id"])
+    assert migrated.list_sources("system") == []
+
+
+def test_import_cannot_resurrect_a_source_deleted_after_initial_lookup(store, monkeypatch):
+    imported = store.import_files("system", "Notes", FILES)
+    source_id = imported["source_id"]
+    detail = store.detail
+
+    def delete_after_lookup(system_id, selected_id):
+        result = detail(system_id, selected_id)
+        store.delete_source(system_id, selected_id)
+        return result
+
+    monkeypatch.setattr(store, "detail", delete_after_lookup)
+    with pytest.raises(ImportFailure, match="已删除"):
+        store.import_files("system", None, FILES, source_id)
+    with store.connection() as db:
+        assert db.execute("SELECT COUNT(*) FROM versions WHERE source_id=?", (source_id,)).fetchone()[0] == 1

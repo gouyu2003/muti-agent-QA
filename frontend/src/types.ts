@@ -1,4 +1,23 @@
-export type NodeId = 'planner_v0' | 'retriever_v0' | 'answer_validator_v0'
+export type NodeId = string
+export type AgentType = 'planner' | 'retriever' | 'answer_validator' | 'expert'
+export interface AgentInstance {
+  agent_id: string
+  agent_type: AgentType
+  name: string
+  description: string
+  model_config: { model_name: string; system_prompt: string; temperature: number; max_tokens: number } | null
+  source_id: string | null
+  source_version: number | null
+  top_k: number
+}
+export interface AgentTemplate {
+  agent_type: AgentType
+  name: string
+  uses_llm: boolean
+  uses_knowledge: boolean
+  editable_fields: string[]
+  defaults: AgentInstance
+}
 export type RunStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface AgentInfo {
@@ -28,6 +47,7 @@ export interface SystemInfo {
 }
 
 export interface WorkflowOption {
+  execution_mode?: 'sequential' | 'parallel'
   workflow_id: string
   name: string
   description: string
@@ -98,6 +118,7 @@ export interface ChunkPage {
 }
 
 export interface EvidenceLocation {
+  evidence_id?: string
   source_version?: number
   document_id?: string
   chunk_id?: string
@@ -148,7 +169,28 @@ export interface SupportingEvidence extends EvidenceLocation {
   source_id?: string
 }
 
+export interface ModelCall {
+  attempt: number
+  duration_ms: number
+  finish_reason?: string | null
+  completion_tokens?: number | null
+  reasoning_tokens?: number | null
+  output_chars: number
+  outcome: string
+}
+
+export interface ModelDiagnostics {
+  calls: ModelCall[]
+  retry_count: number
+  output_error?: string | null
+  fallback_used?: boolean
+}
+
 export interface RunResult {
+  model_diagnostics?: ModelDiagnostics
+  answer_scope?: 'complete' | 'partial' | 'none'
+  missing_information?: string[]
+  expert_results?: Record<string, RunResult & { agent_name?: string }>
   question?: string
   sub_questions?: SubQuestion[]
   retrieval_strategy?: 'sequential' | 'parallel'
@@ -157,7 +199,7 @@ export interface RunResult {
   retrieval_retry_count?: number
   answer?: string
   verified?: boolean
-  failure_type?: 'none' | 'insufficient' | 'conflict'
+  failure_type?: 'none' | 'insufficient' | 'conflict' | 'output_error'
   conflict_flag?: boolean
   conflict_note?: string
   verification_note?: string
@@ -172,6 +214,7 @@ export interface StreamEvent {
     | 'node_completed'
     | 'run_completed'
     | 'run_failed'
+    | 'run_cancelled'
   run_id: string
   timestamp: string
   payload: Record<string, unknown>
@@ -180,8 +223,10 @@ export interface StreamEvent {
 export interface TraceStep {
   key: string
   node: NodeId
+  agentName?: string
+  agentType?: string
   cycle: number
-  status: 'running' | 'completed'
+  status: 'running' | 'completed' | 'failed' | 'cancelled'
   timestamp: string
   output?: Partial<RunResult>
 }
@@ -209,6 +254,8 @@ export interface RunFilters {
 }
 
 export interface SystemDraftFields {
+  agents?: AgentInstance[]
+  execution_mode?: 'sequential' | 'parallel'
   name: string
   description: string
   workflow_id: string | null
@@ -217,9 +264,15 @@ export interface SystemDraftFields {
 }
 
 export interface SavedSystemSnapshot {
+  schema_version?: string
+  instances?: AgentInstance[]
+  execution_mode?: 'sequential' | 'parallel'
+  agent_types?: Record<string, string>
+  configuration_errors?: string[]
+  sources?: Record<string, { source_id: string; name: string; version?: number; sha256: string; index_sha256?: string }>
   config_sha256: string
-  agents: Record<string, { agent_name: string; role: string; description?: string; model_config: { model_name: string; system_prompt: string; temperature: number; max_tokens: number } }>
-  workflow_spec: { protocol_id: string; method_id: string; entry_node: string; agents: string[]; edges: { from: string; to: string; route_name: string }[]; max_cycles: Record<string, number> }
+  agents: Record<string, { agent_name: string; role: string; description?: string; retrieval_config?: { top_k: number }; model_config: { model_name: string; system_prompt: string; temperature: number; max_tokens: number } }>
+  workflow_spec: { protocol_id: string; method_id: string; entry_node: string; agents: string[]; edges: { from: string; to: string; route_name: string }[]; max_cycles: Record<string, number> } | null
   protocol: { protocol_name?: string; description?: string }
   source?: { source_id: string; source_type: string; name: string; version?: number; file_count?: number; chunk_count?: number }
 }
@@ -280,6 +333,7 @@ export interface StoredRunRecord {
   finished_at: string | null
   final_state: RunResult | null
   metrics: {
+    agent_usage?: Record<string, { call_count: number; total_tokens: number | null; calls?: ModelCall[] }>
     duration_ms: number | null
     node_call_count: number
     llm_call_count: number | null

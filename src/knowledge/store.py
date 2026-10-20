@@ -42,15 +42,16 @@ class KnowledgeStore:
             with closing(sqlite3.connect(self.database)) as existing:
                 version = existing.execute("PRAGMA user_version").fetchone()[0]
                 has_sources = existing.execute("SELECT 1 FROM sqlite_master WHERE name='sources'").fetchone()
-                if has_sources and version < 2:
-                    backup = self.root / f"knowledge.pre-workspace-{datetime.now().strftime('%Y%m%d%H%M%S%f')}.sqlite3"
+                if has_sources and version < 3:
+                    migration = "workspace" if version < 2 else "deletion"
+                    backup = self.root / f"knowledge.pre-{migration}-{datetime.now().strftime('%Y%m%d%H%M%S%f')}.sqlite3"
                     with closing(sqlite3.connect(backup)) as target:
                         existing.backup(target)
         with self.connection() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version > 2:
+            if version > 3:
                 raise RuntimeError("不支持的知识库数据库版本")
-            if version == 2:
+            if version == 3:
                 return
             db.execute("BEGIN IMMEDIATE")
             for statement in (
@@ -62,7 +63,9 @@ class KnowledgeStore:
             columns = {row[1] for row in db.execute("PRAGMA table_info(sources)")}
             if "workspace_id" not in columns:
                 db.execute("ALTER TABLE sources ADD COLUMN workspace_id TEXT NOT NULL DEFAULT 'local'")
-            db.execute("PRAGMA user_version = 2")
+            if "deleted_at" not in columns:
+                db.execute("ALTER TABLE sources ADD COLUMN deleted_at TEXT")
+            db.execute("PRAGMA user_version = 3")
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
@@ -94,6 +97,10 @@ class KnowledgeStore:
             if name is not None:
                 db.execute("INSERT INTO sources (source_id, system_id, name, created_at) VALUES (?, ?, ?, ?)",
                            (source_id, system_id, name.strip(), now()))
+            elif not db.execute("SELECT 1 FROM sources WHERE source_id=? AND workspace_id='local' AND deleted_at IS NULL",
+                                (source_id,)).fetchone():
+                # Recheck under the write lock: deletion may have won after detail().
+                raise ImportFailure("source_not_found", "知识源不存在或已删除，请重新选择导入目标。")
             version = db.execute("SELECT COALESCE(MAX(version), 0)+1 FROM versions WHERE source_id=?",
                                  (source_id,)).fetchone()[0]
             db.execute("INSERT INTO versions (source_id, version, status, created_at) VALUES (?, ?, 'importing', ?)",
@@ -134,7 +141,7 @@ class KnowledgeStore:
 
     def detail(self, system_id: str, source_id: str) -> dict[str, Any]:
         with self.connection() as db:
-            source = db.execute("SELECT * FROM sources WHERE source_id=? AND workspace_id='local'", (source_id,)).fetchone()
+            source = db.execute("SELECT * FROM sources WHERE source_id=? AND workspace_id='local' AND deleted_at IS NULL", (source_id,)).fetchone()
             if source is None:
                 raise ImportFailure("source_not_found", f"未知 source_id: {source_id}，未找到当前工作区的用户知识源。")
             rows = db.execute("SELECT * FROM versions WHERE source_id=? ORDER BY version DESC", (source_id,)).fetchall()
@@ -151,8 +158,30 @@ class KnowledgeStore:
 
     def list_sources(self, system_id: str) -> list[dict[str, Any]]:
         with self.connection() as db:
-            ids = db.execute("SELECT source_id FROM sources WHERE workspace_id='local' ORDER BY created_at DESC").fetchall()
-        return [self.detail(system_id, row[0]) for row in ids]
+            ids = db.execute("SELECT source_id FROM sources WHERE workspace_id='local' AND deleted_at IS NULL ORDER BY created_at DESC").fetchall()
+        items = []
+        for row in ids:
+            try:
+                items.append(self.detail(system_id, row[0]))
+            except ImportFailure as exc:
+                if exc.code != "source_not_found":
+                    raise
+        return items
+
+    def delete_source(self, system_id: str, source_id: str) -> None:
+        """Remove from future selection; immutable artifacts still serve saved snapshots."""
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            source = db.execute("SELECT deleted_at FROM sources WHERE source_id=? AND workspace_id='local'",
+                                (source_id,)).fetchone()
+            if source is None:
+                raise ImportFailure("source_not_found", "知识源不存在。")
+            if source["deleted_at"] is not None:
+                return  # Retried DELETE is idempotent.
+            if db.execute("SELECT 1 FROM versions WHERE source_id=? AND status='importing'", (source_id,)).fetchone():
+                raise ImportFailure("source_importing", "知识源正在导入，请等待完成后再删除。")
+            db.execute("UPDATE sources SET deleted_at=? WHERE source_id=?", (now(), source_id))
+            db.execute("DELETE FROM bindings WHERE source_id=?", (source_id,))
 
     def resolve(self, system_id: str, source_id: str, version: int | None = None) -> dict[str, Any]:
         detail = self.detail(system_id, source_id)

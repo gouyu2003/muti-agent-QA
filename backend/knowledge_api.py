@@ -60,6 +60,16 @@ def source_detail(source_id: str, request: Request):
         raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
 
 
+@router.delete("/sources/{source_id}")
+def delete_source(source_id: str, request: Request):
+    try:
+        get_store(request).delete_source(scope(), source_id)
+        return {"source_id": source_id, "deleted": True}
+    except ImportFailure as exc:
+        raise HTTPException(status_code=409 if exc.code == "source_importing" else 404,
+                            detail={"code": exc.code, "message": str(exc)}) from exc
+
+
 @router.post("/sources/{source_id}/versions")
 def add_version(source_id: str, request: Request, files: Annotated[list[UploadFile], File()]):
     try:

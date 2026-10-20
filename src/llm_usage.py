@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Mapping
+from threading import Condition, Event, RLock
+from contextlib import contextmanager
 
 
 @dataclass(frozen=True)
@@ -85,6 +87,13 @@ class LLMUsageCollector:
     """Collect every invocation attempt and aggregate complete token metadata."""
 
     def __init__(self) -> None:
+        self._lock = RLock()
+        self._idle = Condition(self._lock)
+        self._active_nodes = 0
+        self.cancelled = Event()
+        self._children: dict[str, LLMUsageCollector] = {}
+        self.outputs: dict[str, dict] = {}
+        self._attempts: list[dict] = []
         self.call_count = 0
         self._prompt_tokens = 0
         self._completion_tokens = 0
@@ -96,16 +105,70 @@ class LLMUsageCollector:
     def invoke(self, chat: Any, prompt: str) -> Any:
         """Invoke a chat model and account for the attempt and returned usage."""
 
-        self.call_count += 1
+        self.check_cancelled()
+        with self._lock:
+            self.call_count += 1
         try:
             response = chat.invoke(prompt)
         except Exception:
-            self._mark_missing()
+            with self._lock:
+                self._mark_missing()
             raise
 
         prompt_tokens, completion_tokens, total_tokens = extract_token_usage(response)
-        self._add_usage(prompt_tokens, completion_tokens, total_tokens)
+        with self._lock:
+            self._add_usage(prompt_tokens, completion_tokens, total_tokens)
         return response
+
+    def check_cancelled(self) -> None:
+        if self.cancelled.is_set():
+            raise RuntimeError('运行已取消。')
+
+    def for_agent(self, agent_id: str) -> LLMUsageCollector:
+        with self._lock:
+            if agent_id not in self._children:
+                child = LLMUsageCollector()
+                child.cancelled = self.cancelled
+                self._children[agent_id] = child
+            return self._children[agent_id]
+
+    def record_output(self, agent_id: str, output: dict) -> None:
+        with self._lock:
+            self.outputs[agent_id] = output
+
+    @contextmanager
+    def running_node(self):
+        with self._idle:
+            self.check_cancelled()
+            self._active_nodes += 1
+        try:
+            yield
+        finally:
+            with self._idle:
+                self._active_nodes -= 1
+                self._idle.notify_all()
+
+    def wait_for_nodes(self):
+        with self._idle:
+            self._idle.wait_for(lambda: self._active_nodes == 0)
+
+    def completed_outputs(self):
+        with self._lock:
+            return dict(self.outputs)
+
+    def agent_usage(self) -> dict[str, dict]:
+        from dataclasses import asdict
+        with self._lock:
+            return {key: {**asdict(child.snapshot()), "calls": child.attempts()}
+                    for key, child in self._children.items()}
+
+    def record_attempt(self, entry: dict) -> None:
+        with self._lock:
+            self._attempts.append(dict(entry))
+
+    def attempts(self) -> list[dict]:
+        with self._lock:
+            return [dict(entry) for entry in self._attempts]
 
     def _mark_missing(self) -> None:
         self._prompt_complete = False
@@ -134,6 +197,19 @@ class LLMUsageCollector:
             self._total_tokens += total_tokens
 
     def snapshot(self) -> LLMUsageSnapshot:
+        with self._lock:
+            own = self._snapshot()
+            children = [child.snapshot() for child in self._children.values()]
+            used = ([own] if own.call_count else []) + [item for item in children if item.call_count]
+            if not used:
+                return own
+            def total(field):
+                values = [getattr(item, field) for item in used]
+                return sum(values) if all(v is not None for v in values) else None
+            return LLMUsageSnapshot(sum(item.call_count for item in used), total('prompt_tokens'),
+                                    total('completion_tokens'), total('total_tokens'))
+
+    def _snapshot(self) -> LLMUsageSnapshot:
         has_calls = self.call_count > 0
         return LLMUsageSnapshot(
             call_count=self.call_count,

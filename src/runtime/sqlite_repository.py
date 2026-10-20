@@ -202,6 +202,16 @@ def _load_json(value: str | None, field_name: str) -> Any:
         raise RepositoryError(f"数据库字段 {field_name} 不是有效 JSON") from exc
 
 
+def _final_state_json(record: RunRecord) -> str | None:
+    """Persist additive per-instance metrics without migrating legacy archives."""
+    if record.final_state is None and not record.metrics.agent_usage:
+        return None
+    value = dict(record.final_state or {})
+    if record.metrics.agent_usage:
+        value['_agent_usage'] = record.metrics.agent_usage
+    return _dump_json(value)
+
+
 class SQLiteRunRepository:
     """使用本地 SQLite 保存运行记录和轨迹事件。"""
 
@@ -267,6 +277,8 @@ class SQLiteRunRepository:
 
     def _row_to_run(self, row: sqlite3.Row) -> RunRecord:
         try:
+            final_state = _load_json(row['final_state_json'], 'final_state_json')
+            agent_usage = final_state.pop('_agent_usage', {}) if isinstance(final_state, dict) else {}
             snapshot = _load_json(row["config_snapshot_json"], "config_snapshot_json")
             if not isinstance(snapshot, dict):
                 raise RepositoryError('配置快照必须是 JSON 对象')
@@ -299,6 +311,7 @@ class SQLiteRunRepository:
                 plan_retry_count=row["plan_retry_count"],
                 retrieval_retry_count=row["retrieval_retry_count"],
                 validation_retry_count=row["validation_retry_count"],
+                agent_usage=agent_usage,
             )
             error = None
             if row["error_type"] is not None:
@@ -316,7 +329,7 @@ class SQLiteRunRepository:
                     if row["finished_at"] is not None
                     else None
                 ),
-                final_state=_load_json(row["final_state_json"], "final_state_json"),
+                final_state=final_state,
                 metrics=metrics,
                 error=error,
             )
@@ -373,7 +386,7 @@ class SQLiteRunRepository:
                 if record.finished_at is not None
                 else None
             ),
-            _dump_json(record.final_state) if record.final_state is not None else None,
+            _final_state_json(record),
             error_type,
             error_message,
             record.metrics.duration_ms,
@@ -464,11 +477,7 @@ class SQLiteRunRepository:
                             if record.finished_at is not None
                             else None
                         ),
-                        (
-                            _dump_json(record.final_state)
-                            if record.final_state is not None
-                            else None
-                        ),
+                        _final_state_json(record),
                         error_type,
                         error_message,
                         record.metrics.duration_ms,

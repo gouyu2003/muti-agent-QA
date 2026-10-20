@@ -12,6 +12,7 @@ from src.llm_usage import LLMUsageCollector
 from src.router import decide_route
 from src.runtime.specs import WorkflowSpec
 from src.runtime.system import retriever_from_snapshot
+from src.state import merge_state
 from src.runtime.models import (
     RunContext,
     RunDetail,
@@ -34,6 +35,9 @@ RECURSION_LIMIT = 30
 def _build_default_graph(context: RunContext, usage_collector: LLMUsageCollector) -> Any:
     snapshot = context.config_snapshot
     workflow = WorkflowSpec.model_validate(snapshot["workflow_spec"])
+    if snapshot.get('schema_version') == '2':
+        from src.runtime.nodes import instance_nodes
+        return build_graph(nodes=instance_nodes(snapshot, usage_collector), workflow=workflow)
     retriever = retriever_from_snapshot(snapshot)
     return build_graph(
         nodes=default_nodes(usage_collector, snapshot["agents"], retriever),
@@ -43,7 +47,7 @@ def _build_default_graph(context: RunContext, usage_collector: LLMUsageCollector
 NODE_FIELDS: dict[str, tuple[str, ...]] = {
     "planner_v0": ("sub_questions", "retrieval_strategy", "plan_retry_count",
                    "conflict_flag", "conflict_note", "conflict_pairs",
-                   "retrieval_supplement_request", "insufficient_sq_ids"),
+                   "retrieval_supplement_request", "insufficient_sq_ids", "model_diagnostics"),
     "retriever_v0": ("evidence_chunks", "retrieval_retry_count"),
     "answer_validator_v0": (
         "answer",
@@ -57,6 +61,7 @@ NODE_FIELDS: dict[str, tuple[str, ...]] = {
         "supporting_evidence",
         "validation_retry_count",
         "retrieval_supplement_request",
+        "model_diagnostics",
     ),
 }
 
@@ -75,6 +80,8 @@ FINAL_FIELDS = (
     "verification_note",
     "supporting_evidence",
     "validation_retry_count",
+    "expert_results",
+    "model_diagnostics",
 )
 
 PUBLIC_INPUT_FIELDS = FINAL_FIELDS + (
@@ -149,6 +156,7 @@ class RunService:
             plan_retry_count=_counter(state, "plan_retry_count"),
             retrieval_retry_count=_counter(state, "retrieval_retry_count"),
             validation_retry_count=_counter(state, "validation_retry_count"),
+            agent_usage=usage_collector.agent_usage(),
         )
 
     def stream(self, context: RunContext) -> Iterator[TraceEvent]:
@@ -163,6 +171,32 @@ class RunService:
         node_cycles: dict[str, int] = {}
         node_started_clocks: dict[tuple[str, int], float] = {}
         usage_collector = LLMUsageCollector()
+        stream = None
+        processed_outputs = {}
+
+        def output_fields(node):
+            role = context.config_snapshot.get('agent_types', {}).get(node)
+            if role == 'expert':
+                return ('expert_results',) + (FINAL_FIELDS if context.workflow_id == 'single_expert' else ())
+            return NODE_FIELDS.get(role + '_v0' if role else node, ()) + (
+                ('sub_questions', 'evidence_chunks') if role == 'answer_validator' else ())
+
+        def settle():
+            usage_collector.cancelled.set()
+            try:
+                if stream is not None and hasattr(stream, 'close'):
+                    stream.close()
+            finally:
+                usage_collector.wait_for_nodes()
+            recovered = []
+            for node, output in usage_collector.completed_outputs().items():
+                public = _public_mapping(output, output_fields(node))
+                if processed_outputs.get(node) != public:
+                    merge_state(state, public)
+                    recovered.append(make_event('node_completed', node=node, cycle=node_cycles.get(node, 1),
+                                                payload={'output': public, 'agent_name': context.config_snapshot.get('agents', {}).get(node, {}).get('agent_name', node),
+                                                         'agent_type': context.config_snapshot.get('agent_types', {}).get(node)}))
+            return recovered
 
         self.repository.create_run(
             RunRecord(context=context, status="running", started_at=started_at)
@@ -222,14 +256,15 @@ class RunService:
                     node_cycles[node] = cycle
                     node_call_count += 1
                     node_started_clocks[(node, cycle)] = self.clock()
-                    public_input = _public_mapping(
-                        data.get("input", state), PUBLIC_INPUT_FIELDS
-                    )
+                    role = context.config_snapshot.get('agent_types', {}).get(node)
+                    public_input = _public_mapping(data.get('input', state),
+                        ('question', 'sub_questions') if role == 'expert' else PUBLIC_INPUT_FIELDS)
                     yield make_event(
                         "node_started",
                         node=node,
                         cycle=cycle,
-                        payload={"input": public_input},
+                        payload={"input": public_input, 'agent_name': context.config_snapshot.get('agents', {}).get(node, {}).get('agent_name', node),
+                                 'agent_type': context.config_snapshot.get('agent_types', {}).get(node)},
                     )
                     continue
 
@@ -237,8 +272,9 @@ class RunService:
                     continue
 
                 for node, raw_update in data.items():
-                    update = _public_mapping(raw_update, NODE_FIELDS.get(node, ()))
-                    state.update(update)
+                    update = _public_mapping(raw_update, output_fields(node))
+                    merge_state(state, update)
+                    processed_outputs[node] = update
                     cycle = node_cycles.get(node, 1)
                     node_started_clock = node_started_clocks.pop(
                         (node, cycle), started_clock
@@ -251,11 +287,12 @@ class RunService:
                         node=node,
                         cycle=cycle,
                         duration_ms=node_duration_ms,
-                        payload={"output": update},
+                        payload={"output": update, 'agent_name': context.config_snapshot.get('agents', {}).get(node, {}).get('agent_name', node),
+                                 'agent_type': context.config_snapshot.get('agent_types', {}).get(node)},
                     )
 
-                    if node == ANSWER_VALIDATOR_NODE:
-                        decision = decide_route(state, workflow)
+                    if (node == ANSWER_VALIDATOR_NODE or context.config_snapshot.get('agent_types', {}).get(node) == 'answer_validator'):
+                        decision = decide_route(state, workflow, source=node)
                         yield make_event(
                             "route_decided",
                             node=node,
@@ -293,6 +330,7 @@ class RunService:
         except GeneratorExit:
             if terminal_persisted:
                 raise
+            settle()
             metrics = self._metrics(
                 state,
                 started_clock=started_clock,
@@ -316,8 +354,14 @@ class RunService:
             )
             raise
         except RepositoryError:
+            usage_collector.cancelled.set()
+            if stream is not None and hasattr(stream, 'close'):
+                stream.close()
+            usage_collector.wait_for_nodes()
             raise
         except Exception as exc:
+            for recovered in settle():
+                yield recovered
             metrics = self._metrics(
                 state,
                 started_clock=started_clock,

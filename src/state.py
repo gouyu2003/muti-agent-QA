@@ -1,4 +1,19 @@
-from typing import Literal, NotRequired, TypedDict
+from typing import Annotated, Any, Literal, NotRequired, TypedDict
+
+
+def merge_expert_results(left: dict | None, right: dict | None) -> dict:
+    """Each expert owns one immutable result; replay is idempotent."""
+    merged = dict(left or {})
+    for key, value in (right or {}).items():
+        if key in merged and merged[key] != value:
+            raise ValueError(f'专家结果重复且内容不一致：{key}')
+        merged[key] = value
+    return merged
+
+
+def merge_state(state: dict, update: dict) -> None:
+    for key, value in update.items():
+        state[key] = merge_expert_results(state.get(key), value) if key == 'expert_results' else value
 
 
 class SubQuestion(TypedDict):
@@ -9,6 +24,7 @@ class SubQuestion(TypedDict):
 
 
 class EvidenceChunk(TypedDict):
+    evidence_id: NotRequired[str]
     text: str
     source_title: str
     source_paragraph: NotRequired[int]
@@ -45,6 +61,7 @@ class ConflictPair(TypedDict):
 
 
 class SupportingEvidence(TypedDict):
+    evidence_id: NotRequired[str]
     sq_id: str
     text: str
     source_title: str
@@ -62,8 +79,10 @@ class SupportingEvidence(TypedDict):
 
 
 class AgentState(TypedDict):
+    model_diagnostics: NotRequired[dict[str, Any]]
     # 唯一的图初始输入
     question: str
+    expert_results: NotRequired[Annotated[dict[str, Any], merge_expert_results]]
 
     # Planner 运行期写入
     sub_questions: NotRequired[list[SubQuestion]]
@@ -78,7 +97,7 @@ class AgentState(TypedDict):
     retrieval_supplement_request: NotRequired[RetrievalSupplementRequest | None]
     answer: NotRequired[str]
     verified: NotRequired[bool]
-    failure_type: NotRequired[Literal["none", "insufficient", "conflict"]]
+    failure_type: NotRequired[Literal["none", "insufficient", "conflict", "output_error"]]
     conflict_flag: NotRequired[bool]
     conflict_note: NotRequired[str]
     conflict_pairs: NotRequired[list[ConflictPair]]

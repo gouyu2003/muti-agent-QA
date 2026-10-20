@@ -41,6 +41,8 @@ class ValidatorLLM:
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MAQA_KNOWLEDGE_DIR", str(tmp_path / "knowledge"))
+    monkeypatch.setenv("MAQA_SYSTEMS_DIR", str(tmp_path / "systems"))
+    monkeypatch.setenv("MAQA_EXPERIMENT_CATALOG_PATH", str(tmp_path / "no-experiments.json"))
     monkeypatch.setattr("src.agents.planner.default_llm", lambda *_: PlannerLLM())
     monkeypatch.setattr("src.agents.answer_validator.default_llm", lambda *_: ValidatorLLM())
     original = app.state.run_service_factory
@@ -84,6 +86,52 @@ def test_upload_run_and_history_preserve_cross_file_provenance(client):
     old_run = client.post("/api/v1/qa/stream", json={"question": "Where?", "source_id": source_id,
                           "source_version": 1, "workflow_id": "multi_hop_qa_fixed"})
     assert old_run.status_code == 200
+    # Deleting the selectable source must not invalidate frozen releases or history.
+    system = client.post("/api/v1/systems", json={"name": "Pinned materials", "description": "",
+        "workflow_id": "multi_hop_qa_fixed", "source_id": source_id, "source_version": 1})
+    assert system.status_code == 201
+    system_id = system.json()["system_id"]
+    published = client.post(f"/api/v1/systems/{system_id}/versions", json={"expected_revision": 1})
+    assert published.status_code == 200
+    assert client.delete(f"/api/v1/knowledge/sources/{source_id}").json()["deleted"] is True
+    assert client.get(f"/api/v1/runs/{run_id}").json() == old
+    assert client.get(f"/api/v1/systems/{system_id}").json()["versions"][0] == published.json()
+    replay = client.post("/api/v1/qa/stream", json={"question": "Where?", "system_id": system_id, "system_version": "v1"})
+    assert replay.status_code == 200
+    replay_events = [json.loads(block.split("data: ")[1]) for block in replay.text.strip().split("\n\n")]
+    replay_detail = client.get(f"/api/v1/runs/{replay_events[0]['run_id']}").json()
+    assert replay_detail["run"]["status"] == "completed"
+    assert replay_detail["run"]["final_state"]["answer"] == "Northbridge"
+
+
+def test_delete_removes_all_versions_and_blocks_new_use_but_keeps_other_sources(client):
+    first = client.post("/api/v1/knowledge/sources", data={"name": "First"}, files=FILES).json()["source_id"]
+    second = client.post("/api/v1/knowledge/sources", data={"name": "Second"}, files=FILES).json()["source_id"]
+    client.post(f"/api/v1/knowledge/sources/{first}/versions", files=FILES)
+    for _ in range(2):
+        deleted = client.delete(f"/api/v1/knowledge/sources/{first}")
+        assert deleted.status_code == 200 and deleted.json() == {"source_id": first, "deleted": True}
+    assert [s["source_id"] for s in client.get("/api/v1/knowledge/sources").json()["items"]] == [second]
+    assert all(s["source_id"] != first for s in client.get("/api/v1/system/options").json()["sources"])
+    assert client.get(f"/api/v1/knowledge/sources/{first}").status_code == 404
+    for version in (1, 2):
+        assert client.get(f"/api/v1/knowledge/sources/{first}/versions/{version}/chunks").status_code == 404
+    assert client.post(f"/api/v1/knowledge/sources/{first}/versions", files=FILES).status_code == 404
+    assert client.post("/api/v1/qa/stream", json={"question": "Where?", "source_id": first, "source_version": 1}).status_code == 422
+    assert client.delete("/api/v1/knowledge/sources/unknown").status_code == 404
+    assert client.delete("/api/v1/knowledge/sources/hotpotqa_fixture").status_code == 404
+
+
+def test_delete_rejects_active_imports_and_allows_failed_records(client):
+    failed = client.post("/api/v1/knowledge/sources", data={"name": "Bad"}, files=[("files", ("bad.txt", b"\xff"))])
+    source_id = failed.json()["detail"]["source_id"]
+    with app.state.knowledge_store.connection() as db:
+        db.execute("UPDATE versions SET status='importing' WHERE source_id=?", (source_id,))
+    response = client.delete(f"/api/v1/knowledge/sources/{source_id}")
+    assert response.status_code == 409 and response.json()["detail"]["code"] == "source_importing"
+    assert client.get(f"/api/v1/knowledge/sources/{source_id}").status_code == 200
+    app.state.knowledge_store.recover_interrupted()
+    assert client.delete(f"/api/v1/knowledge/sources/{source_id}").status_code == 200
 
 
 def test_failed_version_has_an_id_and_keeps_last_ready_version(client):

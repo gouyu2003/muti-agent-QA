@@ -13,7 +13,7 @@ class StrictSpec(BaseModel):
 
 class AgentSpec(StrictSpec):
     agent_id: str = Field(min_length=1)
-    agent_type: Literal["planner", "retriever", "answer_validator"]
+    agent_type: Literal["planner", "retriever", "answer_validator", "expert"]
     config: dict[str, Any]
 
 
@@ -43,6 +43,10 @@ class WorkflowSpec(StrictSpec):
     entry_node: str
     edges: list[RouteSpec] = Field(min_length=1)
     max_cycles: dict[str, StrictInt] = Field(default_factory=dict)
+    join_sources: list[str] = Field(default_factory=list)
+    join_target: str | None = None
+    start_nodes: list[str] = Field(default_factory=list)
+    conditional_nodes: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_graph(self) -> "WorkflowSpec":
@@ -50,6 +54,9 @@ class WorkflowSpec(StrictSpec):
         if len(nodes) != len(self.agents) or self.entry_node not in nodes:
             raise ValueError("workflow agents 必须唯一，entry_node 必须是其中一个节点")
         outgoing: dict[str, list[RouteSpec]] = {node: [] for node in nodes}
+        if (not set(self.start_nodes + self.join_sources + self.conditional_nodes) <= nodes
+                or (self.join_target is not None and self.join_target not in nodes)):
+            raise ValueError('汇合、入口或条件节点不存在')
         for edge in self.edges:
             if edge.source not in nodes or edge.target not in nodes | {"END"}:
                 raise ValueError(f"非法连线 {edge.edge_id}: {edge.source} -> {edge.target}")
@@ -60,11 +67,12 @@ class WorkflowSpec(StrictSpec):
             names = [edge.route_name for edge in edges]
             if len(edges) == 1 and names[0] != "always":
                 raise ValueError(f"节点 {node} 的单条出口必须使用 always")
-            if len(edges) > 1 and ("always" in names or names.count("fallback") != 1):
+            fanout = len(edges) > 1 and set(names) == {'always'} and bool(self.join_sources)
+            if len(edges) > 1 and not fanout and ("always" in names or names.count("fallback") != 1):
                 raise ValueError(f"节点 {node} 的条件路由需要唯一 fallback，不能混用 always")
-            if len(edges) > 1 and node != "answer_validator_v0":
+            if len(edges) > 1 and not fanout and node not in ['answer_validator_v0', *self.conditional_nodes]:
                 raise ValueError(f"阶段 2 仅支持 answer_validator_v0 的条件路由: {node}")
-            if len(set(names)) != len(names):
+            if not fanout and len(set(names)) != len(names):
                 raise ValueError(f"节点 {node} 的路由规则重复")
         for key, value in self.max_cycles.items():
             if key not in {"retrieval_retry_count", "plan_retry_count", "validation_retry_count"} or value < 0:
@@ -75,8 +83,8 @@ class WorkflowSpec(StrictSpec):
         if any(edge.route_name == "conflict_retry" for edge in self.edges):
             if "plan_retry_count" not in self.max_cycles:
                 raise ValueError("缺少 plan_retry_count 上限")
-        reachable = {self.entry_node}
-        pending = [self.entry_node]
+        reachable = {self.entry_node, *self.start_nodes}
+        pending = list(reachable)
         while pending:
             current = pending.pop()
             for edge in outgoing.get(current, []):

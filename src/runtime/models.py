@@ -77,6 +77,7 @@ class RunMetrics(RuntimeModel):
     plan_retry_count: int = Field(default=0, ge=0)
     retrieval_retry_count: int = Field(default=0, ge=0)
     validation_retry_count: int = Field(default=0, ge=0)
+    agent_usage: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
 class TraceEvent(RuntimeModel):
