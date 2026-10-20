@@ -7,6 +7,24 @@ function event(type: StreamEvent['type'], payload: Record<string, unknown>): Str
 }
 
 describe('runReducer', () => {
+  it('matches concurrent calls of one instance by invocation ID and keeps stage identities', () => {
+    let state = runReducer(initialRunState, { type: 'reset' })
+    for (const call_id of ['call-a', 'call-b']) state = runReducer(state, { type: 'stream_event', event: event('node_started', {
+      node: 'expert_one', stage_id: 'assigned_work', cycle: 1, call_id, task_id: call_id,
+    }) })
+    state = runReducer(state, { type: 'stream_event', event: event('node_completed', {
+      node: 'expert_one', call_id: 'call-a', output: { answer: 'First task' },
+    }) })
+    expect(state.steps[0].status).toBe('completed')
+    expect(state.steps[1].status).toBe('running')
+    expect(state.steps[0].stageId).toBe('assigned_work')
+    state = runReducer(state, { type: 'stream_event', event: event('node_completed', {
+      node: 'expert_one', call_id: 'call-b', output: { answer: 'Second task' },
+    }) })
+    expect(state.steps.map(s => s.output?.answer)).toEqual(['First task', 'Second task'])
+    state = runReducer(state, { type: 'stream_event', event: event('route_decided', { stage_id: 'assigned_work', target: 'lead', reason: 'always' }) })
+    expect(state.routes).toHaveLength(1)
+  })
   it('keeps both dynamic parallel instances visible until each completes', () => {
     let state = runReducer(initialRunState, { type: 'reset' })
     for (const node of ['medical_a', 'medical_b']) state = runReducer(state, { type: 'stream_event',

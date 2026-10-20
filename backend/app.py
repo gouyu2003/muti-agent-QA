@@ -29,6 +29,7 @@ from backend.streaming import stream_qa_events
 from backend.knowledge_api import router as knowledge_router
 from backend.systems_api import router as systems_router
 from backend.systems_api import templates_router
+from backend.protocols_api import router as protocols_router
 from src.runtime.system_store import SystemStore, SystemFailure
 from src.knowledge.store import KnowledgeStore
 from src.knowledge.corpus import ImportFailure
@@ -101,6 +102,7 @@ app.state.run_service_factory = build_default_run_service
 app.include_router(knowledge_router)
 app.include_router(systems_router)
 app.include_router(templates_router)
+app.include_router(protocols_router)
 
 app.add_middleware(
     CORSMiddleware,

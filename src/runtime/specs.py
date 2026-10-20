@@ -13,7 +13,7 @@ class StrictSpec(BaseModel):
 
 class AgentSpec(StrictSpec):
     agent_id: str = Field(min_length=1)
-    agent_type: Literal["planner", "retriever", "answer_validator", "expert"]
+    agent_type: Literal["planner", "retriever", "answer_validator", "expert", "lead"]
     config: dict[str, Any]
 
 

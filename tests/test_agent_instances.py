@@ -204,7 +204,7 @@ def test_api_structured_instances_and_pinned_version_run(env, monkeypatch, tmp_p
     store, _, sources = env
     fake_models(monkeypatch)
     with TestClient(app) as client:
-        assert {i['agent_type'] for i in client.get('/api/v1/agent-templates').json()['items']} == {'planner', 'retriever', 'answer_validator', 'expert'}
+        assert {i['agent_type'] for i in client.get('/api/v1/agent-templates').json()['items']} == {'planner', 'retriever', 'answer_validator', 'expert', 'lead'}
         fields = {'name': 'API', 'workflow_id': 'single_expert', 'agents': [agent('expert', 'a', sources[0])]}
         response = client.post('/api/v1/systems', json=fields)
         assert response.status_code == 201, response.text

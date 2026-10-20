@@ -81,7 +81,7 @@ class SystemStore:
                 'versions': releases, 'created_at': row['created_at'], 'updated_at': row['updated_at']}
 
     def _draft(self, system_id, fields, previous=None):
-        if fields.get('agents') is not None or (previous and previous['snapshot'].get('schema_version') == '2'):
+        if fields.get('agents') is not None or fields.get('protocol_ref') or (previous and previous['snapshot'].get('schema_version') in ('2', '3')):
             return self._instance_draft(system_id, fields, previous)
         name = fields['name'].strip()
         if not name or len(name) > 100:
@@ -153,9 +153,22 @@ class SystemStore:
                 configs[a.agent_id]['knowledge_sources'] = [{'source_id': a.source_id,
                     'source_version': a.source_version, 'source_type': sources[a.agent_id]['source_type']}]
             workflow_id = fields.get('workflow_id')
+            protocol_document, protocol_plan = None, None
             try:
-                workflow = compile_workflow(workflow_id, agents, mode).model_dump(by_alias=True)
+                if fields.get('protocol_ref'):
+                    from src.runtime.protocols import ProtocolRef, compile_protocol, workflow_metadata
+                    from src.runtime.protocol_store import ProtocolStore
+                    ref = ProtocolRef.model_validate(fields['protocol_ref'])
+                    protocol_document = ProtocolStore().resolve(ref.protocol_id, version=ref.version, revision=ref.revision)
+                    workflow = workflow_metadata(protocol_document)
+                    workflow_id = protocol_document['protocol_id']
+                    protocol_plan = compile_protocol(protocol_document['spec'], fields.get('protocol_bindings', {}),
+                                                     [a.model_dump(by_alias=True) for a in agents])
+                else:
+                    workflow = compile_workflow(workflow_id, agents, mode).model_dump(by_alias=True)
             except ValueError as exc:
+                if fields.get('protocol_ref') and protocol_document is None:
+                    raise SystemFailure(f'协议版本不可用：{exc}') from exc
                 errors.append(str(exc)); workflow = None
             snapshot = {'schema_version': '2', 'system_id': system_id, 'system_version': 'draft',
                 'instances': [a.model_dump(by_alias=True) for a in agents], 'agents': configs,
@@ -163,13 +176,21 @@ class SystemStore:
                 'execution_mode': mode, 'workflow_spec': workflow,
                 'protocol': {'protocol_name': TEMPLATE_NAMES.get(workflow_id, '尚未选择')},
                 'configuration_errors': errors}
+            if protocol_document:
+                snapshot.update(schema_version='3', protocol_document=protocol_document, protocol_plan=protocol_plan,
+                    protocol={'protocol_name': protocol_document['name']},
+                    protocol_ref={k: v for k, v in fields['protocol_ref'].items() if v is not None},
+                    protocol_bindings=deepcopy(fields.get('protocol_bindings', {})))
             unique = {(s['source_id'], s.get('version')) for s in sources.values()}
             if len(unique) == 1:
                 snapshot['source'] = deepcopy(next(iter(sources.values())))
             snapshot['config_sha256'] = fingerprint(snapshot)
-            return {'name': name, 'description': fields.get('description', '').strip(),
+            document = {'name': name, 'description': fields.get('description', '').strip(),
                 'workflow_id': workflow_id, 'source_id': None, 'source_version': None,
                 'agents': snapshot['instances'], 'execution_mode': mode, 'snapshot': snapshot}
+            if protocol_document:
+                document.update(protocol_ref=snapshot['protocol_ref'], protocol_bindings=snapshot['protocol_bindings'])
+            return document
         except (ValueError, OSError) as exc:
             if isinstance(exc, SystemFailure):
                 raise
@@ -197,6 +218,22 @@ class SystemStore:
 
     @staticmethod
     def validate(document):
+        if document['snapshot'].get('schema_version') == '3':
+            from src.runtime.protocols import compile_protocol, workflow_metadata
+            from src.runtime.protocol_store import digest
+            snapshot = document['snapshot']
+            if snapshot.get('configuration_errors'): raise SystemFailure('；'.join(snapshot['configuration_errors']))
+            if fingerprint(snapshot) != snapshot['config_sha256']: raise SystemFailure('保存的配置校验失败。')
+            try:
+                protocol = snapshot['protocol_document']
+                if digest(protocol['spec']) != protocol['spec_sha256']: raise ValueError('协议指纹不一致。')
+                agents = validate_instances(snapshot['instances'])
+                plan = compile_protocol(protocol['spec'], snapshot['protocol_bindings'], [a.model_dump(by_alias=True) for a in agents])
+                if plan != snapshot['protocol_plan'] or workflow_metadata(protocol) != snapshot['workflow_spec']:
+                    raise ValueError('保存的协议与编译结果不一致。')
+                for source in snapshot['sources'].values(): retriever_from_snapshot({'source': source})
+            except (ValueError, OSError) as exc: raise SystemFailure(f'配置校验失败：{exc}') from exc
+            return
         if document['snapshot'].get('schema_version') == '2':
             snapshot = document['snapshot']
             if snapshot.get('configuration_errors'):
@@ -238,6 +275,8 @@ class SystemStore:
                 return json.loads(old[0])
             document = json.loads(row['draft'])
             self.validate(document)
+            if document['snapshot'].get('schema_version') == '3' and not document['protocol_ref'].get('version'):
+                raise SystemFailure('系统发布前请绑定已发布的协议版本。')
             number = db.execute('SELECT COALESCE(MAX(version), 0)+1 FROM releases WHERE system_id=?', (system_id,)).fetchone()[0]
             document.update(version=f'v{number}', draft_revision=expected_revision, created_at=datetime.now(timezone.utc).isoformat())
             document['snapshot']['system_version'] = document['version']

@@ -1485,3 +1485,7 @@ textarea {
   .prompt-tools .ant-btn { min-width: 36px; height: 36px; }
   .prompt-tag { display: none; }
 }
+.protocol-template-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 12px; margin: 16px 0; }
+.protocol-binding, .agent-fields { display: grid; gap: 12px; min-width: 0; }
+.protocol-binding label, .agent-fields label { display: grid; gap: 6px; }
+.protocol-binding .ant-select, .agent-fields .ant-select { width: 100%; }

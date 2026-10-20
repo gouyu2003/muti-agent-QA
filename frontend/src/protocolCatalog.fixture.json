@@ -1,0 +1,825 @@
+{
+  "items": [
+    {
+      "template_id": "pipeline",
+      "name": "固定流水线",
+      "spec": {
+        "language_version": "2",
+        "family": "pipeline",
+        "slots": {
+          "planner": {
+            "role": "planner",
+            "minimum": 1,
+            "maximum": 1
+          },
+          "retriever": {
+            "role": "retriever",
+            "minimum": 1,
+            "maximum": 1
+          },
+          "reviewer": {
+            "role": "answer_validator",
+            "minimum": 1,
+            "maximum": 1
+          }
+        },
+        "entry_stage": "plan",
+        "stages": [
+          {
+            "stage_id": "plan",
+            "kind": "plan",
+            "slot": "planner",
+            "mode": "sequential",
+            "reads": [],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "retrieve"
+              }
+            ],
+            "max_visits": 1,
+            "on_limit": "END",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          },
+          {
+            "stage_id": "retrieve",
+            "kind": "retrieve",
+            "slot": "retriever",
+            "mode": "sequential",
+            "reads": [
+              "plan"
+            ],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "review"
+              }
+            ],
+            "max_visits": 1,
+            "on_limit": "END",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          },
+          {
+            "stage_id": "review",
+            "kind": "review",
+            "slot": "reviewer",
+            "mode": "sequential",
+            "reads": [
+              "plan",
+              "retrieve"
+            ],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "END"
+              }
+            ],
+            "max_visits": 1,
+            "on_limit": "END",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          }
+        ],
+        "limits": {
+          "max_node_calls": 60,
+          "max_llm_calls": 80,
+          "max_reserved_tokens": 1000000,
+          "timeout_seconds": 600,
+          "node_timeout_seconds": 120
+        },
+        "retry_limits": {
+          "retrieval": 3,
+          "planning": 2
+        }
+      },
+      "description": "规划、检索、审核，一次审核后结束。"
+    },
+    {
+      "template_id": "pipeline_feedback",
+      "name": "反馈重试流水线",
+      "spec": {
+        "language_version": "2",
+        "family": "pipeline",
+        "slots": {
+          "planner": {
+            "role": "planner",
+            "minimum": 1,
+            "maximum": 1
+          },
+          "retriever": {
+            "role": "retriever",
+            "minimum": 1,
+            "maximum": 1
+          },
+          "reviewer": {
+            "role": "answer_validator",
+            "minimum": 1,
+            "maximum": 1
+          }
+        },
+        "entry_stage": "plan",
+        "stages": [
+          {
+            "stage_id": "plan",
+            "kind": "plan",
+            "slot": "planner",
+            "mode": "sequential",
+            "reads": [
+              "review"
+            ],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "retrieve"
+              }
+            ],
+            "max_visits": 3,
+            "on_limit": "END",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          },
+          {
+            "stage_id": "retrieve",
+            "kind": "retrieve",
+            "slot": "retriever",
+            "mode": "sequential",
+            "reads": [
+              "plan",
+              "review"
+            ],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "review"
+              }
+            ],
+            "max_visits": 6,
+            "on_limit": "END",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          },
+          {
+            "stage_id": "review",
+            "kind": "review",
+            "slot": "reviewer",
+            "mode": "sequential",
+            "reads": [
+              "plan",
+              "retrieve"
+            ],
+            "routes": [
+              {
+                "condition": "verified",
+                "target": "END"
+              },
+              {
+                "condition": "insufficient_retry",
+                "target": "retrieve"
+              },
+              {
+                "condition": "conflict_retry",
+                "target": "plan"
+              },
+              {
+                "condition": "fallback",
+                "target": "END"
+              }
+            ],
+            "max_visits": 6,
+            "on_limit": "END",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          }
+        ],
+        "limits": {
+          "max_node_calls": 60,
+          "max_llm_calls": 80,
+          "max_reserved_tokens": 1000000,
+          "timeout_seconds": 600,
+          "node_timeout_seconds": 120
+        },
+        "retry_limits": {
+          "retrieval": 3,
+          "planning": 2
+        }
+      },
+      "description": "证据不足补检索，证据冲突重规划。"
+    },
+    {
+      "template_id": "single_expert",
+      "name": "单专家问答",
+      "spec": {
+        "language_version": "2",
+        "family": "single_expert",
+        "slots": {
+          "expert": {
+            "role": "expert",
+            "minimum": 1,
+            "maximum": 1
+          }
+        },
+        "entry_stage": "answer",
+        "stages": [
+          {
+            "stage_id": "answer",
+            "kind": "answer",
+            "slot": "expert",
+            "mode": "sequential",
+            "reads": [],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "END"
+              }
+            ],
+            "max_visits": 1,
+            "on_limit": "END",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          }
+        ],
+        "limits": {
+          "max_node_calls": 60,
+          "max_llm_calls": 80,
+          "max_reserved_tokens": 1000000,
+          "timeout_seconds": 600,
+          "node_timeout_seconds": 120
+        },
+        "retry_limits": {
+          "retrieval": 3,
+          "planning": 2
+        }
+      },
+      "description": "一个专家独立检索、作答并校验引用。"
+    },
+    {
+      "template_id": "multi_expert",
+      "name": "多专家汇总",
+      "spec": {
+        "language_version": "2",
+        "family": "multi_expert",
+        "slots": {
+          "planner": {
+            "role": "planner",
+            "minimum": 1,
+            "maximum": 1
+          },
+          "experts": {
+            "role": "expert",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "reviewer": {
+            "role": "answer_validator",
+            "minimum": 1,
+            "maximum": 1
+          }
+        },
+        "entry_stage": "plan",
+        "stages": [
+          {
+            "stage_id": "plan",
+            "kind": "plan",
+            "slot": "planner",
+            "mode": "sequential",
+            "reads": [],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "opinions"
+              }
+            ],
+            "max_visits": 1,
+            "on_limit": "END",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          },
+          {
+            "stage_id": "opinions",
+            "kind": "propose",
+            "slot": "experts",
+            "mode": "sequential",
+            "reads": [
+              "plan"
+            ],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "review"
+              }
+            ],
+            "max_visits": 1,
+            "on_limit": "END",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          },
+          {
+            "stage_id": "review",
+            "kind": "review",
+            "slot": "reviewer",
+            "mode": "sequential",
+            "reads": [
+              "plan",
+              "opinions"
+            ],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "END"
+              }
+            ],
+            "max_visits": 1,
+            "on_limit": "END",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          }
+        ],
+        "limits": {
+          "max_node_calls": 60,
+          "max_llm_calls": 80,
+          "max_reserved_tokens": 1000000,
+          "timeout_seconds": 600,
+          "node_timeout_seconds": 120
+        },
+        "retry_limits": {
+          "retrieval": 3,
+          "planning": 2
+        }
+      },
+      "description": "独立专家串行或并行作答，汇合后统一审核。"
+    },
+    {
+      "template_id": "lead",
+      "name": "Lead Agent 主导分派",
+      "spec": {
+        "language_version": "2",
+        "family": "lead",
+        "slots": {
+          "lead": {
+            "role": "lead",
+            "minimum": 1,
+            "maximum": 1
+          },
+          "experts": {
+            "role": "expert",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "reviewer": {
+            "role": "answer_validator",
+            "minimum": 1,
+            "maximum": 1
+          }
+        },
+        "entry_stage": "coordinate",
+        "stages": [
+          {
+            "stage_id": "coordinate",
+            "kind": "lead",
+            "slot": "lead",
+            "mode": "sequential",
+            "reads": [
+              "work"
+            ],
+            "routes": [
+              {
+                "condition": "lead_dispatch",
+                "target": "work"
+              },
+              {
+                "condition": "lead_review",
+                "target": "review"
+              },
+              {
+                "condition": "fallback",
+                "target": "review"
+              }
+            ],
+            "max_visits": 3,
+            "on_limit": "review",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          },
+          {
+            "stage_id": "work",
+            "kind": "dispatch",
+            "slot": "experts",
+            "mode": "parallel",
+            "reads": [
+              "coordinate"
+            ],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "coordinate"
+              }
+            ],
+            "max_visits": 2,
+            "on_limit": "review",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          },
+          {
+            "stage_id": "review",
+            "kind": "review",
+            "slot": "reviewer",
+            "mode": "sequential",
+            "reads": [
+              "work",
+              "coordinate"
+            ],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "END"
+              }
+            ],
+            "max_visits": 1,
+            "on_limit": "END",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          }
+        ],
+        "limits": {
+          "max_node_calls": 60,
+          "max_llm_calls": 80,
+          "max_reserved_tokens": 1000000,
+          "timeout_seconds": 600,
+          "node_timeout_seconds": 120
+        },
+        "retry_limits": {
+          "retrieval": 3,
+          "planning": 2
+        }
+      },
+      "description": "主导者选择专家并分派具体任务，汇总后审核。"
+    },
+    {
+      "template_id": "debate",
+      "name": "Debate 专家辩论",
+      "spec": {
+        "language_version": "2",
+        "family": "debate",
+        "slots": {
+          "experts": {
+            "role": "expert",
+            "minimum": 2,
+            "maximum": 3
+          },
+          "reviewer": {
+            "role": "answer_validator",
+            "minimum": 1,
+            "maximum": 1
+          }
+        },
+        "entry_stage": "initial",
+        "stages": [
+          {
+            "stage_id": "initial",
+            "kind": "propose",
+            "slot": "experts",
+            "mode": "parallel",
+            "reads": [],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "critique"
+              }
+            ],
+            "max_visits": 1,
+            "on_limit": "END",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          },
+          {
+            "stage_id": "critique",
+            "kind": "critique",
+            "slot": "experts",
+            "mode": "parallel",
+            "reads": [
+              "initial",
+              "revise"
+            ],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "revise"
+              }
+            ],
+            "max_visits": 2,
+            "on_limit": "review",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          },
+          {
+            "stage_id": "revise",
+            "kind": "revise",
+            "slot": "experts",
+            "mode": "parallel",
+            "reads": [
+              "initial",
+              "critique",
+              "revise"
+            ],
+            "routes": [
+              {
+                "condition": "always",
+                "target": "review"
+              }
+            ],
+            "max_visits": 2,
+            "on_limit": "review",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          },
+          {
+            "stage_id": "review",
+            "kind": "review",
+            "slot": "reviewer",
+            "mode": "sequential",
+            "reads": [
+              "revise"
+            ],
+            "routes": [
+              {
+                "condition": "verified",
+                "target": "END"
+              },
+              {
+                "condition": "unverified",
+                "target": "critique"
+              },
+              {
+                "condition": "fallback",
+                "target": "END"
+              }
+            ],
+            "max_visits": 2,
+            "on_limit": "END",
+            "instructions": "",
+            "share_evidence": true,
+            "peer_policy": "all"
+          }
+        ],
+        "limits": {
+          "max_node_calls": 60,
+          "max_llm_calls": 80,
+          "max_reserved_tokens": 1000000,
+          "timeout_seconds": 600,
+          "node_timeout_seconds": 120
+        },
+        "retry_limits": {
+          "retrieval": 3,
+          "planning": 2
+        }
+      },
+      "description": "独立提案、质疑、修订与裁决。"
+    }
+  ],
+  "capabilities": {
+    "1": {
+      "stage_kinds": [
+        "plan",
+        "retrieve",
+        "propose",
+        "critique",
+        "revise",
+        "lead",
+        "dispatch",
+        "review"
+      ],
+      "conditions": [
+        "always",
+        "verified",
+        "unverified",
+        "lead_dispatch",
+        "lead_review",
+        "fallback"
+      ],
+      "roles": [
+        "planner",
+        "retriever",
+        "expert",
+        "answer_validator",
+        "lead"
+      ],
+      "min_stages": 2,
+      "max_stages": 12,
+      "max_visits": 5,
+      "max_routes": 4,
+      "max_slot_size": 3,
+      "max_retry_count": 5,
+      "limit_target_kinds": [
+        "review"
+      ],
+      "family_kinds": {},
+      "family_min_stages": {
+        "pipeline": 3,
+        "single_expert": 1,
+        "multi_expert": 2,
+        "lead": 3,
+        "debate": 4
+      },
+      "parallel_kinds": [
+        "propose",
+        "dispatch",
+        "critique",
+        "revise"
+      ],
+      "final_kinds": [
+        "review"
+      ],
+      "conditions_by_kind": {
+        "plan": [
+          "always",
+          "fallback"
+        ],
+        "retrieve": [
+          "always",
+          "fallback"
+        ],
+        "propose": [
+          "always",
+          "fallback"
+        ],
+        "critique": [
+          "always",
+          "fallback"
+        ],
+        "revise": [
+          "always",
+          "fallback"
+        ],
+        "lead": [
+          "always",
+          "fallback",
+          "lead_dispatch",
+          "lead_review"
+        ],
+        "dispatch": [
+          "always",
+          "fallback"
+        ],
+        "review": [
+          "always",
+          "fallback",
+          "verified",
+          "unverified"
+        ]
+      }
+    },
+    "2": {
+      "stage_kinds": [
+        "plan",
+        "retrieve",
+        "propose",
+        "critique",
+        "revise",
+        "lead",
+        "dispatch",
+        "review",
+        "answer"
+      ],
+      "conditions": [
+        "always",
+        "verified",
+        "unverified",
+        "lead_dispatch",
+        "lead_review",
+        "fallback",
+        "insufficient_retry",
+        "conflict_retry"
+      ],
+      "roles": [
+        "planner",
+        "retriever",
+        "expert",
+        "answer_validator",
+        "lead"
+      ],
+      "min_stages": 1,
+      "max_stages": 12,
+      "max_visits": 12,
+      "max_routes": 4,
+      "max_slot_size": 3,
+      "max_retry_count": 5,
+      "limit_target_kinds": [
+        "review"
+      ],
+      "family_kinds": {
+        "pipeline": [
+          "plan",
+          "retrieve",
+          "review"
+        ],
+        "single_expert": [
+          "answer"
+        ],
+        "multi_expert": [
+          "plan",
+          "propose",
+          "review"
+        ],
+        "lead": [
+          "plan",
+          "retrieve",
+          "propose",
+          "critique",
+          "revise",
+          "lead",
+          "dispatch",
+          "review"
+        ],
+        "debate": [
+          "plan",
+          "retrieve",
+          "propose",
+          "critique",
+          "revise",
+          "lead",
+          "dispatch",
+          "review"
+        ]
+      },
+      "family_min_stages": {
+        "pipeline": 3,
+        "single_expert": 1,
+        "multi_expert": 2,
+        "lead": 3,
+        "debate": 4
+      },
+      "parallel_kinds": [
+        "propose",
+        "dispatch",
+        "critique",
+        "revise"
+      ],
+      "final_kinds": [
+        "review",
+        "answer"
+      ],
+      "conditions_by_kind": {
+        "plan": [
+          "always",
+          "fallback"
+        ],
+        "retrieve": [
+          "always",
+          "fallback"
+        ],
+        "propose": [
+          "always",
+          "fallback"
+        ],
+        "critique": [
+          "always",
+          "fallback"
+        ],
+        "revise": [
+          "always",
+          "fallback"
+        ],
+        "lead": [
+          "always",
+          "fallback",
+          "lead_dispatch",
+          "lead_review"
+        ],
+        "dispatch": [
+          "always",
+          "fallback"
+        ],
+        "review": [
+          "always",
+          "fallback",
+          "verified",
+          "unverified",
+          "insufficient_retry",
+          "conflict_retry"
+        ],
+        "answer": [
+          "always",
+          "fallback"
+        ]
+      }
+    }
+  }
+}

@@ -37,13 +37,18 @@ export function runReducer(state: RunViewState, action: RunAction): RunViewState
     const node = event.payload.node
     const cycle = Number(event.payload.cycle ?? 1)
     if (!isNodeId(node)) return state
+    const callId = typeof event.payload.call_id === 'string' ? event.payload.call_id : undefined
+    if (callId && state.steps.some(s => s.callId === callId)) return state
     return {
       ...state,
       activeNode: node,
       steps: [
         ...state.steps,
         {
-          key: `${node}-${cycle}-${state.steps.length}`,
+          key: callId ?? `${node}-${cycle}-${state.steps.length}`,
+          callId,
+          stageId: typeof event.payload.stage_id === 'string' ? event.payload.stage_id : undefined,
+          taskId: typeof event.payload.task_id === 'string' ? event.payload.task_id : undefined,
           node,
           agentName: typeof event.payload.agent_name === 'string' ? event.payload.agent_name : undefined,
           agentType: typeof event.payload.agent_type === 'string' ? event.payload.agent_type : undefined,
@@ -59,28 +64,35 @@ export function runReducer(state: RunViewState, action: RunAction): RunViewState
     const node = event.payload.node
     const cycle = Number(event.payload.cycle ?? 1)
     if (!isNodeId(node)) return state
+    const callId = typeof event.payload.call_id === 'string' ? event.payload.call_id : undefined
     const index = [...state.steps]
       .map((step, itemIndex) => ({ step, itemIndex }))
       .reverse()
-      .find(({ step }) => step.node === node && step.status === 'running')?.itemIndex
+      .find(({ step }) => callId ? step.callId === callId : step.node === node && step.status === 'running')?.itemIndex
     const output = (event.payload.output ?? {}) as Partial<RunResult>
+    const callFailed = callId && output.protocol_calls?.[callId]?.status === 'failed'
     const steps = [...state.steps]
     if (index === undefined) {
       steps.push({
-        key: `${node}-${cycle}-${steps.length}`,
+        key: callId ?? `${node}-${cycle}-${steps.length}`,
+        callId,
+        stageId: typeof event.payload.stage_id === 'string' ? event.payload.stage_id : undefined,
+        taskId: typeof event.payload.task_id === 'string' ? event.payload.task_id : undefined,
         node,
         agentName: typeof event.payload.agent_name === 'string' ? event.payload.agent_name : undefined,
         agentType: typeof event.payload.agent_type === 'string' ? event.payload.agent_type : undefined,
         cycle,
-        status: 'completed',
+        status: callFailed ? 'failed' : 'completed',
         timestamp: event.timestamp,
         output,
       })
     } else {
-      steps[index] = { ...steps[index], status: 'completed', output }
+      steps[index] = { ...steps[index], status: callFailed ? 'failed' : 'completed', output }
     }
     return { ...state, steps, activeNode: [...steps].reverse().find(step => step.status === 'running')?.node }
   }
+
+  if (event.type === 'route_decided') return { ...state, routes: [...(state.routes ?? []), event.payload] }
 
   if (event.type === 'run_completed') {
     return {

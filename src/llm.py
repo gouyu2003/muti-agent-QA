@@ -46,6 +46,6 @@ def build_chat_model(agent_config: dict[str, Any]) -> ChatOpenAI:
         model_kwargs={"response_format": {"type": "json_object"}},
         # These nodes extract short structured answers, not open-ended reasoning.
         extra_body={"thinking": {"type": "disabled"}} if model_name.lower().startswith("deepseek") else {},
-        timeout=120,
+        timeout=agent_config.get('_request_timeout', 120),
         max_retries=0,
     )

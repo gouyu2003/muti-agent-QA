@@ -39,6 +39,8 @@ import { getSystemInfo, getSystemOptions, streamQuestion } from './api'
 import HistoryView from './HistoryView'
 import KnowledgeView from './KnowledgeView'
 import SystemsView from './SystemsView'
+import ProtocolsView from './ProtocolsView'
+import ProtocolCalls from './ProtocolCalls'
 import EvidenceLocation from './EvidenceLocation'
 import AgentResults from './AgentResults'
 import ModelDiagnostics from './ModelDiagnostics'
@@ -142,11 +144,12 @@ function ProtocolRail({
 
       <div className="agent-track">
         {nodeOrder.map((node, index) => {
-          const agent = agentMap.get(node)
+          const agent = agentMap.get(workflow?.stage_agents?.[node]?.[0] ?? node)
           const meta = nodeMeta(node, agent?.role, agent?.name)
-          const hasCompleted = steps.some((step) => step.node === node && step.status === 'completed')
-          const state = steps.some(s => s.node === node && s.status === 'running') ? 'active' : steps.some(s => s.node === node && s.status === 'failed') ? 'failed' : hasCompleted ? 'completed' : 'waiting'
-          const cycles = steps.filter((step) => step.node === node).length
+          const stageSteps = steps.filter(step => workflow?.stage_agents ? step.stageId === node : step.node === node)
+          const hasCompleted = stageSteps.some(step => step.status === 'completed')
+          const state = stageSteps.some(s => s.status === 'running') ? 'active' : stageSteps.some(s => s.status === 'failed') ? 'failed' : hasCompleted ? 'completed' : 'waiting'
+          const cycles = stageSteps.length
 
           return (
             <div className="agent-track-item" key={node}>
@@ -158,7 +161,7 @@ function ProtocolRail({
                 <div className="agent-node-icon">{meta.icon}</div>
                 <div className="agent-node-copy">
                   <span>{meta.english}</span>
-                  <strong>{agent?.name ?? meta.shortName}</strong>
+                  <strong>{workflow?.stage_agents ? node : agent?.name ?? meta.shortName}</strong>
                   <small>
                     {state === 'active'
                       ? '正在处理当前状态'
@@ -272,6 +275,7 @@ function ValidatorOutput({ result }: { result: Partial<RunResult> }) {
 
 function StepOutput({ step }: { step: TraceStep }) {
   if (!step.output) return <Skeleton active paragraph={{ rows: 2 }} />
+  if (step.output.protocol_calls) return <ProtocolCalls calls={step.output.protocol_calls} />
   if (step.agentType === 'planner' || step.node === 'planner_v0') return <PlannerOutput result={step.output} />
   if (step.agentType === 'retriever' || step.node === 'retriever_v0') return <RetrieverOutput result={step.output} />
   if (step.output.expert_results) return <AgentResults results={step.output.expert_results} />
@@ -310,7 +314,7 @@ function ExecutionTrace({ steps }: { steps: TraceStep[] }) {
           <div>
             <strong>{meta.shortName}</strong>
             <small>
-              第 {step.cycle} 轮 · {{ running: '执行中', completed: '已完成', failed: '失败', cancelled: '已取消' }[step.status]}
+              {step.stageId ? `${step.stageId} · ` : ''}第 {step.cycle} 轮 · {{ running: '执行中', completed: '已完成', failed: '失败', cancelled: '已取消' }[step.status]}
             </small>
           </div>
         </div>
@@ -412,6 +416,8 @@ function ResultPanel({ result, durationMs, source }: { result?: RunResult; durat
         <Tag>{result.evidence_chunks?.reduce((sum, group) => sum + group.chunks.length, 0) ?? 0} 条</Tag>
       </div>
       <AgentResults results={result.expert_results} />
+      <ProtocolCalls calls={result.protocol_calls} />
+      {result.consensus_status && <p>观点状态：{({ agreement: '答案文字一致', disagreement: '仍有不同观点', insufficient: '未形成可用观点' })[result.consensus_status] ?? result.consensus_status} · 与证据审核状态分别记录</p>}
       <EvidenceLedger groups={result.evidence_chunks ?? []} source={source} />
       {result.supporting_evidence?.length ? <section className="supporting-evidence">
         <h3>最终支撑证据</h3>
@@ -424,7 +430,7 @@ function ResultPanel({ result, durationMs, source }: { result?: RunResult; durat
 }
 
 export default function App() {
-  const [view, setView] = useState<'live' | 'history' | 'knowledge' | 'systems'>('live')
+  const [view, setView] = useState<'live' | 'history' | 'knowledge' | 'systems' | 'protocols'>('live')
   const [managedSelection, setManagedSelection] = useState<ManagedSelection>()
   const [historySystemId, setHistorySystemId] = useState<string>()
   const [system, setSystem] = useState<SystemInfo>()
@@ -485,6 +491,7 @@ export default function App() {
     edges: frozen.workflow_spec.edges.map(edge => ({ source: edge.from, target: edge.to, route_name: edge.route_name })),
     retry_limits: frozen.workflow_spec.max_cycles,
     execution_mode: frozen.execution_mode,
+    ...(frozen.protocol_document ? { stage_agents: Object.fromEntries(frozen.protocol_document.spec.stages.map(s => [s.stage_id, frozen.protocol_bindings?.[s.slot] ?? []])) } : {}),
   } : options?.workflows.find((item) => item.workflow_id === workflowId)
   const sourceOption = options?.sources.find((item) => item.source_id === sourceId)
   const versionInfo = sourceOption?.version_details?.find((item) => item.version === sourceVersion)
@@ -610,6 +617,7 @@ export default function App() {
             <DatabaseOutlined /> 知识源
           </button>
           <button type="button" className={view === 'systems' ? 'active' : ''} aria-current={view === 'systems' ? 'page' : undefined} onClick={() => setView('systems')}><ApartmentOutlined /> 我的系统</button>
+          <button type="button" className={view === 'protocols' ? 'active' : ''} aria-current={view === 'protocols' ? 'page' : undefined} onClick={() => setView('protocols')}>协作协议</button>
         </nav>
         <div className="system-badges">
           <Tag variant="filled">{shownWorkflow?.workflow_id ?? '等待配置'}</Tag>
@@ -618,10 +626,12 @@ export default function App() {
         </div>
       </header>
 
-      {view === 'systems' ? <SystemsView options={options} disabled={isRunning} onHistory={id => { setHistorySystemId(id); setView('history') }} onUse={selection => {
+      <div hidden={view !== 'systems'}><SystemsView options={options} active={view === 'systems'} onManageProtocols={() => setView('protocols')} disabled={isRunning} onHistory={id => { setHistorySystemId(id); setView('history') }} onUse={selection => {
         setManagedSelection(selection); setWorkflowId(selection.document.workflow_id ?? ''); setSourceId(selection.document.source_id ?? '')
         setSourceVersion(selection.document.source_version ?? undefined); setSubmittedSelection(undefined); dispatch({ type: 'clear' }); setView('live')
-      }} /> : view === 'history' ? <HistoryView initialSystemId={historySystemId} /> : view === 'knowledge' ? (
+      }} /></div>
+      <div hidden={view !== 'protocols'}><ProtocolsView active={view === 'protocols'} disabled={isRunning} onReturnToSystems={() => setView('systems')} /></div>
+      {view === 'systems' || view === 'protocols' ? null : view === 'history' ? <HistoryView initialSystemId={historySystemId} /> : view === 'knowledge' ? (
         <KnowledgeView disabled={isRunning} onChanged={refreshOptions} onUse={useKnowledge} />
       ) : <main className="workspace">
         <aside className="protocol-column">
@@ -791,6 +801,7 @@ export default function App() {
                 />
               ) : null}
               <ExecutionTrace steps={run.steps} />
+              {run.routes?.length ? <Collapse items={[{ key: 'routes', label: '阶段路由决定', children: run.routes.map((r, i) => <p key={i}>{String(r.stage_id ?? r.node ?? '')} → {String(r.target)} · {String(r.reason)}</p>) }]} /> : null}
             </Card>
 
             <Card className="result-card" variant="borderless">

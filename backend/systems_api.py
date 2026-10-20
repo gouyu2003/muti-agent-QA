@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field
 from src.runtime.instances import AgentInstance, ExecutionMode, templates
+from src.runtime.protocols import ProtocolRef
 
 router = APIRouter(prefix='/api/v1/systems')
 
@@ -15,6 +16,8 @@ class DraftFields(BaseModel):
     source_version: int | None = Field(default=None, ge=1, strict=True)
     agents: list[AgentInstance] | None = Field(default=None, min_length=1, max_length=5)
     execution_mode: ExecutionMode | None = None
+    protocol_ref: ProtocolRef | None = None
+    protocol_bindings: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class SaveDraft(DraftFields):

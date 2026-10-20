@@ -15,6 +15,11 @@ import type {
 
 const API_PREFIX = '/api/v1'
 
+export function protocolRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+  return knowledgeJson(`${API_PREFIX}/protocols${path}`, { method,
+    ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) })
+}
+
 export function getAgentTemplates(signal?: AbortSignal): Promise<{ items: AgentTemplate[] }> {
   return knowledgeJson(`${API_PREFIX}/agent-templates`, { signal })
 }

@@ -13,7 +13,7 @@ def merge_expert_results(left: dict | None, right: dict | None) -> dict:
 
 def merge_state(state: dict, update: dict) -> None:
     for key, value in update.items():
-        state[key] = merge_expert_results(state.get(key), value) if key == 'expert_results' else value
+        state[key] = merge_expert_results(state.get(key), value) if key in ('expert_results', 'protocol_calls') else value
 
 
 class SubQuestion(TypedDict):

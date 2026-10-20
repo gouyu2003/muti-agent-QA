@@ -1,5 +1,5 @@
 export type NodeId = string
-export type AgentType = 'planner' | 'retriever' | 'answer_validator' | 'expert'
+export type AgentType = 'planner' | 'retriever' | 'answer_validator' | 'expert' | 'lead'
 export interface AgentInstance {
   agent_id: string
   agent_type: AgentType
@@ -47,6 +47,7 @@ export interface SystemInfo {
 }
 
 export interface WorkflowOption {
+  stage_agents?: Record<string, string[]>
   execution_mode?: 'sequential' | 'parallel'
   workflow_id: string
   name: string
@@ -187,6 +188,9 @@ export interface ModelDiagnostics {
 }
 
 export interface RunResult {
+  protocol_calls?: Record<string, import('./protocolTypes').ProtocolCall>
+  termination_reason?: string
+  consensus_status?: string
   model_diagnostics?: ModelDiagnostics
   answer_scope?: 'complete' | 'partial' | 'none'
   missing_information?: string[]
@@ -212,6 +216,7 @@ export interface StreamEvent {
     | 'run_started'
     | 'node_started'
     | 'node_completed'
+    | 'route_decided'
     | 'run_completed'
     | 'run_failed'
     | 'run_cancelled'
@@ -221,6 +226,9 @@ export interface StreamEvent {
 }
 
 export interface TraceStep {
+  callId?: string
+  stageId?: string
+  taskId?: string
   key: string
   node: NodeId
   agentName?: string
@@ -232,6 +240,7 @@ export interface TraceStep {
 }
 
 export interface RunViewState {
+  routes?: Record<string, unknown>[]
   status: RunStatus
   runId?: string
   activeNode?: NodeId
@@ -254,6 +263,8 @@ export interface RunFilters {
 }
 
 export interface SystemDraftFields {
+  protocol_ref?: import('./protocolTypes').ProtocolRef | null
+  protocol_bindings?: Record<string, string[]>
   agents?: AgentInstance[]
   execution_mode?: 'sequential' | 'parallel'
   name: string
@@ -264,6 +275,8 @@ export interface SystemDraftFields {
 }
 
 export interface SavedSystemSnapshot {
+  protocol_document?: import('./protocolTypes').ProtocolDocument
+  protocol_bindings?: Record<string, string[]>
   schema_version?: string
   instances?: AgentInstance[]
   execution_mode?: 'sequential' | 'parallel'

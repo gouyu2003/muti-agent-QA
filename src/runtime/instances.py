@@ -9,7 +9,7 @@ from pydantic import Field, StrictInt, field_validator
 from src.config_loader import load_agent_configs
 from src.runtime.specs import StrictSpec, WorkflowSpec
 
-AgentType = Literal['planner', 'retriever', 'answer_validator', 'expert']
+AgentType = Literal['planner', 'retriever', 'answer_validator', 'expert', 'lead']
 ExecutionMode = Literal['sequential', 'parallel']
 SOLO = 'single_expert'
 TEAM = 'multi_expert'
@@ -45,26 +45,29 @@ class AgentInstance(StrictSpec):
 def templates() -> list[dict]:
     defaults = load_agent_configs()
     result = []
-    for role in ('planner', 'retriever', 'answer_validator', 'expert'):
-        base = defaults['answer_validator_v0' if role == 'expert' else role + '_v0']
+    for role in ('planner', 'retriever', 'answer_validator', 'expert', 'lead'):
+        base = defaults['answer_validator_v0' if role in ('expert', 'lead') else role + '_v0']
         model = deepcopy(base['model_config']) if role != 'retriever' else None
         if role == 'expert':
             model['system_prompt'] = ('You are an independent evidence-grounded domain expert. '
                 'Answer the original question using only the supplied local evidence. '
                 'Report missing evidence or unresolved conflicts honestly.')
+        if role == 'lead':
+            model['system_prompt'] = ('Coordinate evidence-grounded experts. Decompose the question, select only relevant registered experts, '
+                'assign concrete tasks, inspect completed results and request another bounded round or submit a concise synthesis for review.')
         instance = AgentInstance(agent_id=role + '_1', agent_type=role,
-            name='领域专家' if role == 'expert' else base['agent_name'],
-            description='独立检索本实例材料并提出有证据的答案。' if role == 'expert' else base.get('description', ''),
+            name='主导智能体' if role == 'lead' else '领域专家' if role == 'expert' else base['agent_name'],
+            description='拆解问题、选择专家、分派任务并汇总结果。' if role == 'lead' else '独立检索本实例材料并提出有证据的答案。' if role == 'expert' else base.get('description', ''),
             model_config=model)
         result.append({'agent_type': role, 'name': instance.name,
             'uses_llm': role != 'retriever', 'uses_knowledge': role in ('retriever', 'expert'),
             'editable_fields': ['name', 'description'] + (['model_config'] if model else [])
                 + (['source_id', 'source_version', 'top_k'] if role in ('retriever', 'expert') else []),
-            'input_fields': ['question', 'sub_questions'] if role in ('retriever', 'expert') else
+            'input_fields': ['question', 'candidates', 'completed_results'] if role == 'lead' else ['question', 'sub_questions'] if role in ('retriever', 'expert') else
                 (['question', 'expert_results', 'evidence_chunks'] if role == 'answer_validator' else ['question']),
             'output_fields': {'planner': ['sub_questions', 'retrieval_strategy'],
                 'retriever': ['evidence_chunks'], 'expert': ['expert_results'],
-                'answer_validator': ['answer', 'verified', 'supporting_evidence']}[role],
+                'answer_validator': ['answer', 'verified', 'supporting_evidence'], 'lead': ['action', 'tasks', 'summary', 'reason']}[role],
             'defaults': instance.model_dump(by_alias=True)})
     return result
 
@@ -106,6 +109,8 @@ def validate_instances(raw: list[dict], previous: list[dict] | None = None) -> l
 
 
 def compile_workflow(template: str | None, agents: list[AgentInstance], mode: str) -> WorkflowSpec:
+    if any(a.agent_type == 'lead' for a in agents):
+        raise ValueError('Lead 实例需要绑定支持主导分派的自定义协议。')
     roles = {role: [a.agent_id for a in agents if a.agent_type == role]
              for role in ('planner', 'retriever', 'answer_validator', 'expert')}
     p, r, v, e = (roles[k] for k in ('planner', 'retriever', 'answer_validator', 'expert'))

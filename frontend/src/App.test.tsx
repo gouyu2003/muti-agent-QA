@@ -1,10 +1,12 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { getManagedSystems, getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats, getSystemInfo, getSystemOptions, streamQuestion } from './api'
+import { getAgentTemplates, protocolRequest, getManagedSystems, getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats, getSystemInfo, getSystemOptions, streamQuestion } from './api'
+import catalog from './protocolCatalog.fixture.json'
 import type { ManagedSystem, RunStatsSummary, StoredRunDetail, StoredRunRecord, SystemInfo, SystemOptions } from './types'
 
 vi.mock('./api', () => ({
+  protocolRequest: vi.fn(async () => ({ items: [] })),
   getManagedSystems: vi.fn(async () => ({ items: [] })),
   getAgentTemplates: vi.fn(async () => ({ items: [] })),
   getSystemInfo: vi.fn(),
@@ -126,6 +128,8 @@ describe('App', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(protocolRequest).mockImplementation(async path => (path === '/templates' ? catalog : { items: [] }) as never)
+    vi.mocked(getAgentTemplates).mockResolvedValue({ items: [] })
     vi.mocked(getManagedSystems).mockResolvedValue({ items: [] })
     vi.mocked(getSystemInfo).mockResolvedValue(systemInfo)
     vi.mocked(getSystemOptions).mockResolvedValue(systemOptions)
@@ -144,6 +148,25 @@ describe('App', () => {
     expect(screen.getByDisplayValue('A multi-hop question?')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /开始协同问答/ })).toBeEnabled()
     expect(screen.getByText('hard · bridge · 10 个上下文 · 3 条支撑事实')).toBeInTheDocument()
+  })
+
+  it('preserves unsaved system fields when managing protocols and refreshes choices on return', async () => {
+    vi.mocked(getAgentTemplates).mockResolvedValue({ items: [{ agent_type: 'planner', name: 'Planner', uses_llm: true, uses_knowledge: false, editable_fields: [], defaults: {
+      agent_id: 'plan', agent_type: 'planner', name: 'Planner', description: '', source_id: null, source_version: null, top_k: 3,
+      model_config: { model_name: 'test', system_prompt: 'P', temperature: 0, max_tokens: 1024 },
+    } }] })
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /我的系统/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '新建系统' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '新建系统' }))
+    fireEvent.change(screen.getByLabelText('系统名称'), { target: { value: 'Unsaved system' } })
+    fireEvent.click(screen.getByRole('button', { name: '创建或管理协作协议' }))
+    await screen.findByRole('button', { name: '从 单专家问答 创建' })
+    const count = vi.mocked(protocolRequest).mock.calls.filter(c => c[0] === '').length
+    fireEvent.click(screen.getByRole('button', { name: '返回我的系统' }))
+    expect(screen.getByDisplayValue('Unsaved system')).toBeVisible()
+    await waitFor(() => expect(vi.mocked(protocolRequest).mock.calls.filter(c => c[0] === '').length).toBeGreaterThan(count))
+    expect(screen.getByRole('combobox', { name: '执行协议' }).closest('.ant-select')).toHaveTextContent('选择个人协议')
   })
 
   it('runs a published multi-source system without requiring a global knowledge source', async () => {

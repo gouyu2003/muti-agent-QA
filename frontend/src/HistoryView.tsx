@@ -11,6 +11,7 @@ import { Alert, Button, Empty, Input, Pagination, Select, Skeleton, Tag, Tooltip
 import { getManagedSystems, getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats } from './api'
 import EvidenceLocation from './EvidenceLocation'
 import AgentResults from './AgentResults'
+import ProtocolCalls from './ProtocolCalls'
 import ModelDiagnostics, { ModelCalls } from './ModelDiagnostics'
 import type {
   RunEntryPoint,
@@ -113,6 +114,7 @@ function EventBody({ event }: { event: StoredTraceEvent }) {
   if (event.event_type !== 'node_completed') return null
 
   const output = asObject(payload.output) as Partial<RunResult>
+  if (output.protocol_calls) return <ProtocolCalls calls={output.protocol_calls} />
   if (event.node === 'planner_v0' || payload.agent_type === 'planner') {
     return (
       <div className="history-event-detail">
@@ -249,7 +251,7 @@ function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDetail; e
         <div><span>配置摘要 SHA-256</span><code>{configHash}</code></div>
         <div><span>知识源 SHA-256</span><code>{sourceHash}</code></div>
       </div>
-      {snapshot.schema_version === '2' ? <section className="history-instance-config"><h3>本次智能体配置</h3>
+      {['2', '3'].includes(String(snapshot.schema_version)) ? <section className="history-instance-config"><h3>本次智能体配置</h3>
         {Object.entries(asObject(snapshot.agents)).map(([id, value]) => {
           const a = asObject(value), model = asObject(a.model_config), s = asObject(asObject(snapshot.sources)[id])
           const usage = run.metrics.agent_usage?.[id]
@@ -294,6 +296,7 @@ function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDetail; e
       </section>
       <RunTimeline events={events} />
       <AgentResults results={result?.expert_results} />
+      <ProtocolCalls calls={result?.protocol_calls} />
       <RunEvidence result={result} source={source} />
     </article>
   )

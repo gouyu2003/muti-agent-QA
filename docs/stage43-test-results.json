@@ -1,0 +1,104 @@
+{
+  "date": "2026-10-20",
+  "timezone": "Asia/Shanghai",
+  "implementation": "complete_pending_browser_and_real_model_acceptance",
+  "code_sha256": "fcf6875f5748d576f6023ed0f0466fc3e264767c63bed9a0381ea010b3003718",
+  "backend": {
+    "passed": 309,
+    "deselected_integration": 3,
+    "duration_seconds": 33.79
+  },
+  "frontend": {
+    "files_passed": 7,
+    "passed": 54,
+    "duration_seconds": 109.28
+  },
+  "typescript": "passed",
+  "production_build": "passed",
+  "previous_offline_baseline": {
+    "backend_passed": 283,
+    "frontend_passed": 49
+  },
+  "batch_checks": {
+    "backend_initial": 61,
+    "v2_graph_and_freeze": 13,
+    "protocol_page": 5,
+    "system_and_protocol_pages": 18,
+    "app_navigation": 14,
+    "full_before_cleanup": {
+      "backend": 297,
+      "frontend": 53
+    },
+    "cleanup_v1_and_catalog": 35
+  },
+  "data_protection": {
+    "starting_modified_or_untracked_files_backed_up": 37,
+    "original_paths_checked": 698,
+    "persistent_files": 694,
+    "unchanged_persistent_files": 693,
+    "changed_persistent_files": [
+      "data/systems/systems.sqlite3"
+    ],
+    "sqlite_removed_transient_files": [
+      "data/runtime/runs.sqlite3-shm",
+      "data/runtime/runs.sqlite3-wal"
+    ],
+    "runs_database_sha256_unchanged": true,
+    "knowledge_protocols_experiments_unchanged": true
+  },
+  "cleanup": {
+    "applied": true,
+    "targets": {
+      "sys_f45fbc0a3aef4338bc523bc4adec5978": {
+        "revision": 2,
+        "releases": [
+          [
+            1,
+            1
+          ],
+          [
+            2,
+            2
+          ]
+        ]
+      },
+      "sys_d14bd0cce54344c58d7f721ef20a719d": {
+        "revision": 1,
+        "releases": [
+          [
+            1,
+            1
+          ]
+        ]
+      }
+    },
+    "before": {
+      "systems": 2,
+      "releases": 3
+    },
+    "associated_runs": [
+      "a8f4566c-ef19-44cd-aae9-894249458f69",
+      "662705d2-9db4-47cf-877d-5ef714a37f63"
+    ],
+    "history_sha256": "0cb3a9d586ce94c708efc13fc8ea52fd94b69fd1dd10a266df0086e0e445d726",
+    "backup": "D:\\multi-agent\\muti-agent-QA\\data\\systems\\systems.pre-unification-20261020T142157084289Z.sqlite3",
+    "backup_sha256": "048228e0837465bb37c40dc33df8f00b554f14294c1ef2cb2612f6be499405f2",
+    "restored_backup_verified": true,
+    "deleted_systems": 2,
+    "deleted_releases": 3,
+    "history_preserved": true,
+    "protected_files_verified": 693,
+    "after": {
+      "systems": 0,
+      "releases": 0
+    }
+  },
+  "real_model_acceptance": {
+    "status": "not_run",
+    "reason": "user_explicitly_prohibited_automatic_real_model_calls",
+    "previous_script_not_validated": true
+  },
+  "browser_manual_acceptance": "pending_combined_stage42_stage43",
+  "backend_started_or_restarted": false,
+  "git_committed_or_pushed": false
+}

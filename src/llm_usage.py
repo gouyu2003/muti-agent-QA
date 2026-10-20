@@ -101,15 +101,20 @@ class LLMUsageCollector:
         self._prompt_complete = True
         self._completion_complete = True
         self._total_complete = True
+        self.before_invoke = None
+        self.after_invoke = None
+        self.invoke_adapter = None
 
     def invoke(self, chat: Any, prompt: str) -> Any:
         """Invoke a chat model and account for the attempt and returned usage."""
 
         self.check_cancelled()
+        if self.before_invoke is not None:
+            self.before_invoke(prompt)
         with self._lock:
             self.call_count += 1
         try:
-            response = chat.invoke(prompt)
+            response = self.invoke_adapter(chat, prompt) if self.invoke_adapter is not None else chat.invoke(prompt)
         except Exception:
             with self._lock:
                 self._mark_missing()
@@ -118,6 +123,8 @@ class LLMUsageCollector:
         prompt_tokens, completion_tokens, total_tokens = extract_token_usage(response)
         with self._lock:
             self._add_usage(prompt_tokens, completion_tokens, total_tokens)
+        if self.after_invoke is not None:
+            self.after_invoke()
         return response
 
     def check_cancelled(self) -> None:
@@ -168,7 +175,7 @@ class LLMUsageCollector:
 
     def attempts(self) -> list[dict]:
         with self._lock:
-            return [dict(entry) for entry in self._attempts]
+            return [dict(entry) for entry in self._attempts] + [entry for child in self._children.values() for entry in child.attempts()]
 
     def _mark_missing(self) -> None:
         self._prompt_complete = False

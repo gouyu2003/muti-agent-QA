@@ -3,7 +3,7 @@ import { Button, Collapse, Input, InputNumber, Select, Space, Tag, Tooltip } fro
 import type { AgentInstance, AgentTemplate, AgentType, SystemOptions } from './types'
 
 export const ROLE_NAMES: Record<AgentType, string> = {
-  planner: '规划', retriever: 'BM25 检索', answer_validator: '回答与审核', expert: '领域专家',
+  planner: '规划', retriever: 'BM25 检索', answer_validator: '回答与审核', expert: '领域专家', lead: '主导智能体',
 }
 
 export function newInstance(template: AgentTemplate): AgentInstance {
@@ -19,7 +19,7 @@ export function AgentEditor({ agents, templates, options, disabled, onChange, re
     onChange(agents.map((a, i) => i === index ? { ...a, ...patch } : a))
   }
   return <section className="agent-editor" aria-label="智能体配置">
-    <div className="agent-editor-heading"><div><h3>智能体实例</h3><p>各实例配置随系统版本保存。串行专家按列表顺序执行。</p></div><Tag>{agents.length} / 5</Tag></div>
+    <div className="agent-editor-heading"><div><h3>智能体实例</h3><p>各实例配置随系统版本保存。执行顺序由协议阶段与槽位绑定决定。</p></div><Tag>{agents.length} / 5</Tag></div>
     <Space wrap className="agent-editor-add">
       {templates.map(t => <Button key={t.agent_type} disabled={disabled || agents.length >= 5}
         onClick={() => onChange([...agents, newInstance(t)])}>添加{ROLE_NAMES[t.agent_type]}</Button>)}
