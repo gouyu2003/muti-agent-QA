@@ -4,7 +4,7 @@ import ProtocolsView from './ProtocolsView'
 import ProtocolBinding from './ProtocolBinding'
 import ProtocolCalls from './ProtocolCalls'
 import { protocolRequest } from './api'
-import type { ProtocolSpec } from './protocolTypes'
+import type { ManagedProtocol, ProtocolSpec } from './protocolTypes'
 import type { ProtocolCall } from './protocolTypes'
 import catalog from './protocolCatalog.fixture.json'
 import { togglePlanner } from './protocolEditing'
@@ -15,11 +15,15 @@ const spec: ProtocolSpec = { language_version: '1', family: 'pipeline', slots: {
 beforeEach(() => { vi.resetAllMocks() })
 afterEach(cleanup)
 test('creates, edits, saves and publishes a user protocol, keeping dirty edits unpublished', async () => {
-  const item = { protocol_id: 'p1', draft_revision: 1, archived: false, versions: [], draft: { name: 'My pipeline', description: '', spec, revision: 1, protocol_id: 'p1', spec_sha256: 'hash' } }
+  const item: ManagedProtocol = { protocol_id: 'p1', draft_revision: 1, archived: false, versions: [], draft: { name: 'My pipeline', description: '', spec, revision: 1, protocol_id: 'p1', spec_sha256: 'hash' } }
   vi.mocked(protocolRequest).mockImplementation(async (path, method) => {
     if (path === '/templates') return catalog as never
     if (path === '') return (method === 'POST' ? item : { items: [] }) as never
-    if (path === '/p1/versions') return { version: 'v1' } as never
+    if (path === '/p1/versions') {
+      const published = { ...item.draft, version: 'v1' }
+      item.versions = [published]
+      return published as never
+    }
     return item as never
   })
   render(<ProtocolsView disabled={false} />)
@@ -28,9 +32,12 @@ test('creates, edits, saves and publishes a user protocol, keeping dirty edits u
   expect(screen.getByRole('button', { name: '发布协议版本' })).toBeDisabled()
   fireEvent.click(screen.getByText('保存协议草稿'))
   await screen.findByText('已保存 r1。')
+  expect(screen.getByText('暂无已发布版本')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: '发布协议版本' })).toBeEnabled()
   fireEvent.click(screen.getByRole('button', { name: '发布协议版本' }))
   await screen.findByText('已发布 v1，可在我的系统绑定。')
+  expect(screen.getByRole('combobox', { name: '协议发布版本' }).closest('.ant-select')).toHaveTextContent('v1')
+  expect(screen.getByText('My pipeline · v1 · hash')).toBeInTheDocument()
   await waitFor(() => expect(protocolRequest).toHaveBeenCalledWith('/p1/versions', 'POST', { expected_revision: 1 }))
   fireEvent.change(screen.getByLabelText('协议名称'), { target: { value: 'Changed' } })
   expect(screen.getByRole('button', { name: '发布协议版本' })).toBeDisabled()

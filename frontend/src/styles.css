@@ -1391,6 +1391,7 @@ textarea {
 .protocol-picker-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .protocol-picker-row > .ant-select { flex: 1; min-width: 0; }
 .protocol-picker-row .protocol-icon-button { flex: 0 0 44px; width: 44px; height: 44px; }
+.protocol-release-select { width: 160px; max-width: 100%; }
 .system-editor-tools { display: flex; align-items: center; gap: 8px; }
 
 /* Shared presentation rules; page actions and state remain in their owners. */

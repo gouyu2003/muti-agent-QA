@@ -36,7 +36,7 @@ export default function ProtocolsView({ disabled, active = true, onReturnToSyste
     if (dirty && !window.confirm('协议有未保存修改，确定放弃吗？')) return
     setSelected(item); setFields(item ? { name: item.draft.name, description: item.draft.description, spec: structuredClone(item.draft.spec) }
       : spec ? { name: '我的协作协议', description: '', spec: structuredClone(spec) } : undefined)
-    setRelease(undefined); setError(''); setNotice('')
+    setRelease(item?.versions[0]); setError(''); setNotice('')
   }
   function specPatch(patch: Partial<ProtocolSpec>) { if (fields) setFields({ ...fields, spec: { ...fields.spec, ...patch } }) }
   function stagePatch(index: number, patch: Partial<ProtocolSpec['stages'][number]>) { if (fields) specPatch({ stages: fields.spec.stages.map((s, i) => i === index ? { ...s, ...patch } : s) }) }
@@ -95,15 +95,15 @@ export default function ProtocolsView({ disabled, active = true, onReturnToSyste
         <Button disabled={locked} onClick={() => void act(async () => { await protocolRequest('/validate', 'POST', fields.spec); setNotice('协议校验通过。') })}>校验协议</Button>
         <Button type="primary" disabled={locked || !fields.name.trim()} onClick={() => void act(async () => {
           const saved = await protocolRequest<ManagedProtocol>(selected ? `/${selected.protocol_id}/draft` : '', selected ? 'PUT' : 'POST', { ...fields, ...(selected ? { expected_revision: selected.draft_revision } : {}) })
-          setSelected(saved); setFields({ name: saved.draft.name, description: saved.draft.description, spec: saved.draft.spec }); await reload(); setNotice(`已保存 r${saved.draft_revision}。`)
+          setSelected(saved); setRelease(saved.versions.find(v => v.version === release?.version) ?? saved.versions[0]); setFields({ name: saved.draft.name, description: saved.draft.description, spec: saved.draft.spec }); await reload(); setNotice(`已保存 r${saved.draft_revision}。`)
         })}>保存协议草稿</Button>
         <Button disabled={locked || dirty || !selected} onClick={() => void act(async () => {
           const doc = await protocolRequest<ProtocolDocument>(`/${selected!.protocol_id}/versions`, 'POST', { expected_revision: selected!.draft_revision })
-          setSelected(await protocolRequest(`/${selected!.protocol_id}`)); await reload(); setNotice(`已发布 ${doc.version}，可在我的系统绑定。`)
+          setSelected(await protocolRequest(`/${selected!.protocol_id}`)); setRelease(doc); await reload(); setNotice(`已发布 ${doc.version}，可在我的系统绑定。`)
         })}>发布协议版本</Button>
-        <Button disabled={disabled || busy} onClick={() => { setSelected(undefined); setFields({ ...structuredClone(fields), name: `${fields.name.slice(0, 95)} 副本` }) }}>复制为新协议</Button>
+        <Button disabled={disabled || busy} onClick={() => { setSelected(undefined); setRelease(undefined); setFields({ ...structuredClone(fields), name: `${fields.name.slice(0, 95)} 副本` }) }}>复制为新协议</Button>
         <Button disabled={locked || dirty || !selected} onClick={() => void act(async () => { setSelected(await protocolRequest(`/${selected!.protocol_id}/archive`, 'POST', { expected_revision: selected!.draft_revision })); await reload() })}>归档协议</Button>
-      </Space>{selected && <><h3>已发布版本（只读）</h3><Select aria-label="协议发布版本" value={release?.version} options={selected.versions.map(v => ({ value: v.version, label: v.version }))} onChange={v => setRelease(selected.versions.find(d => d.version === v))} />
+      </Space>{selected && <><h3>已发布版本（只读）</h3>{selected.versions.length ? <Select className="protocol-release-select" aria-label="协议发布版本" placeholder="选择发布版本" value={release?.version} options={selected.versions.map(v => ({ value: v.version, label: v.version }))} onChange={v => setRelease(selected.versions.find(d => d.version === v))} /> : <p>暂无已发布版本</p>}
         {release && <><p>{release.name} · {release.version} · {release.spec_sha256}</p><ProtocolPreview spec={release.spec} /></>}</>}
     </Card>}</div></div>
   </main>
