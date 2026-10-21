@@ -66,9 +66,6 @@ import type {
 const { TextArea } = Input
 const { Paragraph, Text, Title } = Typography
 
-const DEFAULT_QUESTION =
-  'What government position was held by the woman who portrayed Corliss Archer in the film Kiss and Tell?'
-
 const NODE_ORDER: NodeId[] = ['planner_v0', 'retriever_v0', 'answer_validator_v0']
 
 const NODE_META: Record<
@@ -447,8 +444,7 @@ export default function App() {
   const [submittedSelection, setSubmittedSelection] = useState<{ workflowId: string; sourceId: string; sourceVersion?: number }>()
   const [submittedSource, setSubmittedSource] = useState<SourceOption>()
   const [systemError, setSystemError] = useState('')
-  const [question, setQuestion] = useState(DEFAULT_QUESTION)
-  const questionTouchedRef = useRef(false)
+  const [question, setQuestion] = useState('')
   const [run, dispatch] = useReducer(runReducer, initialRunState)
   const abortRef = useRef<AbortController | undefined>(undefined)
 
@@ -465,10 +461,6 @@ export default function App() {
         setWorkflowId(choices.default_workflow_id)
         setSourceId(choices.default_source_id)
         setSourceVersion(choices.sources.find((item) => item.source_id === choices.default_source_id)?.version ?? undefined)
-        if (!questionTouchedRef.current) {
-          const source = choices.sources.find((item) => item.source_id === choices.default_source_id)
-          setQuestion(source?.example_question ?? info.dataset.default_question)
-        }
         setSystemError('')
       })
       .catch((error: unknown) => {
@@ -634,7 +626,12 @@ export default function App() {
 
       <div className="app-content">
       {/* Keep both editors mounted so navigation preserves their unsaved drafts. */}
-      <div hidden={!systemsActive}><SystemsView options={options} active={systemsActive} onManageProtocols={() => navigate('/protocols')} disabled={isRunning} onHistory={id => navigate(`/history?${new URLSearchParams({ systemId: id })}`)} onUse={selection => {
+      <div hidden={!systemsActive}><SystemsView options={options} active={systemsActive} onManageProtocols={() => navigate('/protocols')} disabled={isRunning} onHistory={id => navigate(`/history?${new URLSearchParams({ systemId: id })}`)} onDeleted={id => {
+        if (managedSelection?.systemId !== id) return
+        setManagedSelection(undefined); setSubmittedSelection(undefined); dispatch({ type: 'clear' })
+        setWorkflowId(options?.default_workflow_id ?? ''); setSourceId(options?.default_source_id ?? '')
+        setSourceVersion(options?.sources.find(source => source.source_id === options.default_source_id)?.version ?? undefined)
+      }} onUse={selection => {
         setManagedSelection(selection); setWorkflowId(selection.document.workflow_id ?? ''); setSourceId(selection.document.source_id ?? '')
         setSourceVersion(selection.document.source_version ?? undefined); setSubmittedSelection(undefined); dispatch({ type: 'clear' }); navigate('/run')
       }} /></div>
@@ -756,7 +753,7 @@ export default function App() {
             </div>
             <TextArea
               value={question}
-              onChange={(event) => { questionTouchedRef.current = true; setQuestion(event.target.value) }}
+              onChange={(event) => setQuestion(event.target.value)}
               autoSize={{ minRows: 3, maxRows: 6 }}
               maxLength={2000}
               disabled={isRunning}
@@ -765,7 +762,7 @@ export default function App() {
             <div className="question-actions">
               <Text type="secondary">{question.length} / 2000</Text>
               <Button
-                onClick={() => { if (currentSource?.example_question) { questionTouchedRef.current = true; setQuestion(currentSource.example_question) } }}
+                onClick={() => { if (currentSource?.example_question) setQuestion(currentSource.example_question) }}
                 disabled={isRunning || !currentSource?.example_question}
               >填入示例问题</Button>
               {isRunning ? (

@@ -7,6 +7,7 @@ import catalog from './protocolCatalog.fixture.json'
 import type { KnowledgeSource, ManagedSystem, RunStatsSummary, StoredRunDetail, StoredRunRecord, SystemInfo, SystemOptions } from './types'
 
 vi.mock('./api', () => ({
+  deleteManagedSystem: vi.fn(),
   protocolRequest: vi.fn(async () => ({ items: [] })),
   getManagedSystems: vi.fn(async () => ({ items: [] })),
   getAgentTemplates: vi.fn(async () => ({ items: [] })),
@@ -162,6 +163,9 @@ describe('App', () => {
 
     expect(screen.getByRole('heading', { name: '观察一次真实的多智能体协作' })).toBeInTheDocument()
     expect(await screen.findByText('服务正常')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '多跳问答问题' })).toHaveValue('')
+    expect(screen.getByRole('button', { name: /开始协同问答/ })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '填入示例问题' }))
     expect(screen.getByDisplayValue('A multi-hop question?')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /开始协同问答/ })).toBeEnabled()
     expect(screen.getByText('hard · bridge · 10 个上下文 · 3 条支撑事实')).toBeInTheDocument()
@@ -252,6 +256,7 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: '用于问答' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '用于问答' }))
     expect(window.location.pathname).toBe('/run')
+    if (!(screen.getByRole('textbox', { name: '多跳问答问题' }) as HTMLTextAreaElement).value) fireEvent.change(screen.getByRole('textbox', { name: '多跳问答问题' }), { target: { value: 'A multi-hop question?' } })
     fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
     await waitFor(() => expect(streamQuestion).toHaveBeenCalledWith(
       expect.any(String), expect.any(Function), expect.any(AbortSignal),
@@ -270,6 +275,7 @@ describe('App', () => {
     })
     renderApp()
     await screen.findByText('服务正常')
+    if (!(screen.getByRole('textbox', { name: '多跳问答问题' }) as HTMLTextAreaElement).value) fireEvent.change(screen.getByRole('textbox', { name: '多跳问答问题' }), { target: { value: 'A multi-hop question?' } })
     fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
     fireEvent.click(screen.getByRole('link', { name: /运行历史/ }))
     await screen.findByText('Chief of Protocol')
@@ -338,6 +344,7 @@ describe('App', () => {
     expect(screen.getByText('多个模型')).toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: '知识源' })).not.toBeInTheDocument()
     const start = screen.getByRole('button', { name: /开始协同问答/ })
+    fireEvent.change(screen.getByRole('textbox', { name: '多跳问答问题' }), { target: { value: 'A multi-hop question?' } })
     expect(start).toBeEnabled()
     fireEvent.click(start)
     await waitFor(() => expect(streamQuestion).toHaveBeenCalledWith(expect.any(String), expect.any(Function), expect.any(AbortSignal),
@@ -434,6 +441,7 @@ describe('App', () => {
   it('shows the default selection and records its IDs in the stream request', async () => {
     renderApp()
     expect(await screen.findByText('服务正常')).toBeInTheDocument()
+    if (!(screen.getByRole('textbox', { name: '多跳问答问题' }) as HTMLTextAreaElement).value) fireEvent.change(screen.getByRole('textbox', { name: '多跳问答问题' }), { target: { value: 'A multi-hop question?' } })
     fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
     expect(streamQuestion).toHaveBeenCalledWith(
       'A multi-hop question?', expect.any(Function), expect.any(AbortSignal),
@@ -460,6 +468,7 @@ describe('App', () => {
     })
     renderApp()
     await screen.findByText('服务正常')
+    if (!(screen.getByRole('textbox', { name: '多跳问答问题' }) as HTMLTextAreaElement).value) fireEvent.change(screen.getByRole('textbox', { name: '多跳问答问题' }), { target: { value: 'A multi-hop question?' } })
     fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
     expect((await screen.findAllByText('待验证')).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/句子索引 0|sentence #0/).length).toBeGreaterThan(0)
@@ -474,6 +483,7 @@ describe('App', () => {
 
     expect(screen.getByDisplayValue('My own question?')).toBeInTheDocument()
     expect(screen.getByText('演示材料')).toBeInTheDocument()
+    if (!(screen.getByRole('textbox', { name: '多跳问答问题' }) as HTMLTextAreaElement).value) fireEvent.change(screen.getByRole('textbox', { name: '多跳问答问题' }), { target: { value: 'A multi-hop question?' } })
     fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
     await waitFor(() => expect(streamQuestion).toHaveBeenCalledWith(
       'My own question?', expect.any(Function), expect.any(AbortSignal),
@@ -488,6 +498,7 @@ describe('App', () => {
     fireEvent.click(await screen.findByText('固定三节点流程', { selector: '.ant-select-item-option-content' }))
     expect(screen.getByText('固定顺序执行一次，验证后结束。')).toBeInTheDocument()
     expect(screen.queryByText('返回检索')).not.toBeInTheDocument()
+    if (!(screen.getByRole('textbox', { name: '多跳问答问题' }) as HTMLTextAreaElement).value) fireEvent.change(screen.getByRole('textbox', { name: '多跳问答问题' }), { target: { value: 'A multi-hop question?' } })
     fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
     await waitFor(() => expect(streamQuestion).toHaveBeenCalledWith(
       'A multi-hop question?', expect.any(Function), expect.any(AbortSignal),
@@ -503,6 +514,7 @@ describe('App', () => {
     })
     renderApp()
     await screen.findByText('服务正常')
+    if (!(screen.getByRole('textbox', { name: '多跳问答问题' }) as HTMLTextAreaElement).value) fireEvent.change(screen.getByRole('textbox', { name: '多跳问答问题' }), { target: { value: 'A multi-hop question?' } })
     fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
     expect(await screen.findByText(/本次运行：反馈重试流程/)).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: '协作流程' })).toBeDisabled()
@@ -569,6 +581,7 @@ describe('App', () => {
     fireEvent.click(await screen.findByText('版本 1', { selector: '.ant-select-item-option-content' }))
     expect(screen.getByText('版本 1 · 1 个文件 · 3 个片段')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /填入示例问题/ })).toBeDisabled()
+    if (!(screen.getByRole('textbox', { name: '多跳问答问题' }) as HTMLTextAreaElement).value) fireEvent.change(screen.getByRole('textbox', { name: '多跳问答问题' }), { target: { value: 'A multi-hop question?' } })
     fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
     expect(streamQuestion).toHaveBeenCalledWith('A multi-hop question?', expect.any(Function), expect.any(AbortSignal),
       { workflowId: 'multi_hop_qa_v0', sourceId: 'user_notes', sourceVersion: 1 })

@@ -216,6 +216,16 @@ class SystemStore:
                        (json.dumps(document, ensure_ascii=False), datetime.now(timezone.utc).isoformat(), system_id))
         return self.get(system_id)
 
+    def delete(self, system_id, expected_revision):
+        """Remove the composition and releases; run records own their snapshots."""
+        with self.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = self._row(db, system_id)
+            if row['revision'] != expected_revision:
+                raise SystemFailure('草稿已发生修改，请重新读取后再删除。', 409)
+            db.execute('DELETE FROM releases WHERE system_id=?', (system_id,))
+            db.execute('DELETE FROM systems WHERE system_id=?', (system_id,))
+
     @staticmethod
     def validate(document):
         if document['snapshot'].get('schema_version') == '3':

@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from time import perf_counter
 from typing import Callable
+from pydantic import ValidationError
 
 from src.agents.llm_retry import response_text
 from src.llm_usage import extract_token_usage
@@ -12,12 +13,46 @@ ERROR_LABELS = {
     "empty_response": "模型返回空正文",
     "truncated_response": "模型输出被 Token 上限截断",
     "invalid_json": "模型输出不是合法 JSON",
-    "invalid_schema": "模型输出缺少必需字段或字段类型错误",
+    "invalid_schema": "模型输出不符合字段或业务规则",
     "invalid_citation": "答案引用无法定位，请原样复制提供的引用标识",
 }
 
 class InvalidCitation(ValueError):
     pass
+
+
+class SchemaViolation(ValueError):
+    """A public, application-authored rule violation; never include model text."""
+
+    def __init__(self, code: str, message: str, path: str = "$"):
+        super().__init__(message)
+        self.issue = {"path": path, "code": code, "message": message}
+
+
+def validation_issues(exc: Exception) -> list[dict]:
+    """Keep bounded field diagnostics, excluding rejected values and raw exceptions."""
+    if isinstance(exc, SchemaViolation):
+        return [dict(exc.issue)]
+    if isinstance(exc, ValidationError):
+        labels = {
+            "missing": "缺少必需字段。", "extra_forbidden": "不允许额外字段，请删除该字段。",
+            "string_type": "必须是字符串。", "list_type": "必须是数组。",
+            "model_type": "必须是符合 schema 的对象。", "literal_error": "必须使用 schema 中允许的枚举值。",
+            "string_pattern_mismatch": "必须符合 schema 中的字符串格式。",
+            "string_too_short": "字符串长度低于 schema 的下限。",
+            "string_too_long": "字符串长度超过 schema 的上限。",
+            "too_long": "元素数量超过 schema 的上限。",
+        }
+        issues = []
+        for error in exc.errors(include_input=False, include_url=False)[:8]:
+            rule = (error.get("ctx") or {}).get("error")
+            if isinstance(rule, SchemaViolation):
+                issues.append(dict(rule.issue))
+            else:
+                issues.append({"path": ".".join(str(p)[:64] for p in error["loc"][:8]) or "$",
+                    "code": error["type"], "message": labels.get(error["type"], "字段不符合 schema 的约束。")})
+        return issues
+    return [{"path": "$", "code": "invalid_schema", "message": "输出不符合约定结构，请核对 schema。"}]
 
 
 def invoke_json(chat, prompt: str, retries: int, usage=None, *, validate: Callable,
@@ -68,7 +103,7 @@ def invoke_json(chat, prompt: str, retries: int, usage=None, *, validate: Callab
             if error is None:
                 try:
                     if not isinstance(data, dict):
-                        raise ValueError("object required")
+                        raise SchemaViolation("object_required", "顶层必须是 JSON 对象。")
                     validate(data)
                 except InvalidCitation:
                     error = "invalid_citation"
@@ -76,8 +111,9 @@ def invoke_json(chat, prompt: str, retries: int, usage=None, *, validate: Callab
                         {k: str(v)[:200] for k, v in ref.items() if k in
                          ("sq_id", "evidence_id", "chunk_id", "source_id", "source_title", "source_version", "source_paragraph")}
                         for ref in data.get("supporting_evidence", [])[:8] if isinstance(ref, dict)]
-                except (ValueError, TypeError, KeyError):
+                except (ValueError, TypeError, KeyError) as exc:
                     error = "invalid_schema"
+                    entry["validation_errors"] = validation_issues(exc)
         entry["outcome"] = error or "ok"
         calls.append(entry)
         if usage:
@@ -90,4 +126,7 @@ def invoke_json(chat, prompt: str, retries: int, usage=None, *, validate: Callab
             "只填写要求的字段，保持答案和说明简短，引用只复制标识，不重复原文。"
             "不要输出分析过程、Markdown 或 JSON 之外的文字。"
         )
+        if entry.get("validation_errors"):
+            request += "\n具体校验错误（只修正这些错误，仍须遵守完整 schema）：" + json.dumps(
+                entry["validation_errors"], ensure_ascii=False)
     return None, diagnostics

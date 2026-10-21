@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Alert, Button, Card, Collapse, Empty, Input, Modal, Select, Tag } from 'antd'
-import { getAgentTemplates, getManagedSystem, getManagedSystems, publishManagedSystem, saveManagedSystem } from './api'
+import { deleteManagedSystem, getAgentTemplates, getManagedSystem, getManagedSystems, publishManagedSystem, saveManagedSystem } from './api'
+import { DeleteOutlined } from './Icons'
 import { AgentEditor, newInstance } from './AgentEditor'
 import { PromptBlock } from './PromptBlock'
 import ProtocolBinding from './ProtocolBinding'
@@ -42,8 +43,8 @@ export function SystemConfigPreview({ document }: { document: SystemDocument }) 
   </div>
 }
 
-export default function SystemsView({ options, disabled, onUse, onHistory, active = true, onManageProtocols }: {
-  options?: SystemOptions; disabled: boolean; active?: boolean; onManageProtocols?: () => void; onUse: (selection: ManagedSelection) => void; onHistory: (id: string) => void
+export default function SystemsView({ options, disabled, onUse, onHistory, active = true, onManageProtocols, onDeleted }: {
+  options?: SystemOptions; disabled: boolean; active?: boolean; onManageProtocols?: () => void; onUse: (selection: ManagedSelection) => void; onHistory: (id: string) => void; onDeleted?: (id: string) => void
 }) {
   const empty: SystemDraftFields = { name: '', description: '', workflow_id: null, source_id: null, source_version: null, agents: [], protocol_ref: null, protocol_bindings: {} }
   const [systems, setSystems] = useState<ManagedSystem[]>([])
@@ -61,6 +62,7 @@ export default function SystemsView({ options, disabled, onUse, onHistory, activ
   const [generatedAgents, setGeneratedAgents] = useState<string>()
   const [pendingProtocol, setPendingProtocol] = useState<ProtocolDocument>()
   const [protocol, setProtocol] = useState<ProtocolDocument>()
+  const [deleteTarget, setDeleteTarget] = useState<ManagedSystem>()
   const dirty = selected ? JSON.stringify(fields) !== JSON.stringify(fieldsOf(selected.draft)) : Boolean(fields.name || fields.description || fields.source_id || (editing && fields.agents?.length))
   const release = selected?.versions.find(item => item.version === version)
   const issues = selected?.draft.snapshot.configuration_errors ?? []
@@ -124,6 +126,19 @@ export default function SystemsView({ options, disabled, onUse, onHistory, activ
     })
   }
 
+  async function remove() {
+    if (!deleteTarget || disabled || busy) return
+    const target = deleteTarget
+    await action(async () => {
+      await deleteManagedSystem(target.system_id, target.draft_revision)
+      setSystems(current => current.filter(item => item.system_id !== target.system_id))
+      setSelected(undefined); setFields(structuredClone(empty)); setVersion(undefined); setEditing(false)
+      setProtocol(undefined); setPendingProtocol(undefined); setGeneratedAgents(undefined); setDeleteTarget(undefined)
+      setNotice(`已删除「${target.draft.name}」。已有运行历史仍保留。`)
+      onDeleted?.(target.system_id)
+    })
+  }
+
   function use(document: SystemDocument, published: boolean) {
     if (!selected) return
     onUse({ systemId: selected.system_id, name: document.name, document,
@@ -146,7 +161,10 @@ export default function SystemsView({ options, disabled, onUse, onHistory, activ
       </button>) : <Empty description="尚未创建系统" />}
     </aside><div className="systems-editor">
       {!editing ? <Empty description="选择已有系统，或点击新建系统。" /> : <>
-        <Card title={selected ? '编辑系统草稿' : '创建系统草稿'} extra={dirty ? <Tag color="orange">有未保存修改</Tag> : <Tag>已保存</Tag>}>
+        <Card title={selected ? '编辑系统草稿' : '创建系统草稿'} extra={<div className="system-editor-tools">
+          {dirty ? <Tag color="orange">有未保存修改</Tag> : <Tag>已保存</Tag>}
+          {selected && <Button danger disabled={locked} icon={<DeleteOutlined />} onClick={() => { setError(''); setDeleteTarget(selected) }}>删除系统</Button>}
+        </div>}>
           <div className="system-fields">
             <label htmlFor="system-name">系统名称</label><Input id="system-name" value={fields.name} maxLength={100} disabled={locked} onChange={event => setFields({ ...fields, name: event.target.value })} />
             <label htmlFor="system-description">系统说明</label><Input.TextArea id="system-description" value={fields.description} maxLength={2000} disabled={locked} onChange={event => setFields({ ...fields, description: event.target.value })} />
@@ -185,6 +203,14 @@ export default function SystemsView({ options, disabled, onUse, onHistory, activ
         </Card> : null}
       </>}
     </div></div>
+    <Modal title="删除系统" open={Boolean(deleteTarget)} okText="确认删除" cancelText="取消"
+      okButtonProps={{ danger: true, disabled }} cancelButtonProps={{ disabled: busy }} confirmLoading={busy}
+      closable={!busy} mask={{ closable: !busy }} keyboard={!busy}
+      onCancel={() => { if (!busy) setDeleteTarget(undefined) }} onOk={() => void remove()}>
+      <p>确定删除「{deleteTarget?.draft.name}」吗？系统草稿及全部发布版本将被删除，已有运行历史仍会保留。</p>
+      {dirty && <p>当前未保存的修改也会丢弃。</p>}
+      {error && <Alert type="error" title="删除失败" description={error} />}
+    </Modal>
     <Modal title="切换执行协议" open={Boolean(pendingProtocol)} onCancel={() => setPendingProtocol(undefined)}
       footer={<div className="system-actions">
         <Button onClick={() => setPendingProtocol(undefined)}>取消</Button>

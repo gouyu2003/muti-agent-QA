@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 from src.runtime.specs import StrictSpec
 from src.agents import answer_validator
-from src.agents.structured_output import invoke_json
+from src.agents.structured_output import SchemaViolation, invoke_json
 
 
 class Assignment(StrictSpec):
@@ -21,33 +21,60 @@ class LeadDecision(StrictSpec):
 
     @model_validator(mode='after')
     def valid_tasks(self):
-        if (self.action == 'dispatch') != bool(self.tasks): raise ValueError('dispatch 必须包含任务，review 不得包含任务。')
-        if len({t.task_id for t in self.tasks}) != len(self.tasks): raise ValueError('本轮任务 ID 不能重复。')
-        if any(not t.instruction.strip() for t in self.tasks): raise ValueError('任务内容不能为空。')
-        if self.action == 'review' and not self.summary.strip(): raise ValueError('提交审核时需给出汇总答案。')
+        if (self.action == 'dispatch') != bool(self.tasks):
+            raise SchemaViolation('action_tasks_mismatch', 'dispatch 必须包含任务，review 不得包含任务。', 'tasks')
+        if len({t.task_id for t in self.tasks}) != len(self.tasks):
+            raise SchemaViolation('duplicate_task_id', '本轮任务 ID 不能重复。', 'tasks')
+        if any(not t.instruction.strip() for t in self.tasks):
+            raise SchemaViolation('blank_instruction', '任务内容不能为空。', 'tasks')
+        if self.action == 'review' and not self.summary.strip():
+            raise SchemaViolation('missing_summary', '提交审核时需给出汇总答案。', 'summary')
         return self
 
 
 def lead_decision(config, input_data, usage):
     candidates = {c['agent_id'] for c in input_data['candidates']}
     completed = any(c['kind'] == 'dispatch' for c in input_data['reads'])
+    schema = LeadDecision.model_json_schema()
+    schema['$defs']['Assignment']['properties']['agent_id']['enum'] = sorted(candidates)
+    examples = {}
+    if candidates:
+        examples['dispatch'] = {'action': 'dispatch', 'tasks': [{
+            'task_id': 'lookup_1', 'agent_id': input_data['candidates'][0]['agent_id'],
+            'instruction': 'Find the specific fact assigned to this expert in its bound materials.'}],
+            'summary': '', 'reason': 'This expert covers the required fact.'}
+    if completed:
+        examples['review'] = {'action': 'review', 'tasks': [],
+            'summary': 'Summarize only facts actually supported by completed_results; state any missing facts.',
+            'reason': 'The available expert results are ready for review.'}
     prompt = config['model_config']['system_prompt'] + '\n' + json.dumps({
         'stage': 'lead', 'question': input_data['question'], 'instructions': input_data['task']['instruction'],
         'candidates': input_data['candidates'], 'completed_results': input_data['reads'],
-        'output_contract': {'action': 'dispatch or review', 'tasks': [{'task_id': 'unique_id', 'agent_id': 'candidate ID', 'instruction': 'specific subtask'}],
-                            'summary': 'synthesis for review', 'reason': 'brief public decision reason'},
-        'rules': 'Dispatch only registered candidates, at most three concrete tasks per round. Never claim evidence not supplied. '
-                 'After inspecting results, dispatch missing work or review with tasks=[] and a concise summary.'}, ensure_ascii=False)
+        'output_contract': schema, 'format_examples': examples,
+        'allowed_actions': ['dispatch', 'review'] if completed else ['dispatch'],
+        'rules': 'Return exactly one JSON object matching output_contract, with no Markdown or extra fields. '
+                 'action must be exactly dispatch or review, never the phrase "dispatch or review". '
+                 'On the first turn you MUST dispatch; review is allowed only after completed expert results exist. '
+                 'Dispatch 1 to 3 concrete tasks only to relevant registered candidates. Copy agent_id exactly, not the name. '
+                 'Use unique task_id values matching ^[A-Za-z][A-Za-z0-9_-]{0,63}$. Instructions must not be blank. '
+                 'The examples demonstrate format only: select experts and write tasks for the actual question. '
+                 'Never claim evidence not supplied. After inspecting results, dispatch missing work or review with '
+                 'tasks=[] and a nonblank concise summary. Always provide a nonempty reason.'}, ensure_ascii=False)
     def validate(data):
         decision = LeadDecision.model_validate(data)
-        if any(t.agent_id not in candidates for t in decision.tasks): raise ValueError('目标专家未注册。')
-        if decision.action == 'review' and not completed: raise ValueError('至少完成一轮专家任务后才能汇总。')
+        for index, task in enumerate(decision.tasks):
+            if task.agent_id not in candidates:
+                raise SchemaViolation('unregistered_agent', '目标专家未注册，请原样复制 candidates 中的 agent_id。', f'tasks.{index}.agent_id')
+        if decision.action == 'review' and not completed:
+            raise SchemaViolation('review_before_dispatch', '至少完成一轮专家任务后才能汇总；本轮必须 dispatch。', 'action')
     result, diagnostics = invoke_json(answer_validator.default_llm(config), prompt,
         config.get('failure_handling', {}).get('max_retries', 2), usage, validate=validate,
         max_tokens=config['model_config']['max_tokens'])
     if result is None:
         from src.runtime.protocol_runtime import ProtocolExecutionError
-        raise ProtocolExecutionError('Lead 未返回合法的分派决定。')
+        issues = diagnostics['calls'][-1].get('validation_errors', [])
+        detail = '；'.join(f"{e['path']}: {e['message']}" for e in issues[:3])
+        raise ProtocolExecutionError('Lead 未返回合法的分派决定。' + (f'最后一次校验：{detail}' if detail else ''))
     return {**LeadDecision.model_validate(result).model_dump(), 'model_diagnostics': diagnostics}
 
 

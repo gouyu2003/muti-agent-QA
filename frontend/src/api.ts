@@ -128,6 +128,10 @@ export function getManagedSystem(id: string): Promise<ManagedSystem> {
   return knowledgeJson(`${API_PREFIX}/systems/${encodeURIComponent(id)}`)
 }
 
+export function deleteManagedSystem(id: string, revision: number): Promise<{ deleted: boolean; system_id: string }> {
+  return knowledgeJson(`${API_PREFIX}/systems/${encodeURIComponent(id)}?expected_revision=${revision}`, { method: 'DELETE' })
+}
+
 export function saveManagedSystem(fields: SystemDraftFields, id?: string, revision?: number): Promise<ManagedSystem> {
   return knowledgeJson(`${API_PREFIX}/systems${id ? `/${encodeURIComponent(id)}/draft` : ''}`, {
     method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' },

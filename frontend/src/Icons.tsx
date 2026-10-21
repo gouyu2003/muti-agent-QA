@@ -2,7 +2,7 @@ import {
   ArrowDown, ArrowRight, ArrowUp, Bot, BotMessageSquare, Boxes, Check,
   CircleCheck, CirclePause, CirclePlay, CircleX, Clock3, Copy, Database,
   Download, FileSearch, GitBranch, History, LoaderCircle, Menu, RefreshCw,
-  Search, ShieldCheck, Square, TextWrap, Workflow,
+  Search, ShieldCheck, Square, TextWrap, Trash2, Workflow,
 } from 'lucide-react'
 import type { LucideIcon, LucideProps } from 'lucide-react'
 
@@ -38,4 +38,5 @@ export const RobotOutlined = icon(Bot)
 export const SafetyCertificateOutlined = icon(ShieldCheck)
 export const SearchOutlined = icon(Search)
 export const StopOutlined = icon(Square)
+export const DeleteOutlined = icon(Trash2)
 export const WorkflowOutlined = icon(Workflow)

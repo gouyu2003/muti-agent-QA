@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import SystemsView from './SystemsView'
-import { getAgentTemplates, getManagedSystem, getManagedSystems, publishManagedSystem, saveManagedSystem, protocolRequest } from './api'
+import { deleteManagedSystem, getAgentTemplates, getManagedSystem, getManagedSystems, publishManagedSystem, saveManagedSystem, protocolRequest } from './api'
 import type { AgentTemplate, ManagedSystem, SystemOptions } from './types'
 import type { ManagedProtocol, ProtocolCatalog } from './protocolTypes'
 import catalogFixture from './protocolCatalog.fixture.json'
@@ -10,7 +10,7 @@ const catalog = catalogFixture as unknown as ProtocolCatalog
 const protocols: ManagedProtocol[] = catalog.items.map(t => ({ protocol_id: t.template_id, draft_revision: 1, archived: false, versions: [],
   draft: { protocol_id: t.template_id, revision: 1, name: t.name, description: '', spec_sha256: 'hash', spec: t.spec } }))
 
-vi.mock('./api', () => ({ protocolRequest: vi.fn().mockResolvedValue({ items: [] }), getAgentTemplates: vi.fn(), getManagedSystems: vi.fn(), getManagedSystem: vi.fn(), saveManagedSystem: vi.fn(), publishManagedSystem: vi.fn() }))
+vi.mock('./api', () => ({ deleteManagedSystem: vi.fn(), protocolRequest: vi.fn().mockResolvedValue({ items: [] }), getAgentTemplates: vi.fn(), getManagedSystems: vi.fn(), getManagedSystem: vi.fn(), saveManagedSystem: vi.fn(), publishManagedSystem: vi.fn() }))
 
 const item: ManagedSystem = {
   system_id: 'sys_a', draft_revision: 1, created_at: 'now', updated_at: 'now', versions: [],
@@ -35,6 +35,60 @@ beforeEach(() => {
   vi.mocked(getAgentTemplates).mockResolvedValue({ items: templates })
 })
 afterEach(() => { cleanup(); vi.clearAllMocks() })
+
+it('deletes only after confirmation and clears the selected system', async () => {
+  const onDeleted = vi.fn()
+  vi.mocked(deleteManagedSystem).mockResolvedValue({ deleted: true, system_id: item.system_id })
+  render(<SystemsView options={options} disabled={false} onUse={vi.fn()} onHistory={vi.fn()} onDeleted={onDeleted} />)
+  fireEvent.click(await screen.findByRole('button', { name: /Research system/ }))
+  fireEvent.click(screen.getByRole('button', { name: '删除系统' }))
+  expect(deleteManagedSystem).not.toHaveBeenCalled()
+  expect(screen.getByRole('dialog')).toHaveTextContent('已有运行历史仍会保留')
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^取\s*消$/ }))
+  expect(deleteManagedSystem).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '删除系统' }))
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '确认删除' }))
+  await screen.findByText('已删除「Research system」。已有运行历史仍保留。')
+  expect(deleteManagedSystem).toHaveBeenCalledWith('sys_a', 1)
+  expect(onDeleted).toHaveBeenCalledWith('sys_a')
+  expect(screen.queryByRole('button', { name: /Research system/ })).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('系统名称')).not.toBeInTheDocument()
+})
+
+it('preserves the system and edits when deletion fails', async () => {
+  vi.mocked(deleteManagedSystem).mockRejectedValue(new Error('草稿已发生修改，请重新读取后再删除。'))
+  render(<SystemsView options={options} disabled={false} onUse={vi.fn()} onHistory={vi.fn()} />)
+  fireEvent.click(await screen.findByRole('button', { name: /Research system/ }))
+  fireEvent.change(screen.getByLabelText('系统名称'), { target: { value: 'Unsaved name' } })
+  fireEvent.click(screen.getByRole('button', { name: '删除系统' }))
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '确认删除' }))
+  await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('草稿已发生修改，请重新读取后再删除。'))
+  expect(screen.getByDisplayValue('Unsaved name')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /Research system/ })).toBeInTheDocument()
+})
+
+it('disables deletion while a run is active', async () => {
+  const { rerender } = render(<SystemsView options={options} disabled={false} onUse={vi.fn()} onHistory={vi.fn()} />)
+  fireEvent.click(await screen.findByRole('button', { name: /Research system/ }))
+  rerender(<SystemsView options={options} disabled onUse={vi.fn()} onHistory={vi.fn()} />)
+  expect(screen.getByRole('button', { name: '删除系统' })).toBeDisabled()
+})
+
+it('keeps protocol icon actions beside the picker and exposes hover labels', async () => {
+  const onManageProtocols = vi.fn()
+  render(<SystemsView options={options} disabled={false} onManageProtocols={onManageProtocols} onUse={vi.fn()} onHistory={vi.fn()} />)
+  fireEvent.click(await screen.findByRole('button', { name: /Research system/ }))
+  const row = screen.getByRole('combobox', { name: '执行协议' }).closest('.protocol-picker-row')!
+  const refresh = within(row as HTMLElement).getByRole('button', { name: '刷新协议列表' })
+  const manage = within(row as HTMLElement).getByRole('button', { name: '创建或管理协作协议' })
+  expect(refresh).toHaveTextContent('')
+  expect(manage).toHaveTextContent('')
+  await waitFor(() => expect(refresh).toBeEnabled())
+  fireEvent.mouseEnter(refresh)
+  expect(await screen.findByRole('tooltip')).toHaveTextContent('刷新协议列表')
+  fireEvent.click(manage)
+  expect(onManageProtocols).toHaveBeenCalledOnce()
+})
 
 it('creates a persisted draft and requires saving changes before a test run', async () => {
   const onUse = vi.fn()
@@ -228,6 +282,7 @@ it('retains an archived draft reference and editor state when refreshing after p
   rerender(<SystemsView options={options} disabled={false} active onUse={vi.fn()} onHistory={vi.fn()} />)
   expect(screen.getByDisplayValue('Unsaved name')).toBeInTheDocument()
   await waitFor(() => expect(screen.getByRole('combobox', { name: '执行协议' }).closest('.ant-select')).toHaveTextContent('草稿 r1'))
+  await waitFor(() => expect(screen.getByRole('button', { name: '刷新协议列表' })).toBeEnabled())
   vi.mocked(protocolRequest).mockRejectedValue(new Error('offline'))
   fireEvent.click(screen.getByRole('button', { name: '刷新协议列表' }))
   await screen.findByText('协议列表加载失败；保留当前明确引用')

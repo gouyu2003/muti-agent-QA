@@ -1,5 +1,5 @@
 """Local workspace system management, deliberately without config JSON editing."""
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from src.runtime.instances import AgentInstance, ExecutionMode, templates
 from src.runtime.protocols import ProtocolRef
@@ -42,6 +42,12 @@ def create_system(body: DraftFields, request: Request):
 @router.get('/{system_id}')
 def get_system(system_id: str, request: Request):
     return request.app.state.system_store.get(system_id)
+
+
+@router.delete('/{system_id}')
+def delete_system(system_id: str, request: Request, expected_revision: int = Query(ge=1)):
+    request.app.state.system_store.delete(system_id, expected_revision)
+    return {'deleted': True, 'system_id': system_id}
 
 
 @router.put('/{system_id}/draft')
