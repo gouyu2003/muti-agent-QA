@@ -18,7 +18,10 @@ import {
   SafetyCertificateOutlined,
   SearchOutlined,
   StopOutlined,
-} from '@ant-design/icons'
+  MenuOutlined,
+  BotMessageSquareOutlined,
+  WorkflowOutlined,
+} from './Icons'
 import {
   Alert,
   Badge,
@@ -75,19 +78,19 @@ const NODE_META: Record<
   planner_v0: {
     shortName: '规划智能体',
     english: 'PLANNER',
-    color: '#3157d5',
+    color: '#0066cc',
     icon: <BranchesOutlined />,
   },
   retriever_v0: {
     shortName: '检索智能体',
     english: 'RETRIEVER',
-    color: '#138a8a',
+    color: '#1f7551',
     icon: <SearchOutlined />,
   },
   answer_validator_v0: {
     shortName: '回答与验证智能体',
     english: 'ANSWER · VALIDATOR',
-    color: '#c77816',
+    color: '#935c10',
     icon: <SafetyCertificateOutlined />,
   },
   expert_v0: { shortName: '领域专家', english: 'EXPERT', color: '#7355a5', icon: <RobotOutlined /> },
@@ -431,6 +434,7 @@ function ResultPanel({ result, durationMs, source }: { result?: RunResult; durat
 }
 
 export default function App() {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const navigate = useNavigate()
   const systemsActive = Boolean(useMatch('/systems'))
   const protocolsActive = Boolean(useMatch('/protocols'))
@@ -589,36 +593,46 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar">
+      <aside className="app-sidebar" data-open={sidebarOpen}>
         <div className="brand-lockup">
           <div className="brand-mark">
-            <ApartmentOutlined />
+            <BotMessageSquareOutlined />
           </div>
           <div>
             <strong>Multi-Agent QA</strong>
             <span>可配置多智能体协同问答系统</span>
           </div>
         </div>
-        <nav className="workspace-nav" aria-label="工作区视图">
-          <NavLink to="/run" end>
-            <PlayCircleFilled /> 实时运行
+        <button className="sidebar-toggle" type="button" aria-label="切换导航菜单" aria-expanded={sidebarOpen} aria-controls="workspace-navigation" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          <MenuOutlined />
+        </button>
+        <nav id="workspace-navigation" className="workspace-nav" aria-label="工作区视图">
+          <span className="nav-group-label">使用</span>
+          <NavLink to="/run" end onClick={() => setSidebarOpen(false)}>
+            <span className="nav-icon nav-icon-run"><PlayCircleFilled /></span> 实时运行
           </NavLink>
-          <NavLink to="/history" end>
-            <HistoryOutlined /> 运行历史
+          <NavLink to="/history" end onClick={() => setSidebarOpen(false)}>
+            <span className="nav-icon nav-icon-history"><HistoryOutlined /></span> 运行历史
           </NavLink>
-          <NavLink to="/knowledge" end>
-            <DatabaseOutlined /> 知识源
+          <span className="nav-group-label">配置</span>
+          <NavLink to="/systems" end onClick={() => setSidebarOpen(false)}>
+            <span className="nav-icon nav-icon-systems"><ApartmentOutlined /></span> 我的系统
           </NavLink>
-          <NavLink to="/systems" end><ApartmentOutlined /> 我的系统</NavLink>
-          <NavLink to="/protocols" end>协作协议</NavLink>
+          <NavLink to="/protocols" end onClick={() => setSidebarOpen(false)}>
+            <span className="nav-icon nav-icon-protocols"><WorkflowOutlined /></span> 协作协议
+          </NavLink>
+          <NavLink to="/knowledge" end onClick={() => setSidebarOpen(false)}>
+            <span className="nav-icon nav-icon-knowledge"><DatabaseOutlined /></span> 知识源
+          </NavLink>
         </nav>
         <div className="system-badges">
           <Tag variant="filled">{shownWorkflow?.workflow_id ?? '等待配置'}</Tag>
           <Tag variant="filled">{managedSelection ? (selectedModels.length > 1 ? '多个模型' : selectedModels[0] ?? '本地检索') : system?.model_name ?? 'DeepSeek · Bailian'}</Tag>
           <Badge status={systemError ? 'error' : options ? 'success' : 'processing'} text={systemError ? '配置不可用' : options ? '服务正常' : '正在连接'} />
         </div>
-      </header>
+      </aside>
 
+      <div className="app-content">
       {/* Keep both editors mounted so navigation preserves their unsaved drafts. */}
       <div hidden={!systemsActive}><SystemsView options={options} active={systemsActive} onManageProtocols={() => navigate('/protocols')} disabled={isRunning} onHistory={id => navigate(`/history?${new URLSearchParams({ systemId: id })}`)} onUse={selection => {
         setManagedSelection(selection); setWorkflowId(selection.document.workflow_id ?? ''); setSourceId(selection.document.source_id ?? '')
@@ -793,8 +807,8 @@ export default function App() {
                 <Progress
                   percent={Math.min(92, 18 + completedSteps * 25)}
                   showInfo={false}
-                  strokeColor="#3157d5"
-                  trailColor="#e8edf4"
+                  strokeColor="#0066cc"
+                  trailColor="#ededf1"
                   className="run-progress"
                 />
               ) : null}
@@ -827,6 +841,7 @@ export default function App() {
           </main>
         } />
       </Routes>
+      </div>
     </div>
   )
 }

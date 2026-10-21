@@ -1,10 +1,10 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { CheckOutlined, CopyOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
+import { CheckOutlined, CopyOutlined, MenuUnfoldOutlined } from './Icons'
 import { Button, Segmented, Tooltip } from 'antd'
 
 const ROLE_COLORS: Record<string, string> = {
-  planner: '#3157d5', retriever: '#138a8a', answer_validator: '#c77816', expert: '#7355a5',
+  planner: '#0066cc', retriever: '#1f7551', answer_validator: '#935c10', expert: '#7355a5',
 }
 
 const FOLD_LINES = 9

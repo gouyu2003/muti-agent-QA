@@ -7,7 +7,7 @@ import {
   DownloadOutlined,
   FileSearchOutlined,
   ReloadOutlined,
-} from '@ant-design/icons'
+} from './Icons'
 import { Alert, Button, Empty, Input, Pagination, Select, Skeleton, Tag, Tooltip } from 'antd'
 import { getManagedSystems, getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats } from './api'
 import EvidenceLocation from './EvidenceLocation'

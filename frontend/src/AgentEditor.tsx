@@ -1,4 +1,4 @@
-import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons'
+import { ArrowDownOutlined, ArrowUpOutlined } from './Icons'
 import { Button, Collapse, Input, InputNumber, Select, Space, Tag, Tooltip } from 'antd'
 import type { AgentInstance, AgentTemplate, AgentType, SystemOptions } from './types'
 
