@@ -1,14 +1,17 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { BrowserRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { getAgentTemplates, protocolRequest, getManagedSystems, getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats, getSystemInfo, getSystemOptions, streamQuestion } from './api'
+import { getAgentTemplates, protocolRequest, getKnowledgeChunks, getKnowledgeSources, getManagedSystems, getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats, getSystemInfo, getSystemOptions, streamQuestion } from './api'
 import catalog from './protocolCatalog.fixture.json'
-import type { ManagedSystem, RunStatsSummary, StoredRunDetail, StoredRunRecord, SystemInfo, SystemOptions } from './types'
+import type { KnowledgeSource, ManagedSystem, RunStatsSummary, StoredRunDetail, StoredRunRecord, SystemInfo, SystemOptions } from './types'
 
 vi.mock('./api', () => ({
   protocolRequest: vi.fn(async () => ({ items: [] })),
   getManagedSystems: vi.fn(async () => ({ items: [] })),
   getAgentTemplates: vi.fn(async () => ({ items: [] })),
+  getKnowledgeSources: vi.fn(async () => ({ items: [] })),
+  getKnowledgeChunks: vi.fn(),
   getSystemInfo: vi.fn(),
   getSystemOptions: vi.fn(),
   streamQuestion: vi.fn(),
@@ -123,6 +126,19 @@ const systemOptions: SystemOptions = {
   ],
 }
 
+function renderApp(path = '/run') {
+  window.history.replaceState(null, '', path)
+  return render(<BrowserRouter><App /></BrowserRouter>)
+}
+
+async function navigateHistory(delta: number) {
+  await act(async () => {
+    const changed = new Promise<void>(resolve => window.addEventListener('popstate', () => resolve(), { once: true }))
+    window.history.go(delta)
+    await changed
+  })
+}
+
 describe('App', () => {
   afterEach(cleanup)
 
@@ -131,6 +147,7 @@ describe('App', () => {
     vi.mocked(protocolRequest).mockImplementation(async path => (path === '/templates' ? catalog : { items: [] }) as never)
     vi.mocked(getAgentTemplates).mockResolvedValue({ items: [] })
     vi.mocked(getManagedSystems).mockResolvedValue({ items: [] })
+    vi.mocked(getKnowledgeSources).mockResolvedValue({ items: [] })
     vi.mocked(getSystemInfo).mockResolvedValue(systemInfo)
     vi.mocked(getSystemOptions).mockResolvedValue(systemOptions)
     vi.mocked(streamQuestion).mockResolvedValue()
@@ -141,7 +158,7 @@ describe('App', () => {
   })
 
   it('renders the V0 workbench with Ant Design controls and system metadata', async () => {
-    render(<App />)
+    renderApp()
 
     expect(screen.getByRole('heading', { name: '观察一次真实的多智能体协作' })).toBeInTheDocument()
     expect(await screen.findByText('服务正常')).toBeInTheDocument()
@@ -150,23 +167,146 @@ describe('App', () => {
     expect(screen.getByText('hard · bridge · 10 个上下文 · 3 条支撑事实')).toBeInTheDocument()
   })
 
+  it('redirects the root to the run page without adding a history entry', async () => {
+    const length = window.history.length
+    renderApp('/')
+    await waitFor(() => expect(window.location.pathname).toBe('/run'))
+    expect(window.history.length).toBe(length)
+    expect(screen.getByRole('link', { name: /实时运行/ })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it.each([
+    ['/run', '实时运行', '观察一次真实的多智能体协作'],
+    ['/history', '运行历史', '每次运行，都有迹可循'],
+    ['/knowledge', '知识源', '知识源'],
+    ['/systems', '我的系统', '我的系统'],
+    ['/protocols', '协作协议', '我的协作协议'],
+  ])('opens %s directly with the matching navigation selected', async (path, label, heading) => {
+    renderApp(path)
+    expect(await screen.findByRole('heading', { name: heading })).toBeVisible()
+    expect(screen.getByRole('link', { name: new RegExp(label) })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('navigation').querySelectorAll('[aria-current="page"]')).toHaveLength(1)
+    expect(window.location.pathname).toBe(path)
+  })
+
+  it('supports back and forward navigation while preserving the entered question', async () => {
+    renderApp()
+    await screen.findByText('服务正常')
+    fireEvent.change(screen.getByRole('textbox', { name: '多跳问答问题' }), { target: { value: 'Keep this question' } })
+    fireEvent.click(screen.getByRole('link', { name: /我的系统/ }))
+    expect(window.location.pathname).toBe('/systems')
+    await navigateHistory(-1)
+    expect(window.location.pathname).toBe('/run')
+    expect(screen.getByDisplayValue('Keep this question')).toBeVisible()
+    await navigateHistory(1)
+    expect(window.location.pathname).toBe('/systems')
+    expect(screen.getByRole('link', { name: /我的系统/ })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('shows a not-found page for an unknown path and links back to the run page', async () => {
+    renderApp('/missing')
+    expect(screen.getByRole('heading', { name: '页面不存在' })).toBeVisible()
+    expect(screen.getByRole('navigation').querySelector('[aria-current="page"]')).toBeNull()
+    fireEvent.click(screen.getByRole('link', { name: '返回实时运行' }))
+    expect(window.location.pathname).toBe('/run')
+    expect(await screen.findByRole('heading', { name: '观察一次真实的多智能体协作' })).toBeVisible()
+  })
+
+  it('restores the system filter from the URL after remounting and synchronizes history changes', async () => {
+    const mounted = renderApp('/history?systemId=sys_a&keep=1')
+    await waitFor(() => expect(getRuns).toHaveBeenLastCalledWith(
+      expect.objectContaining({ systemId: 'sys_a' }), 10, 0, expect.any(AbortSignal)))
+    mounted.unmount()
+    renderApp(window.location.pathname + window.location.search)
+    await waitFor(() => expect(getRunStats).toHaveBeenLastCalledWith(
+      expect.objectContaining({ systemId: 'sys_a' }), expect.any(AbortSignal)))
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '系统筛选' }))
+    fireEvent.click(await screen.findByText('全部系统与临时问答', { selector: '.ant-select-item-option-content' }))
+    expect(window.location.search).toBe('?keep=1')
+    await waitFor(() => expect(getRuns).toHaveBeenLastCalledWith(
+      expect.objectContaining({ systemId: undefined }), 10, 0, expect.any(AbortSignal)))
+    await navigateHistory(-1)
+    expect(window.location.search).toBe('?systemId=sys_a&keep=1')
+    await waitFor(() => expect(getRuns).toHaveBeenLastCalledWith(
+      expect.objectContaining({ systemId: 'sys_a' }), 10, 0, expect.any(AbortSignal)))
+    await navigateHistory(1)
+    await waitFor(() => expect(getRuns).toHaveBeenLastCalledWith(
+      expect.objectContaining({ systemId: undefined }), 10, 0, expect.any(AbortSignal)))
+  })
+
+  it('navigates from a knowledge source to the run page with the selected version', async () => {
+    const source: KnowledgeSource = {
+      source_id: 'user_notes', name: 'English notes', status: 'ready', current_version: 1, file_count: 1, chunk_count: 1,
+      versions: [{ version: 1, status: 'ready', created_at: 'now', file_count: 1, chunk_count: 1, files: [], error: null }],
+    }
+    vi.mocked(getKnowledgeSources).mockResolvedValue({ items: [source] })
+    vi.mocked(getKnowledgeChunks).mockResolvedValue({ items: [], total: 0, limit: 10, offset: 0 })
+    vi.mocked(getSystemOptions).mockResolvedValue({ ...systemOptions, sources: [...systemOptions.sources, {
+      source_id: 'user_notes', name: source.name, source_type: 'document_corpus', is_demo: false,
+      record_id: null, question_type: null, level: null, context_count: null, supporting_fact_count: null,
+      example_question: null, version: 1, versions: [1],
+    }] })
+    renderApp('/knowledge')
+    await screen.findByText('服务正常')
+    fireEvent.click(await screen.findByRole('button', { name: /English notes/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '用于问答' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '用于问答' }))
+    expect(window.location.pathname).toBe('/run')
+    fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
+    await waitFor(() => expect(streamQuestion).toHaveBeenCalledWith(
+      expect.any(String), expect.any(Function), expect.any(AbortSignal),
+      { workflowId: 'multi_hop_qa_v0', sourceId: 'user_notes', sourceVersion: 1 }))
+  })
+
+  it('receives completion while another page is open and preserves the stream and result', async () => {
+    let emit: Parameters<typeof streamQuestion>[1] = () => undefined
+    let finish: () => void = () => undefined
+    let signal: AbortSignal | undefined
+    vi.mocked(streamQuestion).mockImplementation((_question, onEvent, currentSignal) => {
+      emit = onEvent
+      signal = currentSignal
+      onEvent({ type: 'run_started', run_id: 'route-run', timestamp: 'now', payload: {} })
+      return new Promise<void>(resolve => { finish = resolve })
+    })
+    renderApp()
+    await screen.findByText('服务正常')
+    fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
+    fireEvent.click(screen.getByRole('link', { name: /运行历史/ }))
+    await screen.findByText('Chief of Protocol')
+    expect(signal?.aborted).toBe(false)
+    await act(async () => {
+      emit({ type: 'run_completed', run_id: 'route-run', timestamp: 'now', payload: {
+        result: { answer: 'Completed while away', verified: true, verification_note: 'Evidence checked' }, duration_ms: 100,
+      } })
+      finish()
+    })
+    fireEvent.click(screen.getByRole('link', { name: /实时运行/ }))
+    expect(await screen.findByText('Completed while away')).toBeVisible()
+    expect(signal?.aborted).toBe(false)
+    expect(streamQuestion).toHaveBeenCalledTimes(1)
+  })
+
   it('preserves unsaved system fields when managing protocols and refreshes choices on return', async () => {
     vi.mocked(getAgentTemplates).mockResolvedValue({ items: [{ agent_type: 'planner', name: 'Planner', uses_llm: true, uses_knowledge: false, editable_fields: [], defaults: {
       agent_id: 'plan', agent_type: 'planner', name: 'Planner', description: '', source_id: null, source_version: null, top_k: 3,
       model_config: { model_name: 'test', system_prompt: 'P', temperature: 0, max_tokens: 1024 },
     } }] })
-    render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: /我的系统/ }))
+    renderApp()
+    fireEvent.click(screen.getByRole('link', { name: /我的系统/ }))
     await waitFor(() => expect(screen.getByRole('button', { name: '新建系统' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '新建系统' }))
     fireEvent.change(screen.getByLabelText('系统名称'), { target: { value: 'Unsaved system' } })
     fireEvent.click(screen.getByRole('button', { name: '创建或管理协作协议' }))
-    await screen.findByRole('button', { name: '从 单专家问答 创建' })
+    fireEvent.click(await screen.findByRole('button', { name: '从 单专家问答 创建' }))
+    fireEvent.change(screen.getByRole('textbox', { name: '协议名称' }), { target: { value: 'Unsaved protocol' } })
+    expect(window.location.pathname).toBe('/protocols')
     const count = vi.mocked(protocolRequest).mock.calls.filter(c => c[0] === '').length
     fireEvent.click(screen.getByRole('button', { name: '返回我的系统' }))
     expect(screen.getByDisplayValue('Unsaved system')).toBeVisible()
     await waitFor(() => expect(vi.mocked(protocolRequest).mock.calls.filter(c => c[0] === '').length).toBeGreaterThan(count))
     expect(screen.getByRole('combobox', { name: '执行协议' }).closest('.ant-select')).toHaveTextContent('选择个人协议')
+    fireEvent.click(screen.getByRole('link', { name: '协作协议' }))
+    expect(screen.getByDisplayValue('Unsaved protocol')).toBeVisible()
   })
 
   it('runs a published multi-source system without requiring a global knowledge source', async () => {
@@ -184,11 +324,17 @@ describe('App', () => {
     } }
     managed.versions = [{ ...managed.draft, version: 'v1', draft_revision: 1 }]
     vi.mocked(getManagedSystems).mockResolvedValue({ items: [managed] })
-    render(<App />)
+    renderApp()
     await screen.findByText('服务正常')
-    fireEvent.click(screen.getByRole('button', { name: /我的系统/ }))
+    fireEvent.click(screen.getByRole('link', { name: /我的系统/ }))
     fireEvent.click(await screen.findByRole('button', { name: /Expert team/ }))
+    fireEvent.click(screen.getByRole('button', { name: '查看此系统历史' }))
+    expect(window.location.pathname + window.location.search).toBe('/history?systemId=sys_team')
+    await waitFor(() => expect(getRuns).toHaveBeenLastCalledWith(
+      expect.objectContaining({ systemId: 'sys_team' }), 10, 0, expect.any(AbortSignal)))
+    fireEvent.click(screen.getByRole('link', { name: /我的系统/ }))
     fireEvent.click(screen.getByRole('button', { name: '使用此版本问答' }))
+    expect(window.location.pathname).toBe('/run')
     expect(screen.getByText('多个模型')).toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: '知识源' })).not.toBeInTheDocument()
     const start = screen.getByRole('button', { name: /开始协同问答/ })
@@ -199,8 +345,8 @@ describe('App', () => {
   })
 
   it('shows persisted runs, timeline, evidence and export in the history view', async () => {
-    render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: /运行历史/ }))
+    renderApp()
+    fireEvent.click(screen.getByRole('link', { name: /运行历史/ }))
 
     expect(await screen.findByRole('heading', { name: '历史运行' })).toBeInTheDocument()
     expect(await screen.findByText('Chief of Protocol')).toBeInTheDocument()
@@ -228,8 +374,8 @@ describe('App', () => {
       completion_rate: 0, verification_pass_rate: 0,
       average_duration_ms: null,
     })
-    render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: /运行历史/ }))
+    renderApp()
+    fireEvent.click(screen.getByRole('link', { name: /运行历史/ }))
 
     expect(await screen.findByText('还没有运行记录。先去实时运行发起一次问答。')).toBeInTheDocument()
     expect(screen.getByText('选择一条运行，查看完整轨迹与答案。')).toBeInTheDocument()
@@ -261,8 +407,8 @@ describe('App', () => {
       events: [{ ...archivedDetail.events[0], run_id: id, event_type: id === 'v0-0' ? 'run_failed' : 'run_completed',
         payload: id === 'v0-0' ? { message: 'Preserved failure' } : {} }],
     }))
-    render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: /运行历史/ }))
+    renderApp()
+    fireEvent.click(screen.getByRole('link', { name: /运行历史/ }))
     await screen.findByText('20 条')
     fireEvent.mouseDown(screen.getByRole('combobox', { name: '入口筛选' }))
     fireEvent.click(await screen.findByText('批量实验', { selector: '.ant-select-item-option-content' }))
@@ -286,7 +432,7 @@ describe('App', () => {
   })
 
   it('shows the default selection and records its IDs in the stream request', async () => {
-    render(<App />)
+    renderApp()
     expect(await screen.findByText('服务正常')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
     expect(streamQuestion).toHaveBeenCalledWith(
@@ -297,7 +443,7 @@ describe('App', () => {
 
   it('disables running when configuration choices cannot be loaded', async () => {
     vi.mocked(getSystemOptions).mockRejectedValue(new Error('配置选项加载失败'))
-    render(<App />)
+    renderApp()
     expect(await screen.findByText('配置不可用')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /开始协同问答/ })).toBeDisabled()
   })
@@ -312,7 +458,7 @@ describe('App', () => {
         },
       } })
     })
-    render(<App />)
+    renderApp()
     await screen.findByText('服务正常')
     fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
     expect((await screen.findAllByText('待验证')).length).toBeGreaterThan(0)
@@ -320,7 +466,7 @@ describe('App', () => {
   })
 
   it('switches source without overwriting a typed question', async () => {
-    render(<App />)
+    renderApp()
     await screen.findByText('服务正常')
     fireEvent.change(screen.getByRole('textbox', { name: '多跳问答问题' }), { target: { value: 'My own question?' } })
     fireEvent.mouseDown(screen.getByRole('combobox', { name: '知识源' }))
@@ -336,7 +482,7 @@ describe('App', () => {
   })
 
   it('switches to the fixed workflow without showing feedback routes', async () => {
-    render(<App />)
+    renderApp()
     await screen.findByText('服务正常')
     fireEvent.mouseDown(screen.getByRole('combobox', { name: '协作流程' }))
     fireEvent.click(await screen.findByText('固定三节点流程', { selector: '.ant-select-item-option-content' }))
@@ -355,7 +501,7 @@ describe('App', () => {
       onEvent({ type: 'run_started', run_id: 'run-active', timestamp: 'now', payload: {} })
       return new Promise<void>((resolve) => { finish = resolve })
     })
-    render(<App />)
+    renderApp()
     await screen.findByText('服务正常')
     fireEvent.click(screen.getByRole('button', { name: /开始协同问答/ }))
     expect(await screen.findByText(/本次运行：反馈重试流程/)).toBeInTheDocument()
@@ -385,8 +531,8 @@ describe('App', () => {
       record_id: null, question_type: null, level: null, context_count: null,
       supporting_fact_count: null, example_question: null,
     }] })
-    render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: /运行历史/ }))
+    renderApp()
+    fireEvent.click(screen.getByRole('link', { name: /运行历史/ }))
     await screen.findByText('Elena Brooks founded Aurora Institute.')
 
     const configuration = within(screen.getByLabelText('生效配置'))
@@ -415,7 +561,7 @@ describe('App', () => {
         },
       } })
     })
-    render(<App />)
+    renderApp()
     await screen.findByText('服务正常')
     fireEvent.mouseDown(screen.getByRole('combobox', { name: '知识源' }))
     fireEvent.click(await screen.findByText('User notes', { selector: '.ant-select-item-option-content' }))

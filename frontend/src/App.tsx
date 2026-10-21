@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { Link, Navigate, NavLink, Route, Routes, useMatch, useNavigate } from 'react-router'
 import {
   ApartmentOutlined,
   ArrowRightOutlined,
@@ -430,9 +431,10 @@ function ResultPanel({ result, durationMs, source }: { result?: RunResult; durat
 }
 
 export default function App() {
-  const [view, setView] = useState<'live' | 'history' | 'knowledge' | 'systems' | 'protocols'>('live')
+  const navigate = useNavigate()
+  const systemsActive = Boolean(useMatch('/systems'))
+  const protocolsActive = Boolean(useMatch('/protocols'))
   const [managedSelection, setManagedSelection] = useState<ManagedSelection>()
-  const [historySystemId, setHistorySystemId] = useState<string>()
   const [system, setSystem] = useState<SystemInfo>()
   const [options, setOptions] = useState<SystemOptions>()
   const [workflowId, setWorkflowId] = useState('')
@@ -538,7 +540,7 @@ export default function App() {
     setSourceVersion(version)
     setSubmittedSelection(undefined)
     dispatch({ type: 'clear' })
-    setView('live')
+    navigate('/run')
   }
 
   async function handleRun() {
@@ -598,26 +600,17 @@ export default function App() {
           </div>
         </div>
         <nav className="workspace-nav" aria-label="工作区视图">
-          <button
-            type="button" className={view === 'live' ? 'active' : ''}
-            aria-current={view === 'live' ? 'page' : undefined}
-            onClick={() => setView('live')}
-          >
+          <NavLink to="/run" end>
             <PlayCircleFilled /> 实时运行
-          </button>
-          <button
-            type="button" className={view === 'history' ? 'active' : ''}
-            aria-current={view === 'history' ? 'page' : undefined}
-            onClick={() => { setHistorySystemId(undefined); setView('history') }}
-          >
+          </NavLink>
+          <NavLink to="/history" end>
             <HistoryOutlined /> 运行历史
-          </button>
-          <button type="button" className={view === 'knowledge' ? 'active' : ''}
-            aria-current={view === 'knowledge' ? 'page' : undefined} onClick={() => setView('knowledge')}>
+          </NavLink>
+          <NavLink to="/knowledge" end>
             <DatabaseOutlined /> 知识源
-          </button>
-          <button type="button" className={view === 'systems' ? 'active' : ''} aria-current={view === 'systems' ? 'page' : undefined} onClick={() => setView('systems')}><ApartmentOutlined /> 我的系统</button>
-          <button type="button" className={view === 'protocols' ? 'active' : ''} aria-current={view === 'protocols' ? 'page' : undefined} onClick={() => setView('protocols')}>协作协议</button>
+          </NavLink>
+          <NavLink to="/systems" end><ApartmentOutlined /> 我的系统</NavLink>
+          <NavLink to="/protocols" end>协作协议</NavLink>
         </nav>
         <div className="system-badges">
           <Tag variant="filled">{shownWorkflow?.workflow_id ?? '等待配置'}</Tag>
@@ -626,14 +619,19 @@ export default function App() {
         </div>
       </header>
 
-      <div hidden={view !== 'systems'}><SystemsView options={options} active={view === 'systems'} onManageProtocols={() => setView('protocols')} disabled={isRunning} onHistory={id => { setHistorySystemId(id); setView('history') }} onUse={selection => {
+      {/* Keep both editors mounted so navigation preserves their unsaved drafts. */}
+      <div hidden={!systemsActive}><SystemsView options={options} active={systemsActive} onManageProtocols={() => navigate('/protocols')} disabled={isRunning} onHistory={id => navigate(`/history?${new URLSearchParams({ systemId: id })}`)} onUse={selection => {
         setManagedSelection(selection); setWorkflowId(selection.document.workflow_id ?? ''); setSourceId(selection.document.source_id ?? '')
-        setSourceVersion(selection.document.source_version ?? undefined); setSubmittedSelection(undefined); dispatch({ type: 'clear' }); setView('live')
+        setSourceVersion(selection.document.source_version ?? undefined); setSubmittedSelection(undefined); dispatch({ type: 'clear' }); navigate('/run')
       }} /></div>
-      <div hidden={view !== 'protocols'}><ProtocolsView active={view === 'protocols'} disabled={isRunning} onReturnToSystems={() => setView('systems')} /></div>
-      {view === 'systems' || view === 'protocols' ? null : view === 'history' ? <HistoryView initialSystemId={historySystemId} /> : view === 'knowledge' ? (
-        <KnowledgeView disabled={isRunning} onChanged={refreshOptions} onUse={useKnowledge} />
-      ) : <main className="workspace">
+      <div hidden={!protocolsActive}><ProtocolsView active={protocolsActive} disabled={isRunning} onReturnToSystems={() => navigate('/systems')} /></div>
+      <Routes>
+        <Route path="/" element={<Navigate to="/run" replace />} />
+        <Route path="/systems" element={null} />
+        <Route path="/protocols" element={null} />
+        <Route path="/history" element={<HistoryView />} />
+        <Route path="/knowledge" element={<KnowledgeView disabled={isRunning} onChanged={refreshOptions} onUse={useKnowledge} />} />
+        <Route path="/run" element={<main className="workspace">
         <aside className="protocol-column">
           <ProtocolRail agents={agents} workflow={shownWorkflow} activeNode={run.activeNode} steps={run.steps} />
 
@@ -820,7 +818,15 @@ export default function App() {
             </Card>
           </div>
         </div>
-      </main>}
+      </main>} />
+        <Route path="*" element={
+          <main className="history-workspace">
+            <h1>页面不存在</h1>
+            <p>请检查地址，或返回实时运行页面。</p>
+            <Link to="/run">返回实时运行</Link>
+          </main>
+        } />
+      </Routes>
     </div>
   )
 }

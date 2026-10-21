@@ -178,7 +178,7 @@ textarea {
   align-self: center;
 }
 
-.workspace-nav button {
+.workspace-nav a {
   padding: 10px 15px;
   color: #53627a;
   background: transparent;
@@ -186,25 +186,29 @@ textarea {
   border-radius: 8px;
   font-size: 12px;
   font-weight: 650;
+  line-height: normal;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
   transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
-.workspace-nav button .anticon {
+.workspace-nav a .anticon {
   margin-right: 6px;
 }
 
-.workspace-nav button.active {
+.workspace-nav a.active {
   color: var(--planner);
   background: #fff;
   box-shadow: 0 2px 8px rgba(29, 42, 70, 0.1);
 }
 
-.workspace-nav button:hover:not(.active) {
+.workspace-nav a:hover:not(.active) {
   color: var(--ink);
 }
 
-.workspace-nav button:focus-visible,
+.workspace-nav a:focus-visible,
 .history-run-row:focus-visible {
   outline: 3px solid rgba(49, 87, 213, 0.45);
   outline-offset: 2px;
@@ -1344,7 +1348,7 @@ textarea {
 
 @media (max-width: 640px) {
   .workspace-nav { justify-content: stretch; }
-  .workspace-nav button { flex: 1; }
+  .workspace-nav a { flex: 1; }
   .history-workspace { padding: 14px 12px 32px; }
   .history-hero { padding: 22px 19px; flex-direction: column; align-items: stretch; }
   .history-hero-actions .ant-btn { flex: 1; }

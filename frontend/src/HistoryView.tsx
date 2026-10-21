@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import {
   ArrowRightOutlined,
   ClockCircleOutlined,
@@ -302,9 +303,10 @@ function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDetail; e
   )
 }
 
-export default function HistoryView({ initialSystemId }: { initialSystemId?: string }) {
+export default function HistoryView() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const systemId = searchParams.get('systemId') || undefined
   const [systems, setSystems] = useState<ManagedSystem[]>([])
-  const [systemId, setSystemId] = useState(initialSystemId)
   const [systemError, setSystemError] = useState('')
   const [status, setStatus] = useState<StoredRunStatus | undefined>()
   const [entrypoint, setEntrypoint] = useState<RunEntryPoint | undefined>()
@@ -324,6 +326,11 @@ export default function HistoryView({ initialSystemId }: { initialSystemId?: str
   const [detailLoading, setDetailLoading] = useState(false)
   const [listError, setListError] = useState('')
   const [detailError, setDetailError] = useState('')
+
+  useEffect(() => {
+    setPage(1)
+    setSelectedId(undefined)
+  }, [systemId])
 
   const startedFrom = useMemo(() => {
     const hours: Record<Exclude<TimeRange, 'all'>, number> = {
@@ -482,7 +489,16 @@ export default function HistoryView({ initialSystemId }: { initialSystemId?: str
           allowClear enterButton="筛选"
         />
         <Select className="history-experiment-select" aria-label="系统筛选" value={systemId ?? ''}
-          onChange={value => { setSystemId(value || undefined); setPage(1); setSelectedId(undefined) }}
+          onChange={value => {
+            setSearchParams(current => {
+              const next = new URLSearchParams(current)
+              if (value) next.set('systemId', value)
+              else next.delete('systemId')
+              return next
+            })
+            setPage(1)
+            setSelectedId(undefined)
+          }}
           options={[{ value: '', label: '全部系统与临时问答' }, ...systems.map(item => ({ value: item.system_id, label: item.draft.name }))]} />
         {entrypoint === 'batch' ? <Select
           className="history-experiment-select"
