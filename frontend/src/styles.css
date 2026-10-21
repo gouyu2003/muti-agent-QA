@@ -1378,7 +1378,13 @@ textarea {
   .prompt-tools .ant-btn { min-width: 36px; height: 36px; }
   .prompt-tag { font-size: 13px; }
 }
-.protocol-template-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 12px; margin: 16px 0; }
+.protocol-template-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+@media (max-width: 1100px) {
+  .protocol-template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .protocol-template-grid { grid-template-columns: minmax(0, 1fr); }
+}
 .protocol-binding, .agent-fields { display: grid; gap: 12px; min-width: 0; }
 .protocol-binding label, .agent-fields label { display: grid; gap: 6px; }
 .protocol-binding .ant-select, .agent-fields .ant-select { width: 100%; }
