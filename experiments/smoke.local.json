@@ -1,0 +1,8 @@
+{
+  "dataset": "../data/experiments/datasets/hotpot_dev_distractor_v1.json",
+  "dataset_source": "HotpotQA dev distractor v1; record actual download source before prepare",
+  "split_directory": "../data/experiments/splits/hotpot-dev-seed42-v1",
+  "output": "../data/experiments/baseline-smoke-001",
+  "purpose": "smoke",
+  "repeats": 1
+}

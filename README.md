@@ -12,6 +12,8 @@
 
 阶段 4.0 的验收与复跑说明见 [docs/stage4-validation.md](docs/stage4-validation.md)。最小实验入口为 `python -m src.evaluation.batch`，输入数据与实验数据库保存在被 Git 忽略的 `data/experiments/`，固定样本清单和可审阅报告保存在 `docs/`。
 
+阶段 5～6 新增六组基线实验入口 `python -m src.evaluation.experiment`：固定数据用途与样本、冻结方法配置、断点恢复、首次尝试与补跑分开统计，并导出 Joint 指标、配对比较与人工错误审阅表。配置位于 `experiments/`，完整命令见 [六组实验终端操作说明](docs/stage5-6-usage.md)，工程验证见 [阶段 5～6 验证记录](docs/stage5-6-validation.md)。真实模型试跑和正式实验均由用户手动启动；工具开发完成不代表已有论文实验结果。
+
 运行历史现可只读查看已登记的独立实验库：在“入口筛选”选择“批量实验”，再选择 V0 或 V1，可查看每组十题及失败记录的答案、证据、用量和轨迹。登记表为 `system-design/experiments/history.json`；本地需保留对应实验数据。接口、存储隔离和验收说明见 [docs/experiment-history-validation.md](docs/experiment-history-validation.md)。
 
 ## 系统结构

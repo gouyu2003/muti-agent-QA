@@ -79,6 +79,10 @@ def latest_reads(state, stage, version='1'):
             fields = ('call_id', 'agent_id', 'stage_id', 'round', 'kind', 'output') + (('invocation_index',) if version == '2' else ())
             chosen.extend({k: deepcopy(c[k]) for k in fields}
                           for c in candidates if c['round'] == round_no or c['kind'] == 'dispatch')
+    # Evaluation-only provenance must not duplicate evidence in model prompts or
+    # bypass share_evidence=False. The original call output remains in the trace.
+    for call in chosen:
+        call['output'].pop('retrieved_evidence_chunks', None)
     return deepcopy(sorted(chosen, key=lambda c: c['invocation_index']) if version == '2' else chosen)
 
 
@@ -121,20 +125,23 @@ def execute_phase(stage, agent_id, config, source, input_data, usage):
         if not stage.share_evidence: local['evidence_chunks'] = own
         if stage.kind in ('critique', 'revise'):
             from src.runtime.protocol_agents import debate_message
-            return debate_message(stage, agent_id, config, input_data, local, usage)
+            return {**debate_message(stage, agent_id, config, input_data, local, usage),
+                    'retrieved_evidence_chunks': own}
         if stage.kind == 'dispatch':
             local['sub_questions'] = [dict(id=task['task_id'], question=task['instruction'], keywords=[], depends_on=[])]
             config['model_config']['system_prompt'] += '\n本次分派的具体任务：' + task['instruction'] + '\n只回答该任务，完整问题由审核者汇总。'
         elif stage.instructions:
             config['model_config']['system_prompt'] += '\n本次阶段任务：' + stage.instructions
         result = answer_validator_fn(local, agent_config=config, usage_collector=usage, expert_mode=stage.kind != 'answer', require_citations=True)
-        return {**result, 'evidence_chunks': local['evidence_chunks'], **({'sub_questions': local['sub_questions']} if stage.kind == 'answer' else {})}
+        return {**result, 'evidence_chunks': local['evidence_chunks'], 'retrieved_evidence_chunks': own,
+                **({'sub_questions': local['sub_questions']} if stage.kind == 'answer' else {})}
     if stage.kind == 'plan': return planner_fn(local, agent_config=config, usage_collector=usage)
     if stage.kind == 'retrieve':
         if stage.instructions:
             local['sub_questions'] = [{**sq, 'keywords': [*sq.get('keywords', []), stage.instructions]} for sq in local['sub_questions']]
         result = retriever_fn(local, retriever=retriever_from_snapshot({'source': source}), agent_config=config)
         result['evidence_chunks'] = evidence_ids(result['evidence_chunks'])
+        result['retrieved_evidence_chunks'] = deepcopy(result['evidence_chunks'])
         return result
     if stage.kind == 'review':
         config['model_config']['system_prompt'] += '\n协作背景（观点不是事实证据）：' + json.dumps(input_data['reads'], ensure_ascii=False)
