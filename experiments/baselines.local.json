@@ -1,16 +1,32 @@
 {
   "schema_version": 1,
-  "dataset": "../data/experiments/datasets/hotpot_dev_distractor_v1.json",
-  "dataset_source": "HotpotQA dev distractor v1; record actual download source before prepare",
+  "dataset": "../data/experiments/datasets/hotpot_dev_distractor_v1.qc.json",
+  "dataset_source": "https://huggingface.co/datasets/namlh2004/hotpotqa/resolve/7e54db4656209750ff487f6fdf8e39a66dba136b/hotpot_dev_distractor_v1.json; QC excluded 5ae61bfd5542992663a4f261; see dataset provenance",
   "split_directory": "../data/experiments/splits/hotpot-dev-seed42-v1",
   "output": "../data/experiments/baseline-dev-001",
   "purpose": "development",
-  "splits": {"development": 300, "evaluation": 1000, "smoke": 6},
+  "splits": {
+    "development": 300,
+    "evaluation": 1000,
+    "smoke": 6
+  },
   "seed": 42,
   "sampling": "proportional",
   "exposure_manifests": [],
-  "methods": ["single_rag", "pipeline_fixed", "pipeline_adaptive", "multi_expert", "lead", "debate"],
-  "model": {"name": "deepseek-v4.1-flash", "temperature": 0.0, "max_tokens": 4096, "output_retries": 2},
+  "methods": [
+    "single_rag",
+    "pipeline_fixed",
+    "pipeline_adaptive",
+    "multi_expert",
+    "lead",
+    "debate"
+  ],
+  "model": {
+    "name": "deepseek-v4.1-flash",
+    "temperature": 0.0,
+    "max_tokens": 4096,
+    "output_retries": 2
+  },
   "top_k": 3,
   "expert_count": 2,
   "execution_mode": "sequential",
@@ -18,9 +34,16 @@
   "plan_retries": 2,
   "lead_rounds": 2,
   "debate_rounds": 2,
-  "limits": {"max_node_calls": 60, "max_llm_calls": 40, "max_reserved_tokens": 1000000, "timeout_seconds": 600, "node_timeout_seconds": 120},
+  "limits": {
+    "max_node_calls": 60,
+    "max_llm_calls": 40,
+    "max_reserved_tokens": 1000000,
+    "timeout_seconds": 600,
+    "node_timeout_seconds": 120
+  },
   "repeats": 1,
   "rotate_methods": true,
   "bootstrap_samples": 2000,
-  "review_examples_per_category": 5
+  "review_examples_per_category": 5,
+  "dataset_sha256": "c25430a3e1a130ad3b3d3a0a775ae2197a7eaba58194034aec79e0080e876f61"
 }
