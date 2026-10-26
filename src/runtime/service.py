@@ -9,6 +9,7 @@ from typing import Any
 
 from src.graph import ANSWER_VALIDATOR_NODE, build_graph, default_nodes
 from src.llm_usage import LLMUsageCollector
+from src.model_errors import ModelRequestError, request_errors
 from src.router import decide_route
 from src.runtime.specs import WorkflowSpec
 from src.runtime.system import retriever_from_snapshot
@@ -111,6 +112,8 @@ def _public_error(exc: Exception) -> RunError:
     from src.runtime.protocol_runtime import ProtocolExecutionError
     if isinstance(exc, ProtocolExecutionError):
         return RunError(error_type='protocol_execution_error', message=str(exc))
+    if isinstance(exc, ModelRequestError):
+        return RunError(error_type=exc.error_type, message=str(exc))
     if isinstance(exc, RuntimeError):
         message = str(exc)
         if "DEEPSEEK_API_KEY" in message or "DEEPSEEK_BASE_URL" in message:
@@ -400,7 +403,8 @@ class RunService:
             failed = make_event(
                 "run_failed",
                 duration_ms=metrics.duration_ms,
-                payload={"code": error.error_type, "message": error.message},
+                payload={"code": error.error_type, "message": error.message,
+                         "request_errors": request_errors(metrics.agent_usage)},
             )
             self.repository.update_run(
                 RunRecord(

@@ -110,6 +110,78 @@ def test_six_real_graphs_and_label_boundary(config, monkeypatch, tmp_path, metho
         assert all(not c[2]['reads'] for c in calls if c[0] == 'propose')
 
 
+@pytest.mark.parametrize('status,failures,call_limit,expected_status,expected_calls', [
+    (400, 1, 40, 'failed', 1),
+    (503, 1, 40, 'completed', 2),
+    (503, 3, 40, 'failed', 2),
+    (503, 1, 1, 'failed', 1),
+])
+def test_provider_errors_survive_experiment_logs_history_and_reports(
+        config, monkeypatch, capsys, status, failures, call_limit, expected_status, expected_calls):
+    import httpx
+    from openai import APIStatusError
+    from types import SimpleNamespace
+    from src.model_errors import REQUEST_RETRY_POLICY
+
+    config.purpose, config.methods = 'smoke', ['single_rag']
+    config.limits.max_llm_calls = call_limit
+    monkeypatch.setenv('DEEPSEEK_API_KEY', 'PRIVATE_TEST_KEY')
+    monkeypatch.setitem(REQUEST_RETRY_POLICY, 'backoff_seconds', 0)
+    prompts = []
+    code = 'data_inspection_failed' if status == 400 else 'ServiceUnavailable'
+    class Chat:
+        def invoke(self, prompt, **_kwargs):
+            prompts.append(prompt)
+            if len(prompts) <= failures:
+                response = httpx.Response(status, headers={'x-request-id': 'test-request-id'},
+                    request=httpx.Request('POST', 'https://provider.invalid/v1'))
+                raise APIStatusError('UNSAFE_SDK_EXCEPTION', response=response, body={'code': code,
+                    'message': 'Provider rejection PRIVATE_TEST_KEY https://private.example/v1'})
+            return SimpleNamespace(content=json.dumps(dict(answer='Northbridge', verified=False,
+                failure_type='insufficient', supporting_evidence=[])),
+                usage_metadata={'input_tokens': 10, 'output_tokens': 5, 'total_tokens': 15})
+    monkeypatch.setattr('src.agents.answer_validator.default_llm', lambda _config: Chat())
+    prepare_data(config)
+    target = execute(config, service_factory=RunService)
+    root = Path(config.output)
+    row = json.loads((root / 'results.jsonl').read_text(encoding='utf-8').splitlines()[0])
+    detail = read_json(root / 'runs' / f'{row["run_id"]}.json')
+    assert row['status'] == expected_status
+    assert row['metrics']['llm_call_count'] == len(prompts) == expected_calls
+    assert row['metrics']['total_tokens'] is None
+    assert 'model_request_error' in row['labels']
+    errors = [c['request_error'] for usage in row['metrics']['agent_usage'].values()
+              for c in usage['calls'] if c['outcome'] == 'request_error']
+    assert errors[0]['http_status'] == status and errors[0]['provider_code'] == code
+    assert errors[0]['request_id'] == 'test-request-id'
+    progress = json.loads((root / 'logs' / 'progress.jsonl').read_text(encoding='utf-8').splitlines()[0])
+    assert progress['request_errors'][0]['provider_code'] == code
+    saved = json.dumps(detail) + json.dumps(progress) + capsys.readouterr().out
+    assert all(private not in saved for private in ('PRIVATE_TEST_KEY', 'private.example', 'UNSAFE_SDK_EXCEPTION'))
+    if status == 400:
+        assert row['error']['error_type'] == 'provider_content_filter'
+        assert 'provider_content_filter' in row['labels']
+        assert all(value == 0 for value in row['scores'].values())
+        failed = next(c for c in detail['run']['final_state']['protocol_calls'].values() if c['status'] == 'failed')
+        assert failed['output']['request_error']['provider_code'] == code
+        event = next(e for e in detail['events'] if e['event_type'] == 'run_failed')
+        assert event['payload']['request_errors'][0]['request_id'] == 'test-request-id'
+    elif expected_status == 'completed':
+        assert 'request_retry_recovered' in row['labels']
+        assert any(c['outcome'] == 'ok' for usage in row['metrics']['agent_usage'].values() for c in usage['calls'])
+    elif call_limit == 1:
+        assert row['error']['error_type'] == 'protocol_execution_error'
+        assert 'resource_limit' in row['labels']
+    else:
+        assert row['error']['error_type'] == 'model_request_error'
+    repository = SQLiteRunRepository(root / 'runs.sqlite3')
+    assert repository.get_run_detail(row['run_id']).model_dump(mode='json') == detail
+    provenance = read_json(root / 'provenance.json')
+    assert provenance['request_policy']['transient_errors']['max_retries'] == 1
+    summary = read_json(target / 'summary.json')
+    assert 'model_request_error' in json.dumps(summary)
+
+
 def test_joint_metric_is_not_product_of_f1():
     # Answer P=1/2,R=1; support P=1,R=1/2 => joint P=R=1/2.
     scores = joint_scores('red blue', [['A', 0]], {'answer': 'red', 'supporting_facts': [['A', 0], ['B', 0]]})

@@ -7,7 +7,7 @@ from typing import Callable
 from pydantic import ValidationError
 
 from src.agents.llm_retry import response_text
-from src.llm_usage import extract_token_usage
+from src.llm_usage import LLMUsageCollector, extract_token_usage
 
 ERROR_LABELS = {
     "empty_response": "模型返回空正文",
@@ -58,16 +58,13 @@ def validation_issues(exc: Exception) -> list[dict]:
 def invoke_json(chat, prompt: str, retries: int, usage=None, *, validate: Callable,
                 max_tokens: int | None = None) -> tuple[dict | None, dict]:
     calls = []
+    usage = usage if usage is not None else LLMUsageCollector()
     request = prompt
     for attempt in range(max(1, int(retries) + 1)):
         start = perf_counter()
-        try:
-            response = usage.invoke(chat, request) if usage else chat.invoke(request)
-        except Exception:
-            if usage and not usage.cancelled.is_set():
-                usage.record_attempt({"attempt": attempt + 1, "duration_ms": round((perf_counter() - start) * 1000),
-                    "finish_reason": None, "output_chars": 0, "outcome": "request_error"})
-            raise
+        previous = len(usage.attempts())
+        response = usage.invoke(chat, request)
+        calls.extend(usage.attempts()[previous:])
         raw = response_text(response).strip()
         metadata = getattr(response, "response_metadata", None) or {}
         finish = metadata.get("finish_reason")
@@ -75,7 +72,8 @@ def invoke_json(chat, prompt: str, retries: int, usage=None, *, validate: Callab
         details = token_usage.get("completion_tokens_details") or {}
         lc_details = (getattr(response, "usage_metadata", None) or {}).get("output_token_details") or {}
         prompt_tokens, completion_tokens, total_tokens = extract_token_usage(response)
-        entry = {"attempt": attempt + 1, "duration_ms": round((perf_counter() - start) * 1000),
+        entry = {"attempt": len(calls) + 1, "output_attempt": attempt + 1,
+                 "duration_ms": round((perf_counter() - start) * 1000),
                  "finish_reason": finish, "output_chars": len(raw),
                  "prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens,
                  "total_tokens": total_tokens,
@@ -118,7 +116,7 @@ def invoke_json(chat, prompt: str, retries: int, usage=None, *, validate: Callab
         calls.append(entry)
         if usage:
             usage.record_attempt(entry)
-        diagnostics = {"calls": calls, "retry_count": attempt, "output_error": error}
+        diagnostics = {"calls": calls, "retry_count": len(calls) - 1, "output_error": error}
         if error is None:
             return data, diagnostics
         request = prompt + (

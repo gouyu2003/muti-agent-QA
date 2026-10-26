@@ -1,12 +1,8 @@
-"""LLM 调用的重试封装。
+"""旧文本节点的空正文修正；JSON 节点使用 structured_output。
 
-背景：deepseek-v4-flash 是推理模型，reasoning tokens 会计入 max_tokens 预算，
-偶发地把预算耗尽，此时 content 返回空字符串（finish_reason=length）。
-这类抖动不应让整张图崩溃，因此统一在这里重试，而不是散落到各节点。
-
-约束：
-- 纯 Python，不读环境变量、不做网络请求之外的任何副作用；
-- chat 由调用方注入，离线测试传 fake 即可，重试对非空输出零影响（只调用一次）。
+空正文按节点配置有界重试。请求异常、脱敏诊断和临时故障重试统一交给
+LLMUsageCollector，每次实际调用均记账；有效非空响应直接返回。
+chat 由调用方注入，离线测试可使用假模型。
 """
 
 from __future__ import annotations
@@ -35,13 +31,10 @@ def invoke_text(
     retries 取自智能体配置的 failure_handling.max_retries（配置驱动）。
     """
     attempts = max(1, int(retries) + 1)
+    usage_collector = usage_collector if usage_collector is not None else LLMUsageCollector()
     text = ""
     for _ in range(attempts):
-        response = (
-            usage_collector.invoke(chat, prompt)
-            if usage_collector is not None
-            else chat.invoke(prompt)
-        )
+        response = usage_collector.invoke(chat, prompt)
         text = response_text(response).strip()
         if text:
             return text

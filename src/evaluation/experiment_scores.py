@@ -3,6 +3,7 @@ from collections import Counter
 
 from src.evaluation.metrics import normalize_answer, score
 from src.evaluation.hotpotqa import evidence_facts
+from src.model_errors import request_errors
 
 METRICS = ('em', 'f1', 'sp_em', 'sp_f1', 'joint_em', 'joint_f1')
 
@@ -74,6 +75,12 @@ def score_detail(detail, record):
     if coverage == 1 and not scores['em']: labels.append('support_covered_answer_mismatch')
     if no_new: labels.append('retrieval_without_new_evidence')
     error = run.error.model_dump() if run.error else None
+    model_errors = request_errors(run.metrics.agent_usage)
+    if model_errors:
+        labels.append('model_request_error')
+        labels.extend('provider_' + item['category'] for item in model_errors)
+        if run.status == 'completed': labels.append('request_retry_recovered')
+    if run.error and run.error.error_type == 'provider_content_filter': labels.append('provider_content_filter')
     error_text = (error or {}).get('message', '')
     if any(word in error_text.lower() for word in ('超时', '时间上限', 'timeout')): labels.append('timeout')
     if any(word in error_text for word in ('预算', '上限', '耗尽')) or state.get('termination_reason') == 'max_visits':

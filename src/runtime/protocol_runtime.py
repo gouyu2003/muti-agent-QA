@@ -19,6 +19,7 @@ from src.runtime.nodes import evidence_ids
 from src.runtime.protocols import parse_protocol, compile_protocol
 from src.runtime.system import retriever_from_snapshot
 from src.state import merge_expert_results
+from src.model_errors import ModelRequestError
 
 
 class ProtocolExecutionError(RuntimeError):
@@ -222,6 +223,8 @@ def build_protocol_graph(context, usage):
                 except Exception as exc:
                     failed = {**metadata, 'input': input_data, 'output': {'error': str(exc) if isinstance(exc, ProtocolExecutionError) else '协议任务执行失败。'},
                               'status': 'failed', 'usage': asdict(child.snapshot())}
+                    if isinstance(exc, ModelRequestError):
+                        failed['output'].update(error=str(exc), request_error=exc.diagnostic)
                     usage.record_output(call_id, {'protocol_calls': {call_id: failed}})
                     raise
                 call = {**metadata, 'input': input_data, 'output': result, 'status': 'completed', 'usage': asdict(child.snapshot())}

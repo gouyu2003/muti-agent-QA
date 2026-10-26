@@ -34,7 +34,7 @@ def summary(rows, planned):
                   failure_rate=statuses['failed'] / planned if planned else None,
                   verified_rate_completed=(sum(r.get('verified', False) for r in rows) / statuses['completed']
                                            if statuses['completed'] else None),
-                  scores={name: sum(r['scores'][name] for r in scored) / planned if complete else None for name in METRICS},
+                  scores={name: sum(r['scores'][name] for r in scored) / planned if complete and planned else None for name in METRICS},
                   observed_scores={name: mean(r['scores'][name] for r in scored) if scored else None for name in METRICS},
                   labels=dict(Counter(label for r in rows for label in r.get('labels', []))))
     result['metrics'] = {}

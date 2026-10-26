@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 from threading import Condition, Event, RLock
 from contextlib import contextmanager
+import os
+import hashlib
+from time import perf_counter
+
+from src.model_errors import ModelRequestError, REQUEST_RETRY_POLICY, error_diagnostic, is_model_request_error
 
 
 @dataclass(frozen=True)
@@ -106,19 +111,42 @@ class LLMUsageCollector:
         self.invoke_adapter = None
 
     def invoke(self, chat: Any, prompt: str) -> Any:
-        """Invoke a chat model and account for the attempt and returned usage."""
-
-        self.check_cancelled()
-        if self.before_invoke is not None:
-            self.before_invoke(prompt)
-        with self._lock:
-            self.call_count += 1
-        try:
-            response = self.invoke_adapter(chat, prompt) if self.invoke_adapter is not None else chat.invoke(prompt)
-        except Exception:
+        """Account for each wire attempt; retry transient errors once, visibly."""
+        for request_attempt in range(1, REQUEST_RETRY_POLICY['max_retries'] + 2):
+            self.check_cancelled()
+            # Guard rejections are local failures, never provider retry candidates.
+            if self.before_invoke is not None:
+                self.before_invoke(prompt)
             with self._lock:
-                self._mark_missing()
-            raise
+                self.call_count += 1
+            started = perf_counter()
+            try:
+                response = self.invoke_adapter(chat, prompt) if self.invoke_adapter is not None else chat.invoke(prompt)
+            except Exception as exc:
+                with self._lock:
+                    self._mark_missing()
+                recognized = is_model_request_error(exc)
+                diagnostic = error_diagnostic(exc, (prompt, os.getenv('DEEPSEEK_API_KEY'),
+                    os.getenv('DEEPSEEK_BASE_URL'))) if recognized else None
+                retry = bool(diagnostic and diagnostic['retryable'] and
+                             request_attempt <= REQUEST_RETRY_POLICY['max_retries'])
+                entry = dict(request_attempt=request_attempt, duration_ms=round((perf_counter()-started)*1000),
+                             finish_reason=None, output_chars=0, outcome='request_error',
+                             prompt_sha256=hashlib.sha256(prompt.encode('utf-8')).hexdigest(),
+                             prompt_chars=len(prompt), prompt_utf8_bytes=len(prompt.encode('utf-8')),
+                             prompt_tokens=None, completion_tokens=None, total_tokens=None,
+                             will_retry=retry, retry_delay_seconds=REQUEST_RETRY_POLICY['backoff_seconds'] if retry else 0)
+                if diagnostic is not None:
+                    entry['request_error'] = diagnostic
+                self.record_attempt(entry)
+                if retry:
+                    self.cancelled.wait(REQUEST_RETRY_POLICY['backoff_seconds'])
+                    self.check_cancelled()
+                    continue
+                if recognized:
+                    raise ModelRequestError(diagnostic) from exc
+                raise
+            break
 
         prompt_tokens, completion_tokens, total_tokens = extract_token_usage(response)
         with self._lock:

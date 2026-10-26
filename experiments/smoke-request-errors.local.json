@@ -1,0 +1,15 @@
+{
+  "dataset": "../data/experiments/datasets/hotpot_dev_distractor_v1.qc.json",
+  "dataset_source": "https://huggingface.co/datasets/namlh2004/hotpotqa/resolve/7e54db4656209750ff487f6fdf8e39a66dba136b/hotpot_dev_distractor_v1.json; QC excluded 5ae61bfd5542992663a4f261; see dataset provenance",
+  "split_directory": "../data/experiments/splits/hotpot-dev-seed42-v1",
+  "output": "../data/experiments/baseline-smoke-002",
+  "purpose": "smoke",
+  "repeats": 1,
+  "dataset_sha256": "c25430a3e1a130ad3b3d3a0a775ae2197a7eaba58194034aec79e0080e876f61",
+  "model": {
+    "name": "deepseek-v4.1-flash",
+    "temperature": 0.0,
+    "max_tokens": 4096,
+    "output_retries": 2
+  }
+}

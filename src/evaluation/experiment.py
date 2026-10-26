@@ -28,6 +28,7 @@ from src.evaluation.hotpotqa import sha256_file
 from src.runtime.service import RunService
 from src.runtime.sqlite_repository import SQLiteRunRepository
 from src.runtime.version import source_fingerprint, code_version
+from src.model_errors import REQUEST_RETRY_POLICY, request_errors
 
 
 def identity():
@@ -81,7 +82,7 @@ def initialize(directory, config, records, manifest, definitions, provider):
                       method_hashes={m: digest(d) for m, d in definitions.items()},
                       source_archive_sha256=archive_source(directory), provider_sha256=provider,
                       execution='offline_test' if provider == 'offline_test' else 'real_model',
-                      request_policy=dict(sdk_retries=0, response_format='json_object',
+                      request_policy=dict(sdk_retries=0, transient_errors=dict(REQUEST_RETRY_POLICY), response_format='json_object',
                                           deepseek_thinking='disabled' if config.model.name.lower().startswith('deepseek') else 'not_sent'))
     atomic_json(directory / 'provenance.json', provenance)
     ledger = Ledger(directory)
@@ -209,6 +210,11 @@ def execute(config=None, *, directory=None, allow_model_calls=False, retry_statu
                              sample_id=task['sample_id'], repeat=task['repeat'], attempt=number,
                              status=detail.run.status, duration_ms=detail.run.metrics.duration_ms,
                              tokens=detail.run.metrics.total_tokens)
+                if detail.run.error:
+                    event['error'] = detail.run.error.model_dump()
+                errors = request_errors(detail.run.metrics.agent_usage)
+                if errors:
+                    event['request_errors'] = errors
                 (directory / 'logs').mkdir(exist_ok=True)
                 with (directory / 'logs' / 'progress.jsonl').open('a', encoding='utf-8') as handle:
                     handle.write(json.dumps(event, ensure_ascii=False) + '\n')
