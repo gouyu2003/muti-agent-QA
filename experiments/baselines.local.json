@@ -2,17 +2,19 @@
   "schema_version": 1,
   "dataset": "../data/experiments/datasets/hotpot_dev_distractor_v1.qc.json",
   "dataset_source": "https://huggingface.co/datasets/namlh2004/hotpotqa/resolve/7e54db4656209750ff487f6fdf8e39a66dba136b/hotpot_dev_distractor_v1.json; QC excluded 5ae61bfd5542992663a4f261; see dataset provenance",
-  "split_directory": "../data/experiments/splits/hotpot-dev-seed42-v1",
+  "split_directory": "../data/experiments/splits/hotpot-dev-seed42-budget-v2",
   "output": "../data/experiments/baseline-dev-001",
   "purpose": "development",
   "splits": {
-    "development": 300,
+    "development": 100,
     "evaluation": 1000,
     "smoke": 6
   },
   "seed": 42,
   "sampling": "proportional",
-  "exposure_manifests": [],
+  "exposure_manifests": [
+    "../data/experiments/splits/hotpot-dev-seed42-v1/development.json"
+  ],
   "methods": [
     "single_rag",
     "pipeline_fixed",
