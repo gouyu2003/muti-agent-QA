@@ -21,6 +21,9 @@ data/knowledge/
 # Local experiment inputs, isolated run databases and frozen source archives
 data/experiments/
 
+# Platform question banks, frozen jobs and isolated worker runs
+data/evaluations/
+
 # Workspace system drafts and immutable releases
 data/systems/
 data/protocols/

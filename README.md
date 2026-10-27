@@ -16,6 +16,8 @@
 
 运行历史现可只读查看已登记的独立实验库：在“入口筛选”选择“批量实验”，再选择 V0 或 V1，可查看每组十题及失败记录的答案、证据、用量和轨迹。登记表为 `system-design/experiments/history.json`；本地需保留对应实验数据。接口、存储隔离和验收说明见 [docs/experiment-history-validation.md](docs/experiment-history-validation.md)。
 
+平台新增“批量评测”：上传并版本化问题库，比较标准六组或已发布用户系统，冻结任务后由独立后台进程执行，查看进度、逐题轨迹和比较报告。创建任务不调用模型；启动和补跑需在页面明确确认。数据独立保存在 `data/evaluations/`，使用说明与限制见 [平台批量评测](docs/platform-evaluation.md)。
+
 ## 系统结构
 
 阶段 4.1 可在“我的系统”创建多套系统，组合现有流程与工作区共享的知识源固定版本，保存草稿、试运行并发布不可覆盖的 v1/v2。问答与历史记录关联当时的完整配置，原入口保留为“临时问答”。阶段 4.1 的历史验收记录见 [docs/stage41-validation.md](docs/stage41-validation.md)。

@@ -30,6 +30,8 @@ from backend.knowledge_api import router as knowledge_router
 from backend.systems_api import router as systems_router
 from backend.systems_api import templates_router
 from backend.protocols_api import router as protocols_router
+from backend.evaluations_api import router as evaluations_router
+from src.evaluation.platform_store import EvaluationFailure
 from src.runtime.system_store import SystemStore, SystemFailure
 from src.knowledge.store import KnowledgeStore
 from src.knowledge.corpus import ImportFailure
@@ -103,6 +105,7 @@ app.include_router(knowledge_router)
 app.include_router(systems_router)
 app.include_router(templates_router)
 app.include_router(protocols_router)
+app.include_router(evaluations_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -125,6 +128,11 @@ def history_reader(request: Request) -> HistoryReader:
 
 @app.exception_handler(SystemFailure)
 async def system_failure_handler(_request: Request, exc: SystemFailure):
+    return JSONResponse(status_code=exc.status, content={"detail": str(exc)})
+
+
+@app.exception_handler(EvaluationFailure)
+async def evaluation_failure_handler(_request: Request, exc: EvaluationFailure):
     return JSONResponse(status_code=exc.status, content={"detail": str(exc)})
 
 

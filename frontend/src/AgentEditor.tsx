@@ -19,19 +19,19 @@ export function AgentEditor({ agents, templates, options, disabled, onChange, re
     onChange(agents.map((a, i) => i === index ? { ...a, ...patch } : a))
   }
   return <section className="agent-editor" aria-label="智能体配置">
-    <div className="agent-editor-heading"><div><h3>智能体实例</h3><p>各实例配置随系统版本保存。执行顺序由协议阶段与槽位绑定决定。</p></div><Tag>{agents.length} / 5</Tag></div>
-    <Space wrap className="agent-editor-add">
+    <p className="agent-editor-lede">各实例配置随系统版本保存。执行顺序由协议阶段与槽位绑定决定。<Tag>{agents.length} / 5</Tag></p>
+    <div className="agent-editor-add">
       {templates.map(t => <Button key={t.agent_type} disabled={disabled || agents.length >= 5}
         onClick={() => onChange([...agents, newInstance(t)])}>添加{ROLE_NAMES[t.agent_type]}</Button>)}
-    </Space>
-    {reusableAgents.length ? <label className="agent-copy-source">从其他系统复制实例
+    </div>
+    {reusableAgents.length ? <label className="agent-copy-source ws-field">从其他系统复制实例
       <Select aria-label="从其他系统复制实例" value={null} placeholder="选择要复制的实例；副本独立保存" disabled={disabled || agents.length >= 5}
         options={reusableAgents.map(a => ({ value: a.key, label: a.label }))} onChange={value => {
           const item = reusableAgents.find(a => a.key === value)
           if (item) onChange([...agents, { ...structuredClone(item.agent), agent_id: `agent_${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}` }])
         }} />
     </label> : null}
-    {!agents.length ? <p>从上方角色模板添加智能体，再保存草稿。</p> : null}
+    {!agents.length ? <p className="ws-hint">从上方角色模板添加智能体，再保存草稿。</p> : null}
     <Collapse items={agents.map((a, index) => ({ key: a.agent_id,
       label: <span>{a.name || '未命名实例'} · {ROLE_NAMES[a.agent_type]}</span>,
       children: <div className="agent-instance-fields">

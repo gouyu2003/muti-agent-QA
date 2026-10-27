@@ -283,8 +283,11 @@ it('retains an archived draft reference and editor state when refreshing after p
   expect(screen.getByDisplayValue('Unsaved name')).toBeInTheDocument()
   await waitFor(() => expect(screen.getByRole('combobox', { name: '执行协议' }).closest('.ant-select')).toHaveTextContent('草稿 r1'))
   await waitFor(() => expect(screen.getByRole('button', { name: '刷新协议列表' })).toBeEnabled())
+  await waitFor(() => expect(screen.getByRole('button', { name: '刷新协议列表' })).not.toHaveClass('ant-btn-loading'))
   vi.mocked(protocolRequest).mockRejectedValue(new Error('offline'))
+  const requestsBeforeFailure = vi.mocked(protocolRequest).mock.calls.length
   fireEvent.click(screen.getByRole('button', { name: '刷新协议列表' }))
+  await waitFor(() => expect(protocolRequest).toHaveBeenCalledTimes(requestsBeforeFailure + 1))
   await screen.findByText('协议列表加载失败；保留当前明确引用')
   expect(screen.getByRole('combobox', { name: '执行协议' }).closest('.ant-select')).toHaveTextContent('草稿 r1')
   vi.mocked(saveManagedSystem).mockResolvedValue(system)

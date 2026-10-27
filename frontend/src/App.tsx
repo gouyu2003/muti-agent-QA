@@ -43,6 +43,7 @@ import { getSystemInfo, getSystemOptions, streamQuestion } from './api'
 import HistoryView from './HistoryView'
 import KnowledgeView from './KnowledgeView'
 import SystemsView from './SystemsView'
+import EvaluationsView from './EvaluationsView'
 import ProtocolsView from './ProtocolsView'
 import ProtocolCalls from './ProtocolCalls'
 import EvidenceLocation from './EvidenceLocation'
@@ -606,6 +607,9 @@ export default function App() {
           <NavLink to="/history" end onClick={() => setSidebarOpen(false)}>
             <span className="nav-icon nav-icon-history"><HistoryOutlined /></span> 运行历史
           </NavLink>
+          <NavLink to="/evaluations" end onClick={() => setSidebarOpen(false)}>
+            <span className="nav-icon nav-icon-history"><FileSearchOutlined /></span> 批量评测
+          </NavLink>
           <span className="nav-group-label">配置</span>
           <NavLink to="/systems" end onClick={() => setSidebarOpen(false)}>
             <span className="nav-icon nav-icon-systems"><ApartmentOutlined /></span> 我的系统
@@ -641,6 +645,7 @@ export default function App() {
         <Route path="/systems" element={null} />
         <Route path="/protocols" element={null} />
         <Route path="/history" element={<HistoryView />} />
+        <Route path="/evaluations" element={<EvaluationsView />} />
         <Route path="/knowledge" element={<KnowledgeView disabled={isRunning} onChanged={refreshOptions} onUse={useKnowledge} />} />
         <Route path="/run" element={<main className="workspace">
         <aside className="protocol-column">

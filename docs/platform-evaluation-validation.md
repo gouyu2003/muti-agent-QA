@@ -1,0 +1,49 @@
+# 平台批量评测验证记录
+
+日期：2026-10-27。开发分支：`platform-evaluation`（原 `codex/platform-evaluation`），基线提交：`ac350b1`。本次验证未启动或重启 8000，也未连接真实模型供应商。原 CLI 实验配置、数据划分和归档未改动。
+
+## 覆盖范围
+
+- 问题库 JSON 导入、标签可选、ID/支撑句坐标校验、不可覆盖的版本和哈希。
+- 六种标准基线的本地协议图；不与模板同形的自定义 V2 协议发布系统；沿用系统材料与逐题 context 两种模式。
+- 标签只在评分侧读取；原系统数据库保持相同字节，日常问答数据库不写入评测记录。
+- 固定材料包含 corpus、index 和原件，删除原材料后任务副本仍可通过原检索器校验并检索。
+- 暂停、继续未启动任务、明确补跑、首次尝试保留、未知中断不自动重发、终态落盘后不重复调用、源码/端点变化和缺失运行库拒绝恢复。
+- HTTP 创建任务不调用模型；启动需明确费用确认；同一目录只允许一个运行任务；OS 锁保护执行进程。
+- 使用真正的独立 worker 进程连接本地 OpenAI 格式模拟 HTTP 服务：关闭 TestClient/API lifespan 后，worker 仍完成任务、生成报告；请求中不包含评分标签。没有供应商调用或费用。
+- 无标准答案不评分；失败计零；未知用量不当零；导出 CSV 保留人工审阅列并处理表格公式前缀。
+
+## 自动检查
+
+全后端离线回归：**406 passed，3 deselected**；随后新增的独立进程/本地 HTTP 模拟验收：**1 passed**。三项真实模型 integration 测试按项目默认配置排除。
+
+```powershell
+.\venv\Scripts\python.exe -B -m pytest -p no:cacheprovider --basetemp .pytest-tmp-eplast
+.\venv\Scripts\python.exe -B -m pytest tests/test_platform_evaluation.py::test_detached_worker_survives_api_client_close_with_local_stub -p no:cacheprovider --basetemp .pytest-tmp-pchild
+```
+
+前端新增三项行为测试覆盖问题库导入、固定系统版本/材料策略，以及启动费用确认。既有协议刷新测试补齐“等待按钮加载态结束、确认请求已发出”的等待条件，协议生产逻辑不变。
+
+最终前端全量回归：**8 个文件、72 项测试全部通过**。
+
+TypeScript 检查和生产构建通过。构建保留既有的大包体积提示，未新增依赖。
+
+```powershell
+Set-Location frontend
+npm.cmd test -- --maxWorkers=1
+npm.cmd run build
+```
+
+Windows 沙箱下的本地回环通信与 Vite 临时缓存导致过测试环境错误；使用允许本地回环/文件访问的离线测试权限复验。全后端复验曾出现一次既有 atomic_json 文件替换的 Windows 瞬时拒绝访问，随后完整复验通过，没有改写原 CLI 文件替换逻辑。
+
+## 浏览器检查
+
+Chrome 无头浏览器加载最终静态构建，在 1440px 桌面宽度检查问题库导入、固定版本选择、任务列表、完成/失败统计、比较表和导出入口。接口由浏览器本地测试数据替代，没有访问实际后端或真实模型；检查未出现页面脚本异常。
+
+本地检查脚本和截图保存在 Git 忽略的 `.pytest-live-platform-ui/`。这项检查证明最终页面布局与展示流程，不替代真实后端和供应商的人工端到端验收。
+
+## 用户验收
+
+用户自行重启后端后，进入“批量评测”，先上传少量自建回归问题，选择一个已发布系统版本；创建任务后检查固定配置，再手动确认真实模型费用并启动。检查逐题结果、暂停/继续、关闭页面后返回、CSV/JSON 导出。真实验收由用户自行决定样本规模和启动时间。
+
+明天的正式 CLI 评价继续在原机器、原冻结版本运行。平台首版的数据和任务均在独立目录，不把本轮平台试跑计入已有论文实验。
