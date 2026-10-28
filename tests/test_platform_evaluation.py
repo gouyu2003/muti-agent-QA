@@ -325,7 +325,9 @@ def test_detached_worker_survives_api_client_close_with_local_stub(monkeypatch):
             job_id = response.json()['job_id']
             assert client.post(f'/api/v1/evaluations/jobs/{job_id}/start', json={'allow_model_calls': True}).status_code == 200
         # The API lifespan is closed. The independent process still finishes and persists its report.
-        deadline = time.monotonic() + 35
+        # A fresh Windows Python process may spend over 35 seconds importing the
+        # runtime before it can leave queued; keep the stub alive through startup.
+        deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
             job = store.job(job_id)
             if job['report'] is not None or job['status'] == 'error':
@@ -333,6 +335,7 @@ def test_detached_worker_survives_api_client_close_with_local_stub(monkeypatch):
             time.sleep(.2)
         assert job['status'] == 'completed', (job, (store.job_directory(job_id) / 'worker.log').read_text(encoding='utf-8'))
         assert job['report']['complete'] and received
+        assert job['report']['methods']['single_rag']['statuses']['completed'] == 1
         assert 'GOLD_MUST_NEVER_BE_SENT' not in json.dumps(received)
     finally:
         server.shutdown()
