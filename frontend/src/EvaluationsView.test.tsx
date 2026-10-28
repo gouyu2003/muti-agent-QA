@@ -1,7 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { ConfigProvider } from 'antd'
 import EvaluationsView from './EvaluationsView'
 import { evaluationRequest, type EvaluationJob, type QuestionBank } from './evaluationApi'
+import { diagnosticDetail } from './test/diagnosticFixtures'
+import type { StoredRunDetail } from './types'
 
 vi.mock('./evaluationApi', () => ({ evaluationRequest: vi.fn() }))
 
@@ -63,4 +66,43 @@ it('freezes a named system version with its own materials before execution', asy
     targets: [{ kind: 'system', system_id: 'sys_1', version: 'v2' }],
   })))
   expect(vi.mocked(evaluationRequest).mock.calls.some(([path]) => path.endsWith('/start'))).toBe(false)
+})
+
+it('opens recorded diagnostics using only GET requests and keeps the creation draft', async () => {
+  const detail = diagnosticDetail()
+  const original = vi.mocked(evaluationRequest).getMockImplementation()!
+  vi.mocked(evaluationRequest).mockImplementation(async (path, method, body) => {
+    if (path.includes('/results')) return { items: [{ run_id: 'run_1', sample_id: 'q1', method_id: 'debate',
+      repeat: 0, attempt: 1, question: detail.run.context.question, answer: '', scores: null,
+      status: detail.run.status, error: detail.run.error, metrics: detail.run.metrics }], total: 1 }
+    if (path === '/jobs/eval_1/runs/run_1') return detail
+    return original(path, method, body)
+  })
+  render(<EvaluationsView />)
+  fireEvent.change(screen.getByRole('textbox', { name: '任务名称' }), { target: { value: 'Unsaved comparison' } })
+  fireEvent.click(await screen.findByRole('button', { name: /Comparison/ }))
+  fireEvent.click(await screen.findByRole('button', { name: '查看诊断与轨迹' }))
+  expect(await screen.findByText('request-blocked-001')).toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: '任务名称' })).toHaveValue('Unsaved comparison')
+  expect(vi.mocked(evaluationRequest).mock.calls.every(([, method]) => !method || method === 'GET')).toBe(true)
+})
+
+it('does not reopen a closed detail when its request resolves late', async () => {
+  let resolveDetail!: (value: StoredRunDetail) => void
+  const pending = new Promise<StoredRunDetail>(resolve => { resolveDetail = resolve })
+  const original = vi.mocked(evaluationRequest).getMockImplementation()!
+  vi.mocked(evaluationRequest).mockImplementation(async (path, method, body) => {
+    if (path.includes('/results')) return { items: [{ run_id: 'run_1', sample_id: 'q1', method_id: 'debate', repeat: 0,
+      attempt: 1, question: 'Q1', answer: '', scores: null, status: 'failed', error: null }], total: 1 }
+    if (path === '/jobs/eval_1/runs/run_1') return pending
+    return original(path, method, body)
+  })
+  render(<ConfigProvider theme={{ token: { motion: false } }}><EvaluationsView /></ConfigProvider>)
+  fireEvent.click(await screen.findByRole('button', { name: /Comparison/ }))
+  fireEvent.click(await screen.findByRole('button', { name: '查看诊断与轨迹' }))
+  expect(screen.getByRole('status', { name: '正在加载运行详情' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /close/i }))
+  resolveDetail(diagnosticDetail())
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(screen.queryByText('request-blocked-001')).not.toBeInTheDocument()
 })

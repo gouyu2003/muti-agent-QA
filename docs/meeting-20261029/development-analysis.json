@@ -1,0 +1,2121 @@
+{
+  "experiment": "baseline-dev-001",
+  "question_count": 100,
+  "task_count": 600,
+  "status_counts": {
+    "completed": 597,
+    "failed": 3
+  },
+  "sessions": [
+    {
+      "started_at": "2026-10-27T05:07:59.092133+00:00",
+      "finished_at": "2026-10-27T07:49:12.311368+00:00",
+      "wall_seconds": 9673.218999999983
+    }
+  ],
+  "methods": {
+    "single_rag": {
+      "status_counts": {
+        "completed": 100
+      },
+      "scores": {
+        "em": 0.49,
+        "f1": 0.5886507936507936,
+        "sp_em": 0.19,
+        "sp_f1": 0.5763333333333334,
+        "joint_em": 0.15,
+        "joint_f1": 0.39980158730158727
+      },
+      "mean_calls": 1.14,
+      "mean_seconds": 4.2394,
+      "median_seconds": 3.4995,
+      "p95_seconds": 8.50405,
+      "metrics": {
+        "llm_call_count": {
+          "reported_total": 114,
+          "mean_reported": 1.14,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 1.0,
+          "p95_reported": 2.0
+        },
+        "prompt_tokens": {
+          "reported_total": 95098,
+          "mean_reported": 950.98,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 830.5,
+          "p95_reported": 1724.6
+        },
+        "completion_tokens": {
+          "reported_total": 28749,
+          "mean_reported": 287.49,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 250.5,
+          "p95_reported": 563.25
+        },
+        "total_tokens": {
+          "reported_total": 123847,
+          "mean_reported": 1238.47,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 1079.5,
+          "p95_reported": 2257.3999999999996
+        },
+        "duration_ms": {
+          "reported_total": 423940,
+          "mean_reported": 4239.4,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 3499.5,
+          "p95_reported": 8504.05
+        }
+      },
+      "labels": {
+        "correct_answer_support_mismatch": 34,
+        "gold_support_not_fully_retrieved": 80,
+        "answer_mismatch": 51,
+        "verified_but_answer_mismatch": 26,
+        "unverified_but_answer_match": 8,
+        "support_covered_answer_mismatch": 4
+      },
+      "initial_support_coverage": 0.5475,
+      "cumulative_support_coverage": 0.5475,
+      "by_type": {
+        "bridge": {
+          "em": 0.4875,
+          "f1": 0.5989087301587301,
+          "sp_em": 0.1875,
+          "sp_f1": 0.6020833333333333,
+          "joint_em": 0.1375,
+          "joint_f1": 0.42004960317460316
+        },
+        "comparison": {
+          "em": 0.5,
+          "f1": 0.5476190476190477,
+          "sp_em": 0.2,
+          "sp_f1": 0.47333333333333333,
+          "joint_em": 0.2,
+          "joint_f1": 0.31880952380952376
+        }
+      },
+      "termination_counts": {
+        "completed": 100
+      },
+      "last_node_at_limit": {},
+      "empty_answer_failure_types": {
+        "insufficient": 3
+      },
+      "verification": {
+        "verified": 67,
+        "verified_em_correct": 41,
+        "verified_em_wrong": 26,
+        "unverified_em_correct": 8
+      },
+      "stages": [
+        {
+          "kind": "answer",
+          "slot": "expert",
+          "reads": [],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "END"
+            }
+          ]
+        }
+      ],
+      "agent_roles": {
+        "expert": 1
+      }
+    },
+    "pipeline_fixed": {
+      "status_counts": {
+        "completed": 100
+      },
+      "scores": {
+        "em": 0.55,
+        "f1": 0.648131469979296,
+        "sp_em": 0.35,
+        "sp_f1": 0.7429523809523809,
+        "joint_em": 0.26,
+        "joint_f1": 0.5246765130294542
+      },
+      "mean_calls": 2,
+      "mean_seconds": 6.06103,
+      "median_seconds": 5.496,
+      "p95_seconds": 9.677199999999997,
+      "metrics": {
+        "llm_call_count": {
+          "reported_total": 200,
+          "mean_reported": 2,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 2.0,
+          "p95_reported": 2.0
+        },
+        "prompt_tokens": {
+          "reported_total": 307693,
+          "mean_reported": 3076.93,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 2980.0,
+          "p95_reported": 4036.55
+        },
+        "completion_tokens": {
+          "reported_total": 38604,
+          "mean_reported": 386.04,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 376.0,
+          "p95_reported": 528.25
+        },
+        "total_tokens": {
+          "reported_total": 346297,
+          "mean_reported": 3462.97,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 3355.0,
+          "p95_reported": 4552.45
+        },
+        "duration_ms": {
+          "reported_total": 606103,
+          "mean_reported": 6061.03,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 5496.0,
+          "p95_reported": 9677.199999999997
+        }
+      },
+      "labels": {
+        "correct_answer_support_mismatch": 29,
+        "gold_support_not_fully_retrieved": 53,
+        "answer_mismatch": 45,
+        "support_covered_answer_mismatch": 13,
+        "verified_but_answer_mismatch": 23,
+        "invalid_or_duplicate_final_reference": 7
+      },
+      "initial_support_coverage": 0.7483333333333333,
+      "cumulative_support_coverage": 0.7483333333333333,
+      "by_type": {
+        "bridge": {
+          "em": 0.5375,
+          "f1": 0.6338392857142857,
+          "sp_em": 0.3125,
+          "sp_f1": 0.7320238095238095,
+          "joint_em": 0.225,
+          "joint_f1": 0.5092081529581529
+        },
+        "comparison": {
+          "em": 0.6,
+          "f1": 0.7053002070393375,
+          "sp_em": 0.5,
+          "sp_f1": 0.7866666666666667,
+          "joint_em": 0.4,
+          "joint_f1": 0.5865499533146592
+        }
+      },
+      "termination_counts": {
+        "completed": 100
+      },
+      "last_node_at_limit": {},
+      "empty_answer_failure_types": {
+        "insufficient": 20
+      },
+      "verification": {
+        "verified": 78,
+        "verified_em_correct": 55,
+        "verified_em_wrong": 23
+      },
+      "stages": [
+        {
+          "kind": "plan",
+          "slot": "planner",
+          "reads": [],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "retrieve"
+            }
+          ]
+        },
+        {
+          "kind": "retrieve",
+          "slot": "retriever",
+          "reads": [
+            "plan"
+          ],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "review"
+            }
+          ]
+        },
+        {
+          "kind": "review",
+          "slot": "reviewer",
+          "reads": [
+            "plan",
+            "retrieve"
+          ],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "END"
+            }
+          ]
+        }
+      ],
+      "agent_roles": {
+        "planner": 1,
+        "retriever": 1,
+        "answer_validator": 1
+      }
+    },
+    "pipeline_adaptive": {
+      "status_counts": {
+        "completed": 99,
+        "failed": 1
+      },
+      "scores": {
+        "em": 0.55,
+        "f1": 0.643396004378763,
+        "sp_em": 0.38,
+        "sp_f1": 0.7429523809523809,
+        "joint_em": 0.28,
+        "joint_f1": 0.5280832074901842
+      },
+      "mean_calls": 2.62,
+      "mean_seconds": 9.3382,
+      "median_seconds": 5.8905,
+      "p95_seconds": 20.571150000000003,
+      "metrics": {
+        "llm_call_count": {
+          "reported_total": 262,
+          "mean_reported": 2.62,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 2.0,
+          "p95_reported": 5.0
+        },
+        "prompt_tokens": {
+          "reported_total": 447538,
+          "mean_reported": 4566.714285714285,
+          "reported": 98,
+          "attempted": 100,
+          "median_reported": 3025.5,
+          "p95_reported": 11506.099999999999
+        },
+        "completion_tokens": {
+          "reported_total": 52626,
+          "mean_reported": 537,
+          "reported": 98,
+          "attempted": 100,
+          "median_reported": 390.0,
+          "p95_reported": 1231.2999999999997
+        },
+        "total_tokens": {
+          "reported_total": 500164,
+          "mean_reported": 5103.714285714285,
+          "reported": 98,
+          "attempted": 100,
+          "median_reported": 3450.0,
+          "p95_reported": 12940.9
+        },
+        "duration_ms": {
+          "reported_total": 933820,
+          "mean_reported": 9338.2,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 5890.5,
+          "p95_reported": 20571.15
+        }
+      },
+      "labels": {
+        "correct_answer_support_mismatch": 27,
+        "gold_support_not_fully_retrieved": 49,
+        "answer_mismatch": 45,
+        "retrieval_without_new_evidence": 21,
+        "support_covered_answer_mismatch": 16,
+        "verified_but_answer_mismatch": 25,
+        "invalid_or_duplicate_final_reference": 8,
+        "model_request_error": 2,
+        "provider_connection_error": 1,
+        "request_retry_recovered": 1,
+        "provider_content_filter": 1,
+        "runtime_failed": 1
+      },
+      "initial_support_coverage": 0.7575,
+      "cumulative_support_coverage": 0.7575,
+      "by_type": {
+        "bridge": {
+          "em": 0.5375,
+          "f1": 0.6331448412698413,
+          "sp_em": 0.35,
+          "sp_f1": 0.7320238095238095,
+          "joint_em": 0.25,
+          "joint_f1": 0.5173529942279942
+        },
+        "comparison": {
+          "em": 0.6,
+          "f1": 0.6844006568144498,
+          "sp_em": 0.5,
+          "sp_f1": 0.7866666666666667,
+          "joint_em": 0.4,
+          "joint_f1": 0.5710040605389443
+        }
+      },
+      "termination_counts": {
+        "completed": 99,
+        "None": 1
+      },
+      "last_node_at_limit": {},
+      "empty_answer_failure_types": {
+        "insufficient": 20
+      },
+      "verification": {
+        "verified": 80,
+        "verified_em_correct": 55,
+        "verified_em_wrong": 25
+      },
+      "stages": [
+        {
+          "kind": "plan",
+          "slot": "planner",
+          "reads": [
+            "review"
+          ],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "retrieve"
+            }
+          ]
+        },
+        {
+          "kind": "retrieve",
+          "slot": "retriever",
+          "reads": [
+            "plan",
+            "review"
+          ],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "review"
+            }
+          ]
+        },
+        {
+          "kind": "review",
+          "slot": "reviewer",
+          "reads": [
+            "plan",
+            "retrieve"
+          ],
+          "routes": [
+            {
+              "condition": "verified",
+              "target": "END"
+            },
+            {
+              "condition": "insufficient_retry",
+              "target": "retrieve"
+            },
+            {
+              "condition": "conflict_retry",
+              "target": "plan"
+            },
+            {
+              "condition": "fallback",
+              "target": "END"
+            }
+          ]
+        }
+      ],
+      "agent_roles": {
+        "planner": 1,
+        "retriever": 1,
+        "answer_validator": 1
+      }
+    },
+    "multi_expert": {
+      "status_counts": {
+        "completed": 100
+      },
+      "scores": {
+        "em": 0.54,
+        "f1": 0.6221031746031747,
+        "sp_em": 0.36,
+        "sp_f1": 0.7392380952380952,
+        "joint_em": 0.24,
+        "joint_f1": 0.49907269841269847
+      },
+      "mean_calls": 4,
+      "mean_seconds": 12.93441,
+      "median_seconds": 12.411,
+      "p95_seconds": 20.818499999999997,
+      "metrics": {
+        "llm_call_count": {
+          "reported_total": 400,
+          "mean_reported": 4,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 4.0,
+          "p95_reported": 4.0
+        },
+        "prompt_tokens": {
+          "reported_total": 841057,
+          "mean_reported": 8410.57,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 8123.0,
+          "p95_reported": 11430.199999999999
+        },
+        "completion_tokens": {
+          "reported_total": 79846,
+          "mean_reported": 798.46,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 750.0,
+          "p95_reported": 1094.1
+        },
+        "total_tokens": {
+          "reported_total": 920903,
+          "mean_reported": 9209.03,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 8867.0,
+          "p95_reported": 12637.2
+        },
+        "duration_ms": {
+          "reported_total": 1293441,
+          "mean_reported": 12934.41,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 12411.0,
+          "p95_reported": 20818.499999999996
+        }
+      },
+      "labels": {
+        "correct_answer_support_mismatch": 30,
+        "gold_support_not_fully_retrieved": 52,
+        "answer_mismatch": 46,
+        "support_covered_answer_mismatch": 16,
+        "verified_but_answer_mismatch": 21,
+        "unverified_but_answer_match": 6,
+        "invalid_or_duplicate_final_reference": 5
+      },
+      "initial_support_coverage": 0.7425,
+      "cumulative_support_coverage": 0.7425,
+      "by_type": {
+        "bridge": {
+          "em": 0.525,
+          "f1": 0.6137003968253969,
+          "sp_em": 0.325,
+          "sp_f1": 0.7258333333333333,
+          "joint_em": 0.1875,
+          "joint_f1": 0.474890873015873
+        },
+        "comparison": {
+          "em": 0.6,
+          "f1": 0.6557142857142857,
+          "sp_em": 0.5,
+          "sp_f1": 0.7928571428571429,
+          "joint_em": 0.45,
+          "joint_f1": 0.5958
+        }
+      },
+      "termination_counts": {
+        "completed": 100
+      },
+      "last_node_at_limit": {},
+      "empty_answer_failure_types": {
+        "insufficient": 16
+      },
+      "verification": {
+        "verified": 69,
+        "verified_em_correct": 48,
+        "verified_em_wrong": 21,
+        "unverified_em_correct": 6
+      },
+      "stages": [
+        {
+          "kind": "plan",
+          "slot": "planner",
+          "reads": [],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "opinions"
+            }
+          ]
+        },
+        {
+          "kind": "propose",
+          "slot": "experts",
+          "reads": [
+            "plan"
+          ],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "review"
+            }
+          ]
+        },
+        {
+          "kind": "review",
+          "slot": "reviewer",
+          "reads": [
+            "plan",
+            "opinions"
+          ],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "END"
+            }
+          ]
+        }
+      ],
+      "agent_roles": {
+        "planner": 1,
+        "expert": 2,
+        "answer_validator": 1
+      }
+    },
+    "lead": {
+      "status_counts": {
+        "completed": 100
+      },
+      "scores": {
+        "em": 0.39,
+        "f1": 0.5000974025974027,
+        "sp_em": 0.21,
+        "sp_f1": 0.6298571428571429,
+        "joint_em": 0.13,
+        "joint_f1": 0.3659637426900585
+      },
+      "mean_calls": 5.42,
+      "mean_seconds": 18.709130000000002,
+      "median_seconds": 17.4155,
+      "p95_seconds": 30.22095,
+      "metrics": {
+        "llm_call_count": {
+          "reported_total": 542,
+          "mean_reported": 5.42,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 5.0,
+          "p95_reported": 8.0
+        },
+        "prompt_tokens": {
+          "reported_total": 1140578,
+          "mean_reported": 11405.78,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 10005.0,
+          "p95_reported": 20230.25
+        },
+        "completion_tokens": {
+          "reported_total": 121730,
+          "mean_reported": 1217.3,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 1123.5,
+          "p95_reported": 2044.3
+        },
+        "total_tokens": {
+          "reported_total": 1262308,
+          "mean_reported": 12623.08,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 11180.5,
+          "p95_reported": 22192.15
+        },
+        "duration_ms": {
+          "reported_total": 1870913,
+          "mean_reported": 18709.13,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 17415.5,
+          "p95_reported": 30220.949999999997
+        }
+      },
+      "labels": {
+        "correct_answer_support_mismatch": 26,
+        "gold_support_not_fully_retrieved": 69,
+        "answer_mismatch": 61,
+        "verified_but_answer_mismatch": 19,
+        "invalid_or_duplicate_final_reference": 10,
+        "unverified_but_answer_match": 5,
+        "retrieval_without_new_evidence": 7,
+        "support_covered_answer_mismatch": 13,
+        "resource_limit": 3
+      },
+      "initial_support_coverage": 0.5708333333333333,
+      "cumulative_support_coverage": 0.6208333333333333,
+      "by_type": {
+        "bridge": {
+          "em": 0.4,
+          "f1": 0.5159550865800866,
+          "sp_em": 0.2125,
+          "sp_f1": 0.6508333333333334,
+          "joint_em": 0.1125,
+          "joint_f1": 0.38155555555555554
+        },
+        "comparison": {
+          "em": 0.35,
+          "f1": 0.43666666666666665,
+          "sp_em": 0.2,
+          "sp_f1": 0.545952380952381,
+          "joint_em": 0.2,
+          "joint_f1": 0.30359649122807014
+        }
+      },
+      "termination_counts": {
+        "completed": 97,
+        "max_visits": 3
+      },
+      "last_node_at_limit": {
+        "reviewer_0": 3
+      },
+      "empty_answer_failure_types": {
+        "insufficient": 31
+      },
+      "verification": {
+        "verified": 53,
+        "verified_em_correct": 34,
+        "verified_em_wrong": 19,
+        "unverified_em_correct": 5
+      },
+      "stages": [
+        {
+          "kind": "lead",
+          "slot": "lead",
+          "reads": [
+            "work"
+          ],
+          "routes": [
+            {
+              "condition": "lead_dispatch",
+              "target": "work"
+            },
+            {
+              "condition": "lead_review",
+              "target": "review"
+            },
+            {
+              "condition": "fallback",
+              "target": "review"
+            }
+          ]
+        },
+        {
+          "kind": "dispatch",
+          "slot": "experts",
+          "reads": [
+            "coordinate"
+          ],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "coordinate"
+            }
+          ]
+        },
+        {
+          "kind": "review",
+          "slot": "reviewer",
+          "reads": [
+            "work",
+            "coordinate"
+          ],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "END"
+            }
+          ]
+        }
+      ],
+      "agent_roles": {
+        "lead": 1,
+        "expert": 2,
+        "answer_validator": 1
+      }
+    },
+    "debate": {
+      "status_counts": {
+        "completed": 98,
+        "failed": 2
+      },
+      "scores": {
+        "em": 0.29,
+        "f1": 0.3549047619047619,
+        "sp_em": 0.19,
+        "sp_f1": 0.5913809523809523,
+        "joint_em": 0.13,
+        "joint_f1": 0.2782222222222222
+      },
+      "mean_calls": 10.15,
+      "mean_seconds": 43.82978,
+      "median_seconds": 42.141,
+      "p95_seconds": 69.1205,
+      "metrics": {
+        "llm_call_count": {
+          "reported_total": 1015,
+          "mean_reported": 10.15,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 12.0,
+          "p95_reported": 14.0
+        },
+        "prompt_tokens": {
+          "reported_total": 4153555,
+          "mean_reported": 41535.55,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 48115.0,
+          "p95_reported": 66659.6
+        },
+        "completion_tokens": {
+          "reported_total": 321845,
+          "mean_reported": 3218.45,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 3103.0,
+          "p95_reported": 5649.65
+        },
+        "total_tokens": {
+          "reported_total": 4475400,
+          "mean_reported": 44754,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 51213.0,
+          "p95_reported": 71711.8
+        },
+        "duration_ms": {
+          "reported_total": 4382978,
+          "mean_reported": 43829.78,
+          "reported": 100,
+          "attempted": 100,
+          "median_reported": 42141.0,
+          "p95_reported": 69120.5
+        }
+      },
+      "labels": {
+        "correct_answer_support_mismatch": 16,
+        "gold_support_not_fully_retrieved": 80,
+        "retrieval_without_new_evidence": 100,
+        "answer_mismatch": 71,
+        "resource_limit": 58,
+        "support_covered_answer_mismatch": 7,
+        "verified_but_answer_mismatch": 13,
+        "unverified_but_answer_match": 2,
+        "runtime_failed": 2
+      },
+      "initial_support_coverage": 0.5475,
+      "cumulative_support_coverage": 0.5475,
+      "by_type": {
+        "bridge": {
+          "em": 0.3125,
+          "f1": 0.37696428571428575,
+          "sp_em": 0.1875,
+          "sp_f1": 0.6117261904761905,
+          "joint_em": 0.1125,
+          "joint_f1": 0.29083333333333333
+        },
+        "comparison": {
+          "em": 0.2,
+          "f1": 0.26666666666666666,
+          "sp_em": 0.2,
+          "sp_f1": 0.51,
+          "joint_em": 0.2,
+          "joint_f1": 0.22777777777777777
+        }
+      },
+      "termination_counts": {
+        "completed": 40,
+        "max_visits": 58,
+        "None": 2
+      },
+      "last_node_at_limit": {
+        "reviewer_0": 58
+      },
+      "empty_answer_failure_types": {
+        "insufficient": 34,
+        "None": 2
+      },
+      "verification": {
+        "verified": 40,
+        "verified_em_correct": 27,
+        "verified_em_wrong": 13,
+        "unverified_em_correct": 2
+      },
+      "stages": [
+        {
+          "kind": "propose",
+          "slot": "experts",
+          "reads": [],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "critique"
+            }
+          ]
+        },
+        {
+          "kind": "critique",
+          "slot": "experts",
+          "reads": [
+            "initial",
+            "revise"
+          ],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "revise"
+            }
+          ]
+        },
+        {
+          "kind": "revise",
+          "slot": "experts",
+          "reads": [
+            "initial",
+            "critique",
+            "revise"
+          ],
+          "routes": [
+            {
+              "condition": "always",
+              "target": "review"
+            }
+          ]
+        },
+        {
+          "kind": "review",
+          "slot": "reviewer",
+          "reads": [
+            "revise"
+          ],
+          "routes": [
+            {
+              "condition": "verified",
+              "target": "END"
+            },
+            {
+              "condition": "unverified",
+              "target": "critique"
+            },
+            {
+              "condition": "fallback",
+              "target": "END"
+            }
+          ]
+        }
+      ],
+      "agent_roles": {
+        "expert": 2,
+        "answer_validator": 1
+      }
+    }
+  },
+  "paired": [
+    {
+      "left": "single_rag",
+      "right": "pipeline_fixed",
+      "paired_samples": 100,
+      "planned_samples": 100,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": 0.06,
+          "right_wins": 15,
+          "ties": 76,
+          "left_wins": 9,
+          "ci95_sample_bootstrap": [
+            -0.03,
+            0.16
+          ]
+        },
+        "f1": {
+          "delta": 0.059480676328502416,
+          "right_wins": 20,
+          "ties": 65,
+          "left_wins": 15,
+          "ci95_sample_bootstrap": [
+            -0.036267330917874395,
+            0.1567117149758454
+          ]
+        },
+        "sp_em": {
+          "delta": 0.16,
+          "right_wins": 22,
+          "ties": 72,
+          "left_wins": 6,
+          "ci95_sample_bootstrap": [
+            0.06,
+            0.26
+          ]
+        },
+        "sp_f1": {
+          "delta": 0.1666190476190476,
+          "right_wins": 49,
+          "ties": 39,
+          "left_wins": 12,
+          "ci95_sample_bootstrap": [
+            0.10614285714285715,
+            0.2290523809523809
+          ]
+        },
+        "joint_em": {
+          "delta": 0.11,
+          "right_wins": 17,
+          "ties": 77,
+          "left_wins": 6,
+          "ci95_sample_bootstrap": [
+            0.02,
+            0.2
+          ]
+        },
+        "joint_f1": {
+          "delta": 0.1248749257278669,
+          "right_wins": 40,
+          "ties": 45,
+          "left_wins": 15,
+          "ci95_sample_bootstrap": [
+            0.03540224195738901,
+            0.21197800059417707
+          ]
+        }
+      }
+    },
+    {
+      "left": "single_rag",
+      "right": "pipeline_adaptive",
+      "paired_samples": 100,
+      "planned_samples": 100,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": 0.06,
+          "right_wins": 15,
+          "ties": 76,
+          "left_wins": 9,
+          "ci95_sample_bootstrap": [
+            -0.03,
+            0.15
+          ]
+        },
+        "f1": {
+          "delta": 0.05474521072796935,
+          "right_wins": 19,
+          "ties": 67,
+          "left_wins": 14,
+          "ci95_sample_bootstrap": [
+            -0.04082758620689655,
+            0.1501446360153256
+          ]
+        },
+        "sp_em": {
+          "delta": 0.19,
+          "right_wins": 25,
+          "ties": 69,
+          "left_wins": 6,
+          "ci95_sample_bootstrap": [
+            0.09,
+            0.3
+          ]
+        },
+        "sp_f1": {
+          "delta": 0.1666190476190476,
+          "right_wins": 51,
+          "ties": 38,
+          "left_wins": 11,
+          "ci95_sample_bootstrap": [
+            0.10265595238095239,
+            0.23100357142857142
+          ]
+        },
+        "joint_em": {
+          "delta": 0.13,
+          "right_wins": 19,
+          "ties": 75,
+          "left_wins": 6,
+          "ci95_sample_bootstrap": [
+            0.04,
+            0.23
+          ]
+        },
+        "joint_f1": {
+          "delta": 0.12828162018859693,
+          "right_wins": 41,
+          "ties": 42,
+          "left_wins": 17,
+          "ci95_sample_bootstrap": [
+            0.04286312585992818,
+            0.21493442145709574
+          ]
+        }
+      }
+    },
+    {
+      "left": "single_rag",
+      "right": "multi_expert",
+      "paired_samples": 100,
+      "planned_samples": 100,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": 0.05,
+          "right_wins": 16,
+          "ties": 73,
+          "left_wins": 11,
+          "ci95_sample_bootstrap": [
+            -0.05,
+            0.15
+          ]
+        },
+        "f1": {
+          "delta": 0.03345238095238095,
+          "right_wins": 21,
+          "ties": 61,
+          "left_wins": 18,
+          "ci95_sample_bootstrap": [
+            -0.06971924603174603,
+            0.13990178571428566
+          ]
+        },
+        "sp_em": {
+          "delta": 0.17,
+          "right_wins": 25,
+          "ties": 67,
+          "left_wins": 8,
+          "ci95_sample_bootstrap": [
+            0.05,
+            0.28
+          ]
+        },
+        "sp_f1": {
+          "delta": 0.1629047619047619,
+          "right_wins": 50,
+          "ties": 37,
+          "left_wins": 13,
+          "ci95_sample_bootstrap": [
+            0.0989952380952381,
+            0.22992380952380942
+          ]
+        },
+        "joint_em": {
+          "delta": 0.09,
+          "right_wins": 16,
+          "ties": 77,
+          "left_wins": 7,
+          "ci95_sample_bootstrap": [
+            0.0,
+            0.18
+          ]
+        },
+        "joint_f1": {
+          "delta": 0.0992711111111111,
+          "right_wins": 39,
+          "ties": 41,
+          "left_wins": 20,
+          "ci95_sample_bootstrap": [
+            0.009632238095238086,
+            0.19100816666666662
+          ]
+        }
+      }
+    },
+    {
+      "left": "single_rag",
+      "right": "lead",
+      "paired_samples": 100,
+      "planned_samples": 100,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": -0.1,
+          "right_wins": 7,
+          "ties": 76,
+          "left_wins": 17,
+          "ci95_sample_bootstrap": [
+            -0.19,
+            -0.01
+          ]
+        },
+        "f1": {
+          "delta": -0.08855339105339105,
+          "right_wins": 12,
+          "ties": 67,
+          "left_wins": 21,
+          "ci95_sample_bootstrap": [
+            -0.17503320707070708,
+            0.0019819985569984825
+          ]
+        },
+        "sp_em": {
+          "delta": 0.02,
+          "right_wins": 11,
+          "ties": 80,
+          "left_wins": 9,
+          "ci95_sample_bootstrap": [
+            -0.07,
+            0.11
+          ]
+        },
+        "sp_f1": {
+          "delta": 0.05352380952380953,
+          "right_wins": 34,
+          "ties": 45,
+          "left_wins": 21,
+          "ci95_sample_bootstrap": [
+            0.000991666666666672,
+            0.10733333333333332
+          ]
+        },
+        "joint_em": {
+          "delta": -0.02,
+          "right_wins": 7,
+          "ties": 84,
+          "left_wins": 9,
+          "ci95_sample_bootstrap": [
+            -0.1,
+            0.06
+          ]
+        },
+        "joint_f1": {
+          "delta": -0.033837844611528826,
+          "right_wins": 21,
+          "ties": 51,
+          "left_wins": 28,
+          "ci95_sample_bootstrap": [
+            -0.10519999999999997,
+            0.042746712614870494
+          ]
+        }
+      }
+    },
+    {
+      "left": "single_rag",
+      "right": "debate",
+      "paired_samples": 100,
+      "planned_samples": 100,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": -0.2,
+          "right_wins": 1,
+          "ties": 78,
+          "left_wins": 21,
+          "ci95_sample_bootstrap": [
+            -0.28,
+            -0.12
+          ]
+        },
+        "f1": {
+          "delta": -0.23374603174603176,
+          "right_wins": 2,
+          "ties": 69,
+          "left_wins": 29,
+          "ci95_sample_bootstrap": [
+            -0.3123555555555555,
+            -0.15321865079365082
+          ]
+        },
+        "sp_em": {
+          "delta": 0.0,
+          "right_wins": 0,
+          "ties": 100,
+          "left_wins": 0,
+          "ci95_sample_bootstrap": [
+            0.0,
+            0.0
+          ]
+        },
+        "sp_f1": {
+          "delta": 0.015047619047619051,
+          "right_wins": 9,
+          "ties": 83,
+          "left_wins": 8,
+          "ci95_sample_bootstrap": [
+            -0.005952380952380947,
+            0.040095238095238094
+          ]
+        },
+        "joint_em": {
+          "delta": -0.02,
+          "right_wins": 1,
+          "ties": 96,
+          "left_wins": 3,
+          "ci95_sample_bootstrap": [
+            -0.06,
+            0.02
+          ]
+        },
+        "joint_f1": {
+          "delta": -0.12157936507936508,
+          "right_wins": 3,
+          "ties": 69,
+          "left_wins": 28,
+          "ci95_sample_bootstrap": [
+            -0.17452242063492063,
+            -0.0771289682539683
+          ]
+        }
+      }
+    },
+    {
+      "left": "pipeline_fixed",
+      "right": "pipeline_adaptive",
+      "paired_samples": 100,
+      "planned_samples": 100,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": 0.0,
+          "right_wins": 2,
+          "ties": 96,
+          "left_wins": 2,
+          "ci95_sample_bootstrap": [
+            -0.04,
+            0.04
+          ]
+        },
+        "f1": {
+          "delta": -0.004735465600533067,
+          "right_wins": 3,
+          "ties": 92,
+          "left_wins": 5,
+          "ci95_sample_bootstrap": [
+            -0.04684657671164418,
+            0.03775195319007163
+          ]
+        },
+        "sp_em": {
+          "delta": 0.03,
+          "right_wins": 4,
+          "ties": 95,
+          "left_wins": 1,
+          "ci95_sample_bootstrap": [
+            -0.01,
+            0.07
+          ]
+        },
+        "sp_f1": {
+          "delta": -1.1102230246251566e-18,
+          "right_wins": 8,
+          "ties": 86,
+          "left_wins": 6,
+          "ci95_sample_bootstrap": [
+            -0.02733333333333333,
+            0.026008333333333283
+          ]
+        },
+        "joint_em": {
+          "delta": 0.02,
+          "right_wins": 3,
+          "ties": 96,
+          "left_wins": 1,
+          "ci95_sample_bootstrap": [
+            -0.02,
+            0.06
+          ]
+        },
+        "joint_f1": {
+          "delta": 0.0034066944607300267,
+          "right_wins": 6,
+          "ties": 86,
+          "left_wins": 8,
+          "ci95_sample_bootstrap": [
+            -0.03185094374959287,
+            0.042361158067878275
+          ]
+        }
+      }
+    }
+  ],
+  "exploratory_trajectory_counts": {
+    "single_rag": {
+      "proposal_question_count": 0,
+      "matching_initial_answers_count": 0,
+      "initially_correct_final_wrong_count": 0,
+      "initially_correct_final_wrong_sample_ids": []
+    },
+    "pipeline_fixed": {
+      "proposal_question_count": 0,
+      "matching_initial_answers_count": 0,
+      "initially_correct_final_wrong_count": 0,
+      "initially_correct_final_wrong_sample_ids": []
+    },
+    "pipeline_adaptive": {
+      "proposal_question_count": 0,
+      "matching_initial_answers_count": 0,
+      "initially_correct_final_wrong_count": 0,
+      "initially_correct_final_wrong_sample_ids": []
+    },
+    "multi_expert": {
+      "proposal_question_count": 100,
+      "matching_initial_answers_count": 57,
+      "initially_correct_final_wrong_count": 0,
+      "initially_correct_final_wrong_sample_ids": []
+    },
+    "lead": {
+      "proposal_question_count": 0,
+      "matching_initial_answers_count": 0,
+      "initially_correct_final_wrong_count": 0,
+      "initially_correct_final_wrong_sample_ids": []
+    },
+    "debate": {
+      "proposal_question_count": 100,
+      "matching_initial_answers_count": 64,
+      "initially_correct_final_wrong_count": 1,
+      "initially_correct_final_wrong_sample_ids": [
+        "5a807181554299485f5985ec"
+      ]
+    }
+  },
+  "cases": {
+    "pipeline_improvement": [
+      {
+        "sample_id": "5ae2979a554299495565dade",
+        "methods": {
+          "single_rag": {
+            "question": "Are Tweedia and Crossandra in separate families?",
+            "gold": "yes",
+            "answer": "unknown",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "dfb8ef81-0843-472d-a7d6-1f3660f96b3f",
+            "termination_reason": "completed",
+            "failure_type": "insufficient",
+            "verified": false,
+            "verification_note": "Crossandra is explicitly placed in Acanthaceae. Tweedia evidence only says Oxypetalum coeruleum was formerly included in Tweedia and is commonly called tweedia; it does not state Tweedia's family. Therefore the families cannot be compared from the supplied evidence.",
+            "initial_proposals": []
+          },
+          "pipeline_fixed": {
+            "question": "Are Tweedia and Crossandra in separate families?",
+            "gold": "yes",
+            "answer": "yes",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "run_id": "145bf2d2-02fd-45cc-af72-3a71d5a55ebc",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "Tweedia is in Apocynaceae; Crossandra is in Acanthaceae. These are different families, so the answer is yes.",
+            "initial_proposals": []
+          },
+          "pipeline_adaptive": {
+            "question": "Are Tweedia and Crossandra in separate families?",
+            "gold": "yes",
+            "answer": "yes",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "run_id": "17dd811f-52a4-42cf-aeb2-0e9c72a1ec70",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "证据明确给出 Tweedia 属于 Apocynaceae，Crossandra 属于 Acanthaceae，两个科不同，因此回答 yes。",
+            "initial_proposals": []
+          },
+          "multi_expert": {
+            "question": "Are Tweedia and Crossandra in separate families?",
+            "gold": "yes",
+            "answer": "yes",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "run_id": "17ad540e-bc16-45c3-b22b-800630da1be5",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "证据明确：Tweedia 属于 Apocynaceae，Crossandra 属于 Acanthaceae，两科不同，因此二者属于不同科。",
+            "initial_proposals": [
+              {
+                "agent": "experts_0",
+                "answer": "Tweedia is in the family Apocynaceae, and Crossandra is in the family Acanthaceae, so their families are different."
+              },
+              {
+                "agent": "experts_1",
+                "answer": "Tweedia 属于 Apocynaceae 科，Crossandra 属于 Acanthaceae 科，因此二者属于不同的科。"
+              }
+            ]
+          },
+          "lead": {
+            "question": "Are Tweedia and Crossandra in separate families?",
+            "gold": "yes",
+            "answer": "yes",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "run_id": "6021afc2-7fa2-4368-9f27-450f62bf2336",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "证据明确记载 Tweedia 属于 Apocynaceae，Crossandra 属于 Acanthaceae；两个科不同，因此二者属于不同科。Papaveraceae 与 Leiopelmatidae 条目与问题无关，不构成冲突。",
+            "initial_proposals": []
+          },
+          "debate": {
+            "question": "Are Tweedia and Crossandra in separate families?",
+            "gold": "yes",
+            "answer": "insufficient",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "76f13e8b-2900-463a-810a-78ea206b84cd",
+            "termination_reason": "max_visits",
+            "failure_type": "insufficient",
+            "verified": false,
+            "verification_note": "Crossandra 的科级分类已由证据确认（Acanthaceae）。但 Tweedia 的证据仅说明 Oxypetalum coeruleum 曾归入该属并俗称 tweedia，未给出 Tweedia 或 Oxypetalum coeruleum 的科。因此无法从现有证据判断 Tweedia 与 Crossandra 是否属于不同科。",
+            "initial_proposals": [
+              {
+                "agent": "experts_0",
+                "answer": "Crossandra is in the family Acanthaceae; the evidence does not state Tweedia's family, so it cannot be determined from the supplied material whether they are in separate families."
+              },
+              {
+                "agent": "experts_1",
+                "answer": "Crossandra 属于 Acanthaceae 科；Tweedia 的证据仅说明其曾包含的 Oxypetalum coeruleum 俗称 tweedia，未给出 Tweedia 的科级归属，因此无法据此判断二者是否属于不同科。"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "sample_id": "5ac440385542997ea680ca4e",
+        "methods": {
+          "single_rag": {
+            "question": "Carl von Donop was a colonel of which German auxiliaries?",
+            "gold": "Hessians",
+            "answer": "Hessian",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "0164d43b-36b9-47f7-97b8-0c70ae135435",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "Evidence states Carl von Donop was a Hessian colonel, so the German auxiliaries were Hessians.",
+            "initial_proposals": []
+          },
+          "pipeline_fixed": {
+            "question": "Carl von Donop was a colonel of which German auxiliaries?",
+            "gold": "Hessians",
+            "answer": "Hessians",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "run_id": "abeef2b0-f55e-4ac7-98da-1b2a44a1a0a0",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "证据1明确Carl von Donop是Hessian colonel；证据2明确Hessians是18世纪为英国政府服务的德国auxiliaries。两者结合直接回答其所属德国auxiliaries为Hessians。P. G. von Donop为不同人物，不构成冲突。",
+            "initial_proposals": []
+          },
+          "pipeline_adaptive": {
+            "question": "Carl von Donop was a colonel of which German auxiliaries?",
+            "gold": "Hessians",
+            "answer": "Hessians",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "run_id": "f613cbe2-1d20-4680-aa27-ccf860e1d14d",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "证据显示 Carl von Donop 是 Hessian colonel，且 Hessians 是 18 世纪为英国政府服务的德国 auxiliaries，因此可回答其为 Hessians。",
+            "initial_proposals": []
+          },
+          "multi_expert": {
+            "question": "Carl von Donop was a colonel of which German auxiliaries?",
+            "gold": "Hessians",
+            "answer": "Hessian",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "d7e8d727-bf39-4c27-95f4-e244d8e3cbf2",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "证据直接说明 Carl von Donop 是 Hessian colonel，且 Hessians 是 18 世纪受英国政府雇佣的德国辅助部队，因此可回答其所属德国辅助部队为 Hessian。",
+            "initial_proposals": [
+              {
+                "agent": "experts_0",
+                "answer": "Hessian"
+              },
+              {
+                "agent": "experts_1",
+                "answer": "Hessian"
+              }
+            ]
+          },
+          "lead": {
+            "question": "Carl von Donop was a colonel of which German auxiliaries?",
+            "gold": "Hessians",
+            "answer": "Hessians",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.8
+            },
+            "run_id": "2444578d-41f3-4260-bfa5-097423777fea",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "Carl von Donop 被明确记载为“Hessian colonel”，且 Battle of Iron Works Hill 记载“2,000 Hessians ... under Carl von Donop”；Hessian (soldier) 定义 Hessians 为18世纪英国政府雇佣的德国辅助部队。必要关系与实体身份一致，无相关冲突，证据足以回答其为 Hessians 的 colonel。",
+            "initial_proposals": []
+          },
+          "debate": {
+            "question": "Carl von Donop was a colonel of which German auxiliaries?",
+            "gold": "Hessians",
+            "answer": "Hessian",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "bfbc9f56-e88f-4f0d-bfb6-c06be40311ea",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "The Carl von Donop source explicitly states he was a Hessian colonel, and the Battle of Iron Works Hill source corroborates that Hessian forces were under Carl von Donop. The P. G. von Donop source concerns a different person and does not conflict. The evidence directly answers which German auxiliaries he was a colonel of.",
+            "initial_proposals": [
+              {
+                "agent": "experts_0",
+                "answer": "Hessian"
+              },
+              {
+                "agent": "experts_1",
+                "answer": "Hessian"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "debate_loses_correct_proposal": [
+      {
+        "sample_id": "5a807181554299485f5985ec",
+        "methods": {
+          "single_rag": {
+            "question": "Bob Edwards was the host of what show, that later was hosted by Renee Montagne?",
+            "gold": "Morning Edition",
+            "answer": "Morning Edition",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.0,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "3b6966be-a1e8-4e96-8b4d-dac234f74c67",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "Renée Montagne 条目指出 Montagne 与 Inskeep 接替长期主持人 Bob Edwards，结合常识该节目为 Morning Edition；证据未直接写出节目名，但关系链指向同一接替事实。",
+            "initial_proposals": []
+          },
+          "pipeline_fixed": {
+            "question": "Bob Edwards was the host of what show, that later was hosted by Renee Montagne?",
+            "gold": "Morning Edition",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "bb695c28-fe50-4b98-b164-d73ebe9c783d",
+            "termination_reason": "completed",
+            "failure_type": "insufficient",
+            "verified": false,
+            "verification_note": "证据显示 Bob Edwards 是 Morning Edition 的首位主持人，也主持过 The Bob Edwards Show，但没有任何证据提到 Renee Montagne 或她后来主持了哪个由 Bob Edwards 主持过的节目，因此无法确定原始问题所问的节目。",
+            "initial_proposals": []
+          },
+          "pipeline_adaptive": {
+            "question": "Bob Edwards was the host of what show, that later was hosted by Renee Montagne?",
+            "gold": "Morning Edition",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "04ad5c75-6866-423f-af01-6ab5fbc5df25",
+            "termination_reason": "completed",
+            "failure_type": "insufficient",
+            "verified": false,
+            "verification_note": "证据显示 Bob Edwards 是 Morning Edition 的首位主持人，也主持过 The Bob Edwards Show 和 Bob Edwards Weekend，但没有任何证据提到 Renee Montagne 主持过这些节目，因此无法确定哪个节目后来由 Renee Montagne 主持。",
+            "initial_proposals": []
+          },
+          "multi_expert": {
+            "question": "Bob Edwards was the host of what show, that later was hosted by Renee Montagne?",
+            "gold": "Morning Edition",
+            "answer": "Morning Edition",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.5
+            },
+            "run_id": "0a11aa5c-8c98-4bbd-892b-4c9f5e6f0580",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "Bob Edwards was the first host of NPR's \"Morning Edition\"; Renée Montagne and Inskeep succeeded longtime host Bob Edwards on that program, so the show is Morning Edition.",
+            "initial_proposals": [
+              {
+                "agent": "experts_1",
+                "answer": "Bob Edwards was the first host of NPR's \"Morning Edition\"; Renée Montagne later succeeded him as a host of that same program."
+              },
+              {
+                "agent": "experts_0",
+                "answer": "Bob Edwards was the first host of NPR's \"Morning Edition\"; Renée Montagne later succeeded Bob Edwards as a host of that same program."
+              }
+            ]
+          },
+          "lead": {
+            "question": "Bob Edwards was the host of what show, that later was hosted by Renee Montagne?",
+            "gold": "Morning Edition",
+            "answer": "Morning Edition",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.5
+            },
+            "run_id": "039698e8-d302-442b-9238-2c04f5372607",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "Bob Edwards 条目称其为 NPR 旗舰节目 Morning Edition 的首位主持人；Renée Montagne 条目称 Montagne 与 Inskeep 接替了长期主持人 Bob Edwards。两条证据共同确认同一节目为 Morning Edition，无相关冲突。",
+            "initial_proposals": []
+          },
+          "debate": {
+            "question": "Bob Edwards was the host of what show, that later was hosted by Renee Montagne?",
+            "gold": "Morning Edition",
+            "answer": "insufficient",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.0,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "dbfe66a1-4a1b-4d98-aee1-2c313f674f54",
+            "termination_reason": "max_visits",
+            "failure_type": "insufficient",
+            "verified": false,
+            "verification_note": "唯一相关证据表明 Renée Montagne 和 Steve Inskeep 接替长期主持人 Bob Edwards，但未给出该节目名称。其他证据涉及 The Bob Edwards Show、Bob Edwards Weekend 或无关的 Renee Bradshaw，不能确认原始问题所问的节目。因此缺少必要证据，无法作答。",
+            "initial_proposals": [
+              {
+                "agent": "experts_1",
+                "answer": "Morning Edition"
+              },
+              {
+                "agent": "experts_0",
+                "answer": "Morning Edition"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "debate_correct_pipeline_wrong": [
+      {
+        "sample_id": "5ae682c45542995703ce8b6f",
+        "methods": {
+          "single_rag": {
+            "question": "Which Record Company reissued an Avenged Sevenfold Album that only sold 300 copies?",
+            "gold": "Hopeless Records",
+            "answer": "Hopeless Records",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "run_id": "06a18487-4a8b-4e4c-ae2e-ed6567e631cc",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "The evidence states that Avenged Sevenfold's debut album Sounding the Seventh Trumpet only sold 300 copies in its first week, and that it was later reissued on Hopeless Records. Thus the record company that reissued the album is Hopeless Records.",
+            "initial_proposals": []
+          },
+          "pipeline_fixed": {
+            "question": "Which Record Company reissued an Avenged Sevenfold Album that only sold 300 copies?",
+            "gold": "Hopeless Records",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "15ef0145-4c28-453a-8e57-234506b86440",
+            "termination_reason": "completed",
+            "failure_type": "insufficient",
+            "verified": false,
+            "verification_note": "证据确认 Sounding the Seventh Trumpet 首周仅售 300 张，但没有任何证据说明哪家唱片公司再版了该专辑，因此无法回答原始问题。",
+            "initial_proposals": []
+          },
+          "pipeline_adaptive": {
+            "question": "Which Record Company reissued an Avenged Sevenfold Album that only sold 300 copies?",
+            "gold": "Hopeless Records",
+            "answer": "",
+            "status": "failed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.0,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "f94e23d1-6da3-4d0f-a672-f69f3c6c7807",
+            "termination_reason": null,
+            "failure_type": "insufficient",
+            "verified": false,
+            "verification_note": "证据确认 Sounding the Seventh Trumpet 首周仅售 300 张，但没有提供任何关于该专辑被哪家唱片公司再版（reissued）的信息，因此无法回答原始问题。",
+            "initial_proposals": []
+          },
+          "multi_expert": {
+            "question": "Which Record Company reissued an Avenged Sevenfold Album that only sold 300 copies?",
+            "gold": "Hopeless Records",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "50db7a0e-0af8-4c8e-b793-dc5bc0d58a1f",
+            "termination_reason": "completed",
+            "failure_type": "insufficient",
+            "verified": false,
+            "verification_note": "证据确认 Sounding the Seventh Trumpet 首周仅售出300张，但没有任何证据指出重新发行该专辑的唱片公司，因此无法回答原始问题。",
+            "initial_proposals": [
+              {
+                "agent": "experts_1",
+                "answer": "Sounding the Seventh Trumpet only sold 300 copies in its first week of release."
+              },
+              {
+                "agent": "experts_0",
+                "answer": "Sounding the Seventh Trumpet only sold 300 copies in its first week of release."
+              }
+            ]
+          },
+          "lead": {
+            "question": "Which Record Company reissued an Avenged Sevenfold Album that only sold 300 copies?",
+            "gold": "Hopeless Records",
+            "answer": "Hopeless Records",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.8
+            },
+            "run_id": "ccc144da-1d9f-441a-bd5e-a31a56b4ef36",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "The 300-copy first-week sales figure is tied to 'Sounding the Seventh Trumpet' (identify_album evidence). The same album is stated to have been re-released by Hopeless Records on March 19, 2002, and the discography source independently confirms it was later reissued on Hopeless Records. Thus the record company that reissued the album is Hopeless Records.",
+            "initial_proposals": []
+          },
+          "debate": {
+            "question": "Which Record Company reissued an Avenged Sevenfold Album that only sold 300 copies?",
+            "gold": "Hopeless Records",
+            "answer": "Hopeless Records",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "run_id": "0b4e319f-a289-4a4a-8c55-cdd2c5ab6c67",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "证据将“首周仅售300张”的专辑识别为 Avenged Sevenfold 的《Sounding the Seventh Trumpet》，并说明该专辑最初由 Good Life Recordings 发行、后由 Hopeless Records 重新发行，因此可回答重新发行公司为 Hopeless Records。",
+            "initial_proposals": [
+              {
+                "agent": "experts_1",
+                "answer": "Hopeless Records"
+              },
+              {
+                "agent": "experts_0",
+                "answer": "Hopeless Records"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "sample_id": "5ade895955429975fa854ef5",
+        "methods": {
+          "single_rag": {
+            "question": "In what year did the conference in which the 2005 Air Force Falcons participated begin operations?",
+            "gold": "1999",
+            "answer": "1999",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "run_id": "0aa134f0-ae1b-4108-9666-2d4c4d5f8194",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "The 2005 Air Force Falcons participated in the Mountain West Conference, and the MW officially began operations in July 1999. Thus the conference began operations in 1999.",
+            "initial_proposals": []
+          },
+          "pipeline_fixed": {
+            "question": "In what year did the conference in which the 2005 Air Force Falcons participated begin operations?",
+            "gold": "1999",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "25165851-3674-4407-a8cc-788ae5716b35",
+            "termination_reason": "completed",
+            "failure_type": "insufficient",
+            "verified": false,
+            "verification_note": "证据确认2005 Air Force Falcons参加Mountain West Conference，但没有任何证据说明该联盟开始运营的年份，因此无法回答原始问题。",
+            "initial_proposals": []
+          },
+          "pipeline_adaptive": {
+            "question": "In what year did the conference in which the 2005 Air Force Falcons participated begin operations?",
+            "gold": "1999",
+            "answer": "1999",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "run_id": "7bf76602-0178-4cb6-9ddc-d3b94831c65a",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "证据表明2005 Air Force Falcons参加Mountain West Conference，且该联盟于1999年7月开始运营，因此答案为1999年。",
+            "initial_proposals": []
+          },
+          "multi_expert": {
+            "question": "In what year did the conference in which the 2005 Air Force Falcons participated begin operations?",
+            "gold": "1999",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "run_id": "bf3b564a-e9ff-47bb-a444-8278e29d782a",
+            "termination_reason": "completed",
+            "failure_type": "insufficient",
+            "verified": false,
+            "verification_note": "Evidence confirms the 2005 Air Force Falcons participated in the Mountain West Conference, but no supplied evidence states the year that conference began operations, so the original question cannot be answered.",
+            "initial_proposals": [
+              {
+                "agent": "experts_0",
+                "answer": "The 2005 Air Force Falcons participated in the Mountain West Conference."
+              },
+              {
+                "agent": "experts_1",
+                "answer": "2005 Air Force Falcons participated in the Mountain West Conference, but the evidence does not state the year that conference began operations."
+              }
+            ]
+          },
+          "lead": {
+            "question": "In what year did the conference in which the 2005 Air Force Falcons participated begin operations?",
+            "gold": "1999",
+            "answer": "1999",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "run_id": "23923681-4f8d-43e1-9b04-d2642a7e2188",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "证据表明2005 Air Force Falcons参加的是Mountain West Conference，且Mountain West Conference于1999年7月开始运营，因此该会议开始运营的年份为1999年。两跳关系均有直接证据支持，无相关冲突。",
+            "initial_proposals": []
+          },
+          "debate": {
+            "question": "In what year did the conference in which the 2005 Air Force Falcons participated begin operations?",
+            "gold": "1999",
+            "answer": "1999",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "run_id": "19f31393-f4cd-4f36-95aa-ec243d4f40d2",
+            "termination_reason": "completed",
+            "failure_type": "none",
+            "verified": true,
+            "verification_note": "The 2005 Air Force Falcons participated in the Mountain West Conference, and the MW officially began operations in July 1999. Thus the conference began operations in 1999.",
+            "initial_proposals": [
+              {
+                "agent": "experts_1",
+                "answer": "1999"
+              },
+              {
+                "agent": "experts_0",
+                "answer": "1999"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "caveats": [
+    "Development observations; no independent test conclusion.",
+    "100 paired question units, not 600 independent samples.",
+    "Stored bootstrap intervals are unadjusted and exploratory.",
+    "Questions selected for illustration are not representative samples."
+  ],
+  "source_summary_sha256": "24b962faaa401c2ad133ec9153d4d60e7516a26981496b82efc8ad92202df0d6",
+  "protected_archive_files_unchanged": 11
+}

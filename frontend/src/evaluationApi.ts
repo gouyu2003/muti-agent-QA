@@ -1,3 +1,5 @@
+import type { StoredRunRecord } from './types'
+
 export interface QuestionBank {
   bank_id: string; version: number; name: string; description: string; count: number
   labelled: number; contextual: number; sha256: string
@@ -10,6 +12,8 @@ export interface EvaluationResult {
   run_id: string; sample_id: string; method_id: string; repeat: number; attempt: number
   question: string; answer: string; status: string; scores: Record<string, number> | null
   error: { message: string; error_type: string } | null
+  metrics?: Partial<StoredRunRecord['metrics']>
+  labels?: string[]
 }
 export interface MethodSummary {
   planned: number; attempted: number; complete: boolean; statuses: Record<string, number>

@@ -1,6 +1,6 @@
 import { Collapse, Tag } from 'antd'
 import EvidenceLocation from './EvidenceLocation'
-import ModelDiagnostics from './ModelDiagnostics'
+import ModelDiagnostics, { RequestErrorDetails } from './ModelDiagnostics'
 import type { ProtocolCall } from './protocolTypes'
 
 export default function ProtocolCalls({ calls }: { calls?: Record<string, ProtocolCall> }) {
@@ -9,6 +9,7 @@ export default function ProtocolCalls({ calls }: { calls?: Record<string, Protoc
     key: c.call_id, label: `${c.stage_id} · 第 ${c.round} 轮 · ${c.agent_name} · ${c.kind}`,
     children: <div style={{ overflowWrap: 'anywhere' }}>
       {c.status === 'failed' && <Tag color="error">调用失败 · {c.output.error}</Tag>}
+      {c.output.request_error && <RequestErrorDetails error={c.output.request_error} />}
       <p>实例：{c.agent_id} · 阶段：{c.stage_id} · 任务：{c.task_id}</p><small>调用：{c.call_id}</small>
       {c.input.task.instruction && <p>任务：{c.input.task.instruction}</p>}
       {c.output.action && <p>下一步：{c.output.action === 'dispatch' ? '继续分派' : '提交审核'} · {c.output.reason}</p>}

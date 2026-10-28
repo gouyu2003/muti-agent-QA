@@ -170,14 +170,30 @@ export interface SupportingEvidence extends EvidenceLocation {
   source_id?: string
 }
 
+export interface ModelRequestDiagnostic {
+  exception_type?: string | null
+  http_status?: number | null
+  provider_code?: string | null
+  message?: string | null
+  request_id?: string | null
+  category?: string | null
+  retryable?: boolean
+}
+
 export interface ModelCall {
-  attempt: number
+  attempt?: number
+  output_attempt?: number
+  request_attempt?: number
   duration_ms: number
   finish_reason?: string | null
   completion_tokens?: number | null
   reasoning_tokens?: number | null
   output_chars: number
   outcome: string
+  request_error?: ModelRequestDiagnostic
+  will_retry?: boolean
+  retry_delay_seconds?: number
+  validation_errors?: { path: string; code: string; message: string }[]
 }
 
 export interface ModelDiagnostics {
@@ -188,6 +204,7 @@ export interface ModelDiagnostics {
 }
 
 export interface RunResult {
+  request_error?: ModelRequestDiagnostic
   protocol_calls?: Record<string, import('./protocolTypes').ProtocolCall>
   termination_reason?: string
   consensus_status?: string

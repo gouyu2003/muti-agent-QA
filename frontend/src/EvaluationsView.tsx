@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react'
-import { Alert, Button, Card, Checkbox, Collapse, Empty, Input, InputNumber, Modal, Progress, Select, Space, Table, Tag } from 'antd'
+import { useEffect, useRef, useState } from 'react'
+import { Alert, Button, Card, Checkbox, Collapse, Empty, Input, InputNumber, Modal, Progress, Select, Skeleton, Space, Table, Tag } from 'antd'
 import { evaluationRequest, type EvaluationJob, type EvaluationOptions, type EvaluationResult, type MethodSummary, type QuestionBank } from './evaluationApi'
+import EvaluationRunDetail from './EvaluationRunDetail'
+import { runDiagnosticSummary } from './diagnosticSummary'
+import type { StoredRunDetail } from './types'
 
 const METHOD_NAMES: Record<string, string> = { single_rag: '单智能体 RAG', pipeline_fixed: '固定流水线', pipeline_adaptive: '反馈流水线', multi_expert: '多专家', lead: 'Lead Agent', debate: 'Debate' }
 const STATUS: Record<string, string> = { draft: '待启动', queued: '排队中', running: '运行中', stopping: '等待当前题结束', paused: '已暂停', completed: '执行结束', interrupted: '执行中断', error: '执行异常' }
@@ -34,7 +37,11 @@ export default function EvaluationsView() {
   const [rows, setRows] = useState<EvaluationResult[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [detail, setDetail] = useState<unknown>()
+  const [detail, setDetail] = useState<StoredRunDetail>()
+  const [detailTarget, setDetailTarget] = useState<EvaluationResult>()
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState('')
+  const detailRequest = useRef(0)
   const selectedBank = banks.find(b => `${b.bank_id}:${b.version}` === bankKey)
   const planned = selected.length * (sampleSize ?? selectedBank?.count ?? 0) * repeats
 
@@ -51,6 +58,7 @@ export default function EvaluationsView() {
     try { await fn() } catch (e) { setError(message(e)) } finally { setBusy(false) }
   }
   useEffect(() => { refresh().catch(e => setError(message(e))) }, [])
+  useEffect(() => () => { detailRequest.current += 1 }, [])
   useEffect(() => {
     if (!job) return
     let disposed = false
@@ -72,7 +80,26 @@ export default function EvaluationsView() {
   }, [job?.job_id, page])
 
   function adopt(item: EvaluationJob) {
-    setJob(item); setPage(1); setRows([]); setTotal(0); setConsent(false)
+    closeDetail(); setJob(item); setPage(1); setRows([]); setTotal(0); setConsent(false)
+  }
+
+  function closeDetail() {
+    detailRequest.current += 1
+    setDetailTarget(undefined); setDetail(undefined); setDetailError(''); setDetailLoading(false)
+  }
+
+  async function openDetail(row: EvaluationResult) {
+    if (!job) return
+    const request = ++detailRequest.current
+    setDetailTarget(row); setDetail(undefined); setDetailError(''); setDetailLoading(true)
+    try {
+      const result = await evaluationRequest<StoredRunDetail>(`/jobs/${job.job_id}/runs/${row.run_id}`)
+      if (request === detailRequest.current) setDetail(result)
+    } catch (error) {
+      if (request === detailRequest.current) setDetailError(message(error))
+    } finally {
+      if (request === detailRequest.current) setDetailLoading(false)
+    }
   }
 
   return <main className="evaluations-page">
@@ -185,14 +212,22 @@ export default function EvaluationsView() {
           <Table size="small" rowKey="run_id" dataSource={rows} scroll={{ x: 700 }} pagination={{ current: page, total, pageSize: 20, onChange: setPage }}
             columns={[{ title: '问题', dataIndex: 'question', ellipsis: true }, { title: '方法', dataIndex: 'method_id', render: m => METHOD_NAMES[m] ?? job.targets.find(t => t.method_id === m)?.label ?? m },
               { title: '重复', dataIndex: 'repeat', render: r => r + 1 }, { title: '尝试', dataIndex: 'attempt' }, { title: '状态', dataIndex: 'status' }, { title: '答案', dataIndex: 'answer', ellipsis: true },
-              { title: '错误', key: 'error', render: (_, r) => r.error?.message ?? '—' },
-              { title: '轨迹', key: 'trace', render: (_, r) => <Button size="small" onClick={() => void action(async () => setDetail(await evaluationRequest(`/jobs/${job.job_id}/runs/${r.run_id}`)))}>查看</Button> }]} />
+              { title: '运行诊断', key: 'error', render: (_, r) => {
+                const summary = runDiagnosticSummary(r)
+                return summary.hasIssues ? <div className="evaluation-diagnostic-cell"><Tag color={summary.color}>{summary.heading}</Tag>
+                  <span>{summary.labels.join('、') || r.error?.message || '查看详情了解执行记录'}</span></div> : '—'
+              } },
+              { title: '详情', key: 'trace', render: (_, r) => <Button size="small" onClick={() => void openDetail(r)}>查看诊断与轨迹</Button> }]} />
           <Collapse items={[{ key: 'rules', label: '本次评测的边界', children: <p>首版每个平台同时执行一个任务。原系统版本、问题库版本与模型配置随任务冻结；开始后修改源码或依赖会阻止恢复，请新建任务。平台问题库的抽样不替代论文实验的数据曝光登记与独立评价划分。</p> }]} />
         </>}
       </Card>
     </div>
-    <Modal title="逐题运行与轨迹" open={detail !== undefined} width={960} footer={null} onCancel={() => setDetail(undefined)}>
-      <pre className="evaluation-trace">{JSON.stringify(detail, null, 2)}</pre>
+    <Modal title="逐题运行诊断与轨迹" open={detailTarget !== undefined} width={960} style={{ top: 24 }}
+      styles={{ body: { maxHeight: 'calc(100dvh - 156px)', overflowY: 'auto' } }} footer={null} onCancel={closeDetail}>
+      {detailLoading && <div role="status" aria-label="正在加载运行详情"><Skeleton active paragraph={{ rows: 6 }} /></div>}
+      {detailError && <Alert type="error" showIcon title="运行详情加载失败" description={detailError}
+        action={<Button onClick={() => detailTarget && void openDetail(detailTarget)}>重新加载详情</Button>} />}
+      {detail && <EvaluationRunDetail detail={detail} />}
     </Modal>
   </main>
 }

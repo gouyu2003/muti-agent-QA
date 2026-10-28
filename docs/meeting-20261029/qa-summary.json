@@ -1,0 +1,39 @@
+{
+  "questions": 100,
+  "tasks": 600,
+  "score_means_reconciled": true,
+  "local_links_valid": true,
+  "protected_development_files_unchanged": 11,
+  "runtime_source_unchanged": true,
+  "formal_evaluation_answers_accessed": false,
+  "new_model_calls": 0,
+  "figures": {
+    "01_answer_quality": {
+      "collision": "PASS",
+      "minimum_font_pt": 10.0,
+      "visual_review": "pass",
+      "alignment": "single_panel_not_applicable"
+    },
+    "02_quality_calls": {
+      "collision": "PASS",
+      "minimum_font_pt": 10.0,
+      "visual_review": "pass",
+      "alignment": "single_panel_not_applicable"
+    },
+    "03_paired_f1": {
+      "collision": "PASS",
+      "minimum_font_pt": 10.0,
+      "visual_review": "pass",
+      "alignment": "single_panel_not_applicable"
+    }
+  },
+  "source_audit": {
+    "ready": true,
+    "strict": false,
+    "counts": {
+      "PASS": 18,
+      "WARN": 3,
+      "FAIL": 0
+    }
+  }
+}
