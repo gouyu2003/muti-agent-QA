@@ -1,0 +1,64 @@
+{
+  "first_attempt_tasks": 6000,
+  "questions": 1000,
+  "scores_reconciled": true,
+  "database_statuses_reconciled": true,
+  "failure_records": 92,
+  "failures_classified_from_diagnostics": true,
+  "source_audit": {
+    "ready": true,
+    "strict": false,
+    "counts": {
+      "PASS": 18,
+      "WARN": 3,
+      "FAIL": 0
+    }
+  },
+  "figures": {
+    "01_paired_answer_f1": {
+      "minimum_font_pt": 10.0,
+      "collision": "PASS",
+      "fail": 0,
+      "warn": 0,
+      "visual_review": "pass",
+      "alignment": "single_panel_not_applicable"
+    },
+    "02_quality_calls": {
+      "minimum_font_pt": 10.0,
+      "collision": "PASS",
+      "fail": 0,
+      "warn": 0,
+      "visual_review": "pass",
+      "alignment": "single_panel_not_applicable"
+    },
+    "03_failure_breakdown": {
+      "minimum_font_pt": 10.0,
+      "collision": "PASS",
+      "fail": 0,
+      "warn": 0,
+      "visual_review": "pass",
+      "alignment": "single_panel_not_applicable"
+    },
+    "00_answer_f1_overview": {
+      "minimum_font_pt": 10.0,
+      "collision": "PASS",
+      "fail": 0,
+      "warn": 0,
+      "visual_review": "pass",
+      "alignment": "single_panel_not_applicable",
+      "formal_summary_values_reconciled": true,
+      "answer_f1_labels": {
+        "single_rag": "55.96",
+        "pipeline_fixed": "60.11",
+        "pipeline_adaptive": "60.68",
+        "multi_expert": "54.39",
+        "lead": "45.44",
+        "debate": "35.33"
+      },
+      "report_image_link_valid": true
+    }
+  },
+  "original_files_unchanged": 24,
+  "new_model_calls": 0,
+  "interpretation": "Unadjusted paired question bootstrap; no cross-model replication or causal claim."
+}

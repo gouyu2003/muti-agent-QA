@@ -1,0 +1,2826 @@
+{
+  "experiment": "baseline-evaluation-001",
+  "report": "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z",
+  "questions": 1000,
+  "tasks": 6000,
+  "repeats": 1,
+  "paired_unit": "question",
+  "status_counts": {
+    "completed": 5908,
+    "failed": 92
+  },
+  "task_level_retries": 0,
+  "sessions": [
+    {
+      "started_at": "2026-10-28T05:16:08.131402+00:00",
+      "finished_at": "2026-10-28T23:18:21.172284+00:00",
+      "wall_seconds": 64933.030999999995
+    }
+  ],
+  "methods": {
+    "single_rag": {
+      "status_counts": {
+        "completed": 999,
+        "failed": 1
+      },
+      "scores": {
+        "em": 0.438,
+        "f1": 0.5596380031156521,
+        "sp_em": 0.148,
+        "sp_f1": 0.5717833333333333,
+        "joint_em": 0.1,
+        "joint_f1": 0.36767770648317005
+      },
+      "metrics": {
+        "llm_call_count": {
+          "reported_total": 1046,
+          "mean_reported": 1.046,
+          "reported": 1000,
+          "attempted": 1000,
+          "median_reported": 1.0,
+          "p95_reported": 1.0
+        },
+        "prompt_tokens": {
+          "reported_total": 864286,
+          "mean_reported": 866.0180360721442,
+          "reported": 998,
+          "attempted": 1000,
+          "median_reported": 823.0,
+          "p95_reported": 949.15
+        },
+        "completion_tokens": {
+          "reported_total": 234122,
+          "mean_reported": 234.59118236472946,
+          "reported": 998,
+          "attempted": 1000,
+          "median_reported": 221.0,
+          "p95_reported": 348.15
+        },
+        "total_tokens": {
+          "reported_total": 1098408,
+          "mean_reported": 1100.6092184368738,
+          "reported": 998,
+          "attempted": 1000,
+          "median_reported": 1049.0,
+          "p95_reported": 1229.15
+        },
+        "duration_ms": {
+          "reported_total": 2213509,
+          "mean_reported": 2213.509,
+          "reported": 1000,
+          "attempted": 1000,
+          "median_reported": 1864.0,
+          "p95_reported": 3707.1499999999987
+        }
+      },
+      "coverage": {
+        "initial_support_coverage": {
+          "mean_reported": 0.5394680394680395,
+          "reported": 999
+        },
+        "cumulative_support_coverage": {
+          "mean_reported": 0.5394680394680395,
+          "reported": 999
+        }
+      },
+      "by_type": {
+        "bridge": {
+          "n": 800,
+          "scores": {
+            "em": 0.4,
+            "f1": 0.5367059104390012,
+            "sp_em": 0.135,
+            "sp_f1": 0.5742767857142858,
+            "joint_em": 0.085,
+            "joint_f1": 0.35993772653830597
+          }
+        },
+        "comparison": {
+          "n": 200,
+          "scores": {
+            "em": 0.59,
+            "f1": 0.6513663738222562,
+            "sp_em": 0.2,
+            "sp_f1": 0.5618095238095239,
+            "joint_em": 0.16,
+            "joint_f1": 0.3986376262626263
+          }
+        }
+      },
+      "labels": {
+        "answer_mismatch": 562,
+        "gold_support_not_fully_retrieved": 804,
+        "verified_but_answer_mismatch": 288,
+        "correct_answer_support_mismatch": 338,
+        "support_covered_answer_mismatch": 64,
+        "unverified_but_answer_match": 12,
+        "model_request_error": 2,
+        "provider_provider_service_error": 1,
+        "request_retry_recovered": 1,
+        "provider_content_filter": 1,
+        "runtime_failed": 1
+      },
+      "failures": {
+        "content_filter": 1
+      },
+      "empty_answers": 124,
+      "completed_empty_answers": 123,
+      "completed_empty_failure_types": {
+        "insufficient": 122,
+        "conflict": 1
+      },
+      "termination_counts": {
+        "completed": 999,
+        "None": 1
+      },
+      "max_visits": 0,
+      "last_node_at_limit": {},
+      "verification": {
+        "verified": 714,
+        "verified_em_match": 426,
+        "verified_em_mismatch": 288,
+        "unverified_em_match": 12
+      },
+      "completed_only_mean_f1": 0.5601982013169692,
+      "failure_perfect_upper_f1": 0.5606380031156522,
+      "dev_f1": 0.5886507936507936,
+      "dev_mean_calls": 1.14,
+      "dev_mean_seconds": 4.2394
+    },
+    "pipeline_fixed": {
+      "status_counts": {
+        "completed": 992,
+        "failed": 8
+      },
+      "scores": {
+        "em": 0.485,
+        "f1": 0.6011458899126325,
+        "sp_em": 0.35,
+        "sp_f1": 0.7041166666666667,
+        "joint_em": 0.251,
+        "joint_f1": 0.485704324961195
+      },
+      "metrics": {
+        "llm_call_count": {
+          "reported_total": 1999,
+          "mean_reported": 1.999,
+          "reported": 1000,
+          "attempted": 1000,
+          "median_reported": 2.0,
+          "p95_reported": 2.0
+        },
+        "prompt_tokens": {
+          "reported_total": 2977999,
+          "mean_reported": 3008.079797979798,
+          "reported": 990,
+          "attempted": 1000,
+          "median_reported": 2959.0,
+          "p95_reported": 4055.75
+        },
+        "completion_tokens": {
+          "reported_total": 359347,
+          "mean_reported": 362.9767676767677,
+          "reported": 990,
+          "attempted": 1000,
+          "median_reported": 354.0,
+          "p95_reported": 482.0
+        },
+        "total_tokens": {
+          "reported_total": 3337346,
+          "mean_reported": 3371.0565656565655,
+          "reported": 990,
+          "attempted": 1000,
+          "median_reported": 3325.0,
+          "p95_reported": 4504.299999999999
+        },
+        "duration_ms": {
+          "reported_total": 4205220,
+          "mean_reported": 4205.22,
+          "reported": 1000,
+          "attempted": 1000,
+          "median_reported": 3176.0,
+          "p95_reported": 5272.599999999995
+        }
+      },
+      "coverage": {
+        "initial_support_coverage": {
+          "mean_reported": 0.7422308280742016,
+          "reported": 996
+        },
+        "cumulative_support_coverage": {
+          "mean_reported": 0.7422308280742016,
+          "reported": 996
+        }
+      },
+      "by_type": {
+        "bridge": {
+          "n": 800,
+          "scores": {
+            "em": 0.4475,
+            "f1": 0.5729516074076378,
+            "sp_em": 0.31125,
+            "sp_f1": 0.6872797619047618,
+            "joint_em": 0.22125,
+            "joint_f1": 0.45908246733066477
+          }
+        },
+        "comparison": {
+          "n": 200,
+          "scores": {
+            "em": 0.635,
+            "f1": 0.7139230199326108,
+            "sp_em": 0.505,
+            "sp_f1": 0.7714642857142857,
+            "joint_em": 0.37,
+            "joint_f1": 0.5921917554833156
+          }
+        }
+      },
+      "labels": {
+        "answer_mismatch": 515,
+        "gold_support_not_fully_retrieved": 512,
+        "invalid_or_duplicate_final_reference": 75,
+        "correct_answer_support_mismatch": 234,
+        "support_covered_answer_mismatch": 150,
+        "verified_but_answer_mismatch": 242,
+        "unverified_but_answer_match": 8,
+        "model_request_error": 10,
+        "provider_timeout": 5,
+        "resource_limit": 5,
+        "runtime_failed": 8,
+        "timeout": 5,
+        "provider_provider_service_error": 2,
+        "request_retry_recovered": 2,
+        "provider_content_filter": 3
+      },
+      "failures": {
+        "protocol_timeout": 5,
+        "content_filter": 3
+      },
+      "empty_answers": 265,
+      "completed_empty_answers": 257,
+      "completed_empty_failure_types": {
+        "insufficient": 256,
+        "conflict": 1
+      },
+      "termination_counts": {
+        "completed": 992,
+        "None": 8
+      },
+      "max_visits": 0,
+      "last_node_at_limit": {},
+      "verification": {
+        "verified": 719,
+        "verified_em_match": 477,
+        "verified_em_mismatch": 242,
+        "unverified_em_match": 8
+      },
+      "completed_only_mean_f1": 0.6059938406377343,
+      "failure_perfect_upper_f1": 0.6091458899126325,
+      "dev_f1": 0.648131469979296,
+      "dev_mean_calls": 2,
+      "dev_mean_seconds": 6.06103
+    },
+    "pipeline_adaptive": {
+      "status_counts": {
+        "completed": 994,
+        "failed": 6
+      },
+      "scores": {
+        "em": 0.488,
+        "f1": 0.6067705674524695,
+        "sp_em": 0.348,
+        "sp_f1": 0.7045444444444445,
+        "joint_em": 0.241,
+        "joint_f1": 0.488280143956877
+      },
+      "metrics": {
+        "llm_call_count": {
+          "reported_total": 2829,
+          "mean_reported": 2.829,
+          "reported": 1000,
+          "attempted": 1000,
+          "median_reported": 2.0,
+          "p95_reported": 5.0
+        },
+        "prompt_tokens": {
+          "reported_total": 5282879,
+          "mean_reported": 5325.482862903225,
+          "reported": 992,
+          "attempted": 1000,
+          "median_reported": 3085.5,
+          "p95_reported": 14548.199999999997
+        },
+        "completion_tokens": {
+          "reported_total": 560610,
+          "mean_reported": 565.1310483870968,
+          "reported": 992,
+          "attempted": 1000,
+          "median_reported": 379.5,
+          "p95_reported": 1308.8999999999999
+        },
+        "total_tokens": {
+          "reported_total": 5843489,
+          "mean_reported": 5890.613911290323,
+          "reported": 992,
+          "attempted": 1000,
+          "median_reported": 3456.0,
+          "p95_reported": 15666.35
+        },
+        "duration_ms": {
+          "reported_total": 5867805,
+          "mean_reported": 5867.805,
+          "reported": 1000,
+          "attempted": 1000,
+          "median_reported": 3412.0,
+          "p95_reported": 12144.299999999997
+        }
+      },
+      "coverage": {
+        "initial_support_coverage": {
+          "mean_reported": 0.7368821202154535,
+          "reported": 999
+        },
+        "cumulative_support_coverage": {
+          "mean_reported": 0.7440059106725774,
+          "reported": 999
+        }
+      },
+      "by_type": {
+        "bridge": {
+          "n": 800,
+          "scores": {
+            "em": 0.45625,
+            "f1": 0.5845034170653534,
+            "sp_em": 0.30625,
+            "sp_f1": 0.6894811507936508,
+            "joint_em": 0.2125,
+            "joint_f1": 0.4671274077564123
+          }
+        },
+        "comparison": {
+          "n": 200,
+          "scores": {
+            "em": 0.615,
+            "f1": 0.6958391690009337,
+            "sp_em": 0.515,
+            "sp_f1": 0.764797619047619,
+            "joint_em": 0.355,
+            "joint_f1": 0.5728910887587358
+          }
+        }
+      },
+      "labels": {
+        "answer_mismatch": 512,
+        "gold_support_not_fully_retrieved": 515,
+        "retrieval_without_new_evidence": 272,
+        "correct_answer_support_mismatch": 247,
+        "support_covered_answer_mismatch": 162,
+        "verified_but_answer_mismatch": 255,
+        "invalid_or_duplicate_final_reference": 64,
+        "unverified_but_answer_match": 8,
+        "model_request_error": 8,
+        "provider_content_filter": 3,
+        "runtime_failed": 6,
+        "provider_timeout": 3,
+        "resource_limit": 3,
+        "timeout": 3,
+        "provider_provider_service_error": 2,
+        "request_retry_recovered": 2
+      },
+      "failures": {
+        "content_filter": 3,
+        "protocol_timeout": 3
+      },
+      "empty_answers": 247,
+      "completed_empty_answers": 241,
+      "completed_empty_failure_types": {
+        "insufficient": 241
+      },
+      "termination_counts": {
+        "completed": 994,
+        "None": 6
+      },
+      "max_visits": 0,
+      "last_node_at_limit": {},
+      "verification": {
+        "verified": 735,
+        "verified_em_match": 480,
+        "verified_em_mismatch": 255,
+        "unverified_em_match": 8
+      },
+      "completed_only_mean_f1": 0.6104331664511765,
+      "failure_perfect_upper_f1": 0.6127705674524695,
+      "dev_f1": 0.643396004378763,
+      "dev_mean_calls": 2.62,
+      "dev_mean_seconds": 9.3382
+    },
+    "multi_expert": {
+      "status_counts": {
+        "completed": 990,
+        "failed": 10
+      },
+      "scores": {
+        "em": 0.441,
+        "f1": 0.5438506822864846,
+        "sp_em": 0.332,
+        "sp_f1": 0.6930960317460317,
+        "joint_em": 0.226,
+        "joint_f1": 0.43816366328639283
+      },
+      "metrics": {
+        "llm_call_count": {
+          "reported_total": 3998,
+          "mean_reported": 3.998,
+          "reported": 1000,
+          "attempted": 1000,
+          "median_reported": 4.0,
+          "p95_reported": 4.0
+        },
+        "prompt_tokens": {
+          "reported_total": 8036950,
+          "mean_reported": 8167.632113821138,
+          "reported": 984,
+          "attempted": 1000,
+          "median_reported": 7996.5,
+          "p95_reported": 11285.0
+        },
+        "completion_tokens": {
+          "reported_total": 763127,
+          "mean_reported": 775.535569105691,
+          "reported": 984,
+          "attempted": 1000,
+          "median_reported": 754.5,
+          "p95_reported": 1060.85
+        },
+        "total_tokens": {
+          "reported_total": 8800077,
+          "mean_reported": 8943.167682926829,
+          "reported": 984,
+          "attempted": 1000,
+          "median_reported": 8765.5,
+          "p95_reported": 12312.099999999999
+        },
+        "duration_ms": {
+          "reported_total": 8404666,
+          "mean_reported": 8404.666,
+          "reported": 1000,
+          "attempted": 1000,
+          "median_reported": 6725.5,
+          "p95_reported": 14179.049999999992
+        }
+      },
+      "coverage": {
+        "initial_support_coverage": {
+          "mean_reported": 0.7402660362038497,
+          "reported": 997
+        },
+        "cumulative_support_coverage": {
+          "mean_reported": 0.7402660362038497,
+          "reported": 997
+        }
+      },
+      "by_type": {
+        "bridge": {
+          "n": 800,
+          "scores": {
+            "em": 0.40375,
+            "f1": 0.5157949386742503,
+            "sp_em": 0.29375,
+            "sp_f1": 0.6776349206349207,
+            "joint_em": 0.195,
+            "joint_f1": 0.41042625398132027
+          }
+        },
+        "comparison": {
+          "n": 200,
+          "scores": {
+            "em": 0.59,
+            "f1": 0.6560736567354215,
+            "sp_em": 0.485,
+            "sp_f1": 0.7549404761904762,
+            "joint_em": 0.35,
+            "joint_f1": 0.5491133005066828
+          }
+        }
+      },
+      "labels": {
+        "answer_mismatch": 559,
+        "gold_support_not_fully_retrieved": 517,
+        "correct_answer_support_mismatch": 215,
+        "support_covered_answer_mismatch": 172,
+        "verified_but_answer_mismatch": 222,
+        "invalid_or_duplicate_final_reference": 66,
+        "model_request_error": 16,
+        "provider_provider_service_error": 6,
+        "request_retry_recovered": 6,
+        "unverified_but_answer_match": 46,
+        "provider_timeout": 8,
+        "resource_limit": 8,
+        "runtime_failed": 10,
+        "timeout": 8,
+        "provider_content_filter": 2
+      },
+      "failures": {
+        "protocol_timeout": 8,
+        "content_filter": 2
+      },
+      "empty_answers": 205,
+      "completed_empty_answers": 195,
+      "completed_empty_failure_types": {
+        "insufficient": 195
+      },
+      "termination_counts": {
+        "completed": 990,
+        "None": 10
+      },
+      "max_visits": 0,
+      "last_node_at_limit": {},
+      "verification": {
+        "verified": 617,
+        "verified_em_match": 395,
+        "verified_em_mismatch": 222,
+        "unverified_em_match": 46
+      },
+      "completed_only_mean_f1": 0.5493441235217016,
+      "failure_perfect_upper_f1": 0.5538506822864846,
+      "dev_f1": 0.6221031746031747,
+      "dev_mean_calls": 4,
+      "dev_mean_seconds": 12.93441
+    },
+    "lead": {
+      "status_counts": {
+        "completed": 984,
+        "failed": 16
+      },
+      "scores": {
+        "em": 0.353,
+        "f1": 0.45435773429357024,
+        "sp_em": 0.216,
+        "sp_f1": 0.605197619047619,
+        "joint_em": 0.14,
+        "joint_f1": 0.3404588337854744
+      },
+      "metrics": {
+        "llm_call_count": {
+          "reported_total": 5363,
+          "mean_reported": 5.363,
+          "reported": 1000,
+          "attempted": 1000,
+          "median_reported": 5.0,
+          "p95_reported": 8.0
+        },
+        "prompt_tokens": {
+          "reported_total": 11054736,
+          "mean_reported": 11257.368635437882,
+          "reported": 982,
+          "attempted": 1000,
+          "median_reported": 10073.0,
+          "p95_reported": 19821.449999999993
+        },
+        "completion_tokens": {
+          "reported_total": 1161485,
+          "mean_reported": 1182.774949083503,
+          "reported": 982,
+          "attempted": 1000,
+          "median_reported": 1115.5,
+          "p95_reported": 1773.7999999999997
+        },
+        "total_tokens": {
+          "reported_total": 12216221,
+          "mean_reported": 12440.143584521385,
+          "reported": 982,
+          "attempted": 1000,
+          "median_reported": 11208.0,
+          "p95_reported": 21636.149999999994
+        },
+        "duration_ms": {
+          "reported_total": 13291044,
+          "mean_reported": 13291.044,
+          "reported": 1000,
+          "attempted": 1000,
+          "median_reported": 9870.0,
+          "p95_reported": 24603.799999999996
+        }
+      },
+      "coverage": {
+        "initial_support_coverage": {
+          "mean_reported": 0.5666979001489597,
+          "reported": 991
+        },
+        "cumulative_support_coverage": {
+          "mean_reported": 0.6046561914372207,
+          "reported": 991
+        }
+      },
+      "by_type": {
+        "bridge": {
+          "n": 800,
+          "scores": {
+            "em": 0.31875,
+            "f1": 0.42830606142438576,
+            "sp_em": 0.18875,
+            "sp_f1": 0.5989920634920636,
+            "joint_em": 0.11875,
+            "joint_f1": 0.3216457294400597
+          }
+        },
+        "comparison": {
+          "n": 200,
+          "scores": {
+            "em": 0.49,
+            "f1": 0.5585644257703081,
+            "sp_em": 0.325,
+            "sp_f1": 0.6300198412698412,
+            "joint_em": 0.225,
+            "joint_f1": 0.41571125116713353
+          }
+        }
+      },
+      "labels": {
+        "answer_mismatch": 647,
+        "gold_support_not_fully_retrieved": 703,
+        "support_covered_answer_mismatch": 111,
+        "verified_but_answer_mismatch": 203,
+        "correct_answer_support_mismatch": 213,
+        "unverified_but_answer_match": 44,
+        "retrieval_without_new_evidence": 49,
+        "invalid_or_duplicate_final_reference": 74,
+        "model_request_error": 18,
+        "provider_timeout": 15,
+        "resource_limit": 22,
+        "runtime_failed": 16,
+        "timeout": 15,
+        "provider_provider_service_error": 2,
+        "request_retry_recovered": 2,
+        "structured_output_error": 2,
+        "provider_content_filter": 1
+      },
+      "failures": {
+        "protocol_timeout": 15,
+        "content_filter": 1
+      },
+      "empty_answers": 281,
+      "completed_empty_answers": 265,
+      "completed_empty_failure_types": {
+        "insufficient": 265
+      },
+      "termination_counts": {
+        "completed": 977,
+        "None": 16,
+        "max_visits": 7
+      },
+      "max_visits": 7,
+      "last_node_at_limit": {
+        "reviewer_0": 7
+      },
+      "verification": {
+        "verified": 512,
+        "verified_em_mismatch": 203,
+        "verified_em_match": 309,
+        "unverified_em_match": 44
+      },
+      "completed_only_mean_f1": 0.4617456649324901,
+      "failure_perfect_upper_f1": 0.47035773429357025,
+      "dev_f1": 0.5000974025974027,
+      "dev_mean_calls": 5.42,
+      "dev_mean_seconds": 18.709130000000002
+    },
+    "debate": {
+      "status_counts": {
+        "completed": 949,
+        "failed": 51
+      },
+      "scores": {
+        "em": 0.268,
+        "f1": 0.35332966138608557,
+        "sp_em": 0.153,
+        "sp_f1": 0.5594928571428571,
+        "joint_em": 0.089,
+        "joint_f1": 0.2531217019477036
+      },
+      "metrics": {
+        "llm_call_count": {
+          "reported_total": 10417,
+          "mean_reported": 10.417,
+          "reported": 1000,
+          "attempted": 1000,
+          "median_reported": 12.0,
+          "p95_reported": 14.0
+        },
+        "prompt_tokens": {
+          "reported_total": 42369329,
+          "mean_reported": 44180.73931178311,
+          "reported": 959,
+          "attempted": 1000,
+          "median_reported": 51144.0,
+          "p95_reported": 71026.09999999999
+        },
+        "completion_tokens": {
+          "reported_total": 3187176,
+          "mean_reported": 3323.436913451512,
+          "reported": 959,
+          "attempted": 1000,
+          "median_reported": 3450.0,
+          "p95_reported": 5513.2
+        },
+        "total_tokens": {
+          "reported_total": 45556505,
+          "mean_reported": 47504.176225234616,
+          "reported": 959,
+          "attempted": 1000,
+          "median_reported": 54740.0,
+          "p95_reported": 76248.5
+        },
+        "duration_ms": {
+          "reported_total": 30096228,
+          "mean_reported": 30096.228,
+          "reported": 1000,
+          "attempted": 1000,
+          "median_reported": 27837.5,
+          "p95_reported": 58077.64999999999
+        }
+      },
+      "coverage": {
+        "initial_support_coverage": {
+          "mean_reported": 0.5393405859337723,
+          "reported": 998
+        },
+        "cumulative_support_coverage": {
+          "mean_reported": 0.5393405859337723,
+          "reported": 998
+        }
+      },
+      "by_type": {
+        "bridge": {
+          "n": 800,
+          "scores": {
+            "em": 0.2625,
+            "f1": 0.36213114238917254,
+            "sp_em": 0.14375,
+            "sp_f1": 0.5625089285714285,
+            "joint_em": 0.08,
+            "joint_f1": 0.2580454725763299
+          }
+        },
+        "comparison": {
+          "n": 200,
+          "scores": {
+            "em": 0.29,
+            "f1": 0.31812373737373734,
+            "sp_em": 0.19,
+            "sp_f1": 0.5474285714285714,
+            "joint_em": 0.125,
+            "joint_f1": 0.2334266194331984
+          }
+        }
+      },
+      "labels": {
+        "answer_mismatch": 732,
+        "gold_support_not_fully_retrieved": 803,
+        "resource_limit": 604,
+        "retrieval_without_new_evidence": 997,
+        "runtime_failed": 51,
+        "model_request_error": 41,
+        "provider_timeout": 24,
+        "timeout": 24,
+        "support_covered_answer_mismatch": 83,
+        "verified_but_answer_mismatch": 158,
+        "correct_answer_support_mismatch": 179,
+        "unverified_but_answer_match": 57,
+        "provider_provider_service_error": 15,
+        "request_retry_recovered": 15,
+        "provider_content_filter": 2
+      },
+      "failures": {
+        "debate_output_validation": 25,
+        "protocol_timeout": 24,
+        "content_filter": 2
+      },
+      "empty_answers": 274,
+      "completed_empty_answers": 231,
+      "completed_empty_failure_types": {
+        "insufficient": 230,
+        "conflict": 1
+      },
+      "termination_counts": {
+        "max_visits": 580,
+        "completed": 369,
+        "None": 51
+      },
+      "max_visits": 580,
+      "last_node_at_limit": {
+        "reviewer_0": 580
+      },
+      "verification": {
+        "verified": 369,
+        "verified_em_match": 211,
+        "verified_em_mismatch": 158,
+        "unverified_em_match": 57
+      },
+      "completed_only_mean_f1": 0.3723178729041997,
+      "failure_perfect_upper_f1": 0.40432966138608556,
+      "dev_f1": 0.3549047619047619,
+      "dev_mean_calls": 10.15,
+      "dev_mean_seconds": 43.82978
+    }
+  },
+  "paired": [
+    {
+      "left": "single_rag",
+      "right": "pipeline_fixed",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": 0.047,
+          "right_wins": 127,
+          "ties": 793,
+          "left_wins": 80,
+          "ci95_sample_bootstrap": [
+            0.019,
+            0.076
+          ]
+        },
+        "f1": {
+          "delta": 0.04150788679698026,
+          "right_wins": 180,
+          "ties": 686,
+          "left_wins": 134,
+          "ci95_sample_bootstrap": [
+            0.012756225092056116,
+            0.07043075205391697
+          ]
+        },
+        "sp_em": {
+          "delta": 0.202,
+          "right_wins": 228,
+          "ties": 746,
+          "left_wins": 26,
+          "ci95_sample_bootstrap": [
+            0.173,
+            0.23
+          ]
+        },
+        "sp_f1": {
+          "delta": 0.13233333333333333,
+          "right_wins": 433,
+          "ties": 425,
+          "left_wins": 142,
+          "ci95_sample_bootstrap": [
+            0.11388841269841271,
+            0.1506318650793651
+          ]
+        },
+        "joint_em": {
+          "delta": 0.151,
+          "right_wins": 175,
+          "ties": 801,
+          "left_wins": 24,
+          "ci95_sample_bootstrap": [
+            0.126,
+            0.178
+          ]
+        },
+        "joint_f1": {
+          "delta": 0.11802661847802491,
+          "right_wins": 362,
+          "ties": 472,
+          "left_wins": 166,
+          "ci95_sample_bootstrap": [
+            0.09527543027940448,
+            0.14071041504403353
+          ]
+        }
+      }
+    },
+    {
+      "left": "single_rag",
+      "right": "pipeline_adaptive",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": 0.05,
+          "right_wins": 131,
+          "ties": 788,
+          "left_wins": 81,
+          "ci95_sample_bootstrap": [
+            0.022,
+            0.079
+          ]
+        },
+        "f1": {
+          "delta": 0.047132564336817284,
+          "right_wins": 189,
+          "ties": 678,
+          "left_wins": 133,
+          "ci95_sample_bootstrap": [
+            0.01861259213218122,
+            0.07634188850494941
+          ]
+        },
+        "sp_em": {
+          "delta": 0.2,
+          "right_wins": 228,
+          "ties": 744,
+          "left_wins": 28,
+          "ci95_sample_bootstrap": [
+            0.171975,
+            0.229
+          ]
+        },
+        "sp_f1": {
+          "delta": 0.1327611111111111,
+          "right_wins": 434,
+          "ties": 434,
+          "left_wins": 132,
+          "ci95_sample_bootstrap": [
+            0.11395390873015875,
+            0.1505224007936508
+          ]
+        },
+        "joint_em": {
+          "delta": 0.141,
+          "right_wins": 169,
+          "ties": 803,
+          "left_wins": 28,
+          "ci95_sample_bootstrap": [
+            0.115,
+            0.166
+          ]
+        },
+        "joint_f1": {
+          "delta": 0.12060243747370694,
+          "right_wins": 367,
+          "ties": 471,
+          "left_wins": 162,
+          "ci95_sample_bootstrap": [
+            0.09719263717424784,
+            0.14574547341070881
+          ]
+        }
+      }
+    },
+    {
+      "left": "single_rag",
+      "right": "multi_expert",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": 0.003,
+          "right_wins": 117,
+          "ties": 769,
+          "left_wins": 114,
+          "ci95_sample_bootstrap": [
+            -0.028,
+            0.032
+          ]
+        },
+        "f1": {
+          "delta": -0.015787320829167624,
+          "right_wins": 162,
+          "ties": 648,
+          "left_wins": 190,
+          "ci95_sample_bootstrap": [
+            -0.04608290647781023,
+            0.01382883850585439
+          ]
+        },
+        "sp_em": {
+          "delta": 0.184,
+          "right_wins": 214,
+          "ties": 756,
+          "left_wins": 30,
+          "ci95_sample_bootstrap": [
+            0.154,
+            0.213
+          ]
+        },
+        "sp_f1": {
+          "delta": 0.12131269841269841,
+          "right_wins": 425,
+          "ties": 426,
+          "left_wins": 149,
+          "ci95_sample_bootstrap": [
+            0.10357464285714287,
+            0.1389272222222222
+          ]
+        },
+        "joint_em": {
+          "delta": 0.126,
+          "right_wins": 159,
+          "ties": 808,
+          "left_wins": 33,
+          "ci95_sample_bootstrap": [
+            0.101,
+            0.153
+          ]
+        },
+        "joint_f1": {
+          "delta": 0.07048595680322275,
+          "right_wins": 321,
+          "ties": 463,
+          "left_wins": 216,
+          "ci95_sample_bootstrap": [
+            0.0452443822908175,
+            0.09643792189608617
+          ]
+        }
+      }
+    },
+    {
+      "left": "single_rag",
+      "right": "lead",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": -0.085,
+          "right_wins": 76,
+          "ties": 763,
+          "left_wins": 161,
+          "ci95_sample_bootstrap": [
+            -0.115,
+            -0.054
+          ]
+        },
+        "f1": {
+          "delta": -0.10528026882208197,
+          "right_wins": 118,
+          "ties": 640,
+          "left_wins": 242,
+          "ci95_sample_bootstrap": [
+            -0.13335063631242502,
+            -0.07680300347917669
+          ]
+        },
+        "sp_em": {
+          "delta": 0.068,
+          "right_wins": 125,
+          "ties": 818,
+          "left_wins": 57,
+          "ci95_sample_bootstrap": [
+            0.042975,
+            0.095
+          ]
+        },
+        "sp_f1": {
+          "delta": 0.033414285714285716,
+          "right_wins": 327,
+          "ties": 424,
+          "left_wins": 249,
+          "ci95_sample_bootstrap": [
+            0.012847916666666676,
+            0.05362670634920634
+          ]
+        },
+        "joint_em": {
+          "delta": 0.04,
+          "right_wins": 89,
+          "ties": 862,
+          "left_wins": 49,
+          "ci95_sample_bootstrap": [
+            0.017,
+            0.063
+          ]
+        },
+        "joint_f1": {
+          "delta": -0.02721887269769561,
+          "right_wins": 245,
+          "ties": 472,
+          "left_wins": 283,
+          "ci95_sample_bootstrap": [
+            -0.052239681893309346,
+            -0.002405797338004668
+          ]
+        }
+      }
+    },
+    {
+      "left": "single_rag",
+      "right": "debate",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": -0.17,
+          "right_wins": 12,
+          "ties": 806,
+          "left_wins": 182,
+          "ci95_sample_bootstrap": [
+            -0.196,
+            -0.146
+          ]
+        },
+        "f1": {
+          "delta": -0.20630834172956664,
+          "right_wins": 26,
+          "ties": 698,
+          "left_wins": 276,
+          "ci95_sample_bootstrap": [
+            -0.23101143259137194,
+            -0.18297874564425307
+          ]
+        },
+        "sp_em": {
+          "delta": 0.005,
+          "right_wins": 14,
+          "ties": 977,
+          "left_wins": 9,
+          "ci95_sample_bootstrap": [
+            -0.005,
+            0.014
+          ]
+        },
+        "sp_f1": {
+          "delta": -0.01229047619047619,
+          "right_wins": 71,
+          "ties": 816,
+          "left_wins": 113,
+          "ci95_sample_bootstrap": [
+            -0.02151440476190476,
+            -0.003175714285714289
+          ]
+        },
+        "joint_em": {
+          "delta": -0.011,
+          "right_wins": 13,
+          "ties": 963,
+          "left_wins": 24,
+          "ci95_sample_bootstrap": [
+            -0.023,
+            0.001
+          ]
+        },
+        "joint_f1": {
+          "delta": -0.11455600453546642,
+          "right_wins": 41,
+          "ties": 689,
+          "left_wins": 270,
+          "ci95_sample_bootstrap": [
+            -0.12980305010132134,
+            -0.09853421599587395
+          ]
+        }
+      }
+    },
+    {
+      "left": "pipeline_fixed",
+      "right": "pipeline_adaptive",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": 0.003,
+          "right_wins": 30,
+          "ties": 943,
+          "left_wins": 27,
+          "ci95_sample_bootstrap": [
+            -0.011,
+            0.018
+          ]
+        },
+        "f1": {
+          "delta": 0.005624677539837027,
+          "right_wins": 51,
+          "ties": 906,
+          "left_wins": 43,
+          "ci95_sample_bootstrap": [
+            -0.008765487914448157,
+            0.01974085886625763
+          ]
+        },
+        "sp_em": {
+          "delta": -0.002,
+          "right_wins": 26,
+          "ties": 946,
+          "left_wins": 28,
+          "ci95_sample_bootstrap": [
+            -0.017,
+            0.013
+          ]
+        },
+        "sp_f1": {
+          "delta": 0.0004277777777777784,
+          "right_wins": 86,
+          "ties": 827,
+          "left_wins": 87,
+          "ci95_sample_bootstrap": [
+            -0.00996251984126984,
+            0.011142023809523805
+          ]
+        },
+        "joint_em": {
+          "delta": -0.01,
+          "right_wins": 17,
+          "ties": 956,
+          "left_wins": 27,
+          "ci95_sample_bootstrap": [
+            -0.022,
+            0.003
+          ]
+        },
+        "joint_f1": {
+          "delta": 0.002575818995682033,
+          "right_wins": 77,
+          "ties": 847,
+          "left_wins": 76,
+          "ci95_sample_bootstrap": [
+            -0.010099705015963007,
+            0.015078934235266248
+          ]
+        }
+      }
+    },
+    {
+      "left": "pipeline_fixed",
+      "right": "multi_expert",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": -0.044,
+          "right_wins": 35,
+          "ties": 886,
+          "left_wins": 79,
+          "ci95_sample_bootstrap": [
+            -0.065,
+            -0.023
+          ]
+        },
+        "f1": {
+          "delta": -0.057295207626147884,
+          "right_wins": 60,
+          "ties": 807,
+          "left_wins": 133,
+          "ci95_sample_bootstrap": [
+            -0.07679712222207764,
+            -0.03584887316729983
+          ]
+        },
+        "sp_em": {
+          "delta": -0.018,
+          "right_wins": 25,
+          "ties": 932,
+          "left_wins": 43,
+          "ci95_sample_bootstrap": [
+            -0.034,
+            -0.001
+          ]
+        },
+        "sp_f1": {
+          "delta": -0.01102063492063492,
+          "right_wins": 96,
+          "ties": 774,
+          "left_wins": 130,
+          "ci95_sample_bootstrap": [
+            -0.022280357142857143,
+            -0.0006332341269841258
+          ]
+        },
+        "joint_em": {
+          "delta": -0.025,
+          "right_wins": 26,
+          "ties": 923,
+          "left_wins": 51,
+          "ci95_sample_bootstrap": [
+            -0.042,
+            -0.008
+          ]
+        },
+        "joint_f1": {
+          "delta": -0.04754066167480216,
+          "right_wins": 92,
+          "ties": 727,
+          "left_wins": 181,
+          "ci95_sample_bootstrap": [
+            -0.06456005650501312,
+            -0.03130006956964115
+          ]
+        }
+      }
+    },
+    {
+      "left": "pipeline_fixed",
+      "right": "lead",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": -0.132,
+          "right_wins": 66,
+          "ties": 736,
+          "left_wins": 198,
+          "ci95_sample_bootstrap": [
+            -0.162,
+            -0.103
+          ]
+        },
+        "f1": {
+          "delta": -0.14678815561906222,
+          "right_wins": 108,
+          "ties": 620,
+          "left_wins": 272,
+          "ci95_sample_bootstrap": [
+            -0.17842020978962242,
+            -0.11630446289266365
+          ]
+        },
+        "sp_em": {
+          "delta": -0.134,
+          "right_wins": 65,
+          "ties": 736,
+          "left_wins": 199,
+          "ci95_sample_bootstrap": [
+            -0.166,
+            -0.102
+          ]
+        },
+        "sp_f1": {
+          "delta": -0.09891904761904761,
+          "right_wins": 204,
+          "ties": 400,
+          "left_wins": 396,
+          "ci95_sample_bootstrap": [
+            -0.11952015873015873,
+            -0.07764323412698415
+          ]
+        },
+        "joint_em": {
+          "delta": -0.111,
+          "right_wins": 45,
+          "ties": 799,
+          "left_wins": 156,
+          "ci95_sample_bootstrap": [
+            -0.138,
+            -0.084
+          ]
+        },
+        "joint_f1": {
+          "delta": -0.14524549117572053,
+          "right_wins": 159,
+          "ties": 471,
+          "left_wins": 370,
+          "ci95_sample_bootstrap": [
+            -0.1730216741511302,
+            -0.11710859781070411
+          ]
+        }
+      }
+    },
+    {
+      "left": "pipeline_fixed",
+      "right": "debate",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": -0.217,
+          "right_wins": 24,
+          "ties": 735,
+          "left_wins": 241,
+          "ci95_sample_bootstrap": [
+            -0.247,
+            -0.188
+          ]
+        },
+        "f1": {
+          "delta": -0.2478162285265469,
+          "right_wins": 48,
+          "ties": 612,
+          "left_wins": 340,
+          "ci95_sample_bootstrap": [
+            -0.27772801249136825,
+            -0.21722432847771111
+          ]
+        },
+        "sp_em": {
+          "delta": -0.197,
+          "right_wins": 25,
+          "ties": 753,
+          "left_wins": 222,
+          "ci95_sample_bootstrap": [
+            -0.226025,
+            -0.16897500000000015
+          ]
+        },
+        "sp_f1": {
+          "delta": -0.14462380952380952,
+          "right_wins": 142,
+          "ties": 401,
+          "left_wins": 457,
+          "ci95_sample_bootstrap": [
+            -0.16315815476190476,
+            -0.12429498015873017
+          ]
+        },
+        "joint_em": {
+          "delta": -0.162,
+          "right_wins": 18,
+          "ties": 802,
+          "left_wins": 180,
+          "ci95_sample_bootstrap": [
+            -0.189,
+            -0.13597500000000015
+          ]
+        },
+        "joint_f1": {
+          "delta": -0.23258262301349134,
+          "right_wins": 84,
+          "ties": 488,
+          "left_wins": 428,
+          "ci95_sample_bootstrap": [
+            -0.2567483216628152,
+            -0.2075930460849916
+          ]
+        }
+      }
+    },
+    {
+      "left": "pipeline_adaptive",
+      "right": "multi_expert",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": -0.047,
+          "right_wins": 36,
+          "ties": 881,
+          "left_wins": 83,
+          "ci95_sample_bootstrap": [
+            -0.069,
+            -0.025
+          ]
+        },
+        "f1": {
+          "delta": -0.06291988516598492,
+          "right_wins": 54,
+          "ties": 807,
+          "left_wins": 139,
+          "ci95_sample_bootstrap": [
+            -0.08374243791303893,
+            -0.042601783849824916
+          ]
+        },
+        "sp_em": {
+          "delta": -0.016,
+          "right_wins": 30,
+          "ties": 924,
+          "left_wins": 46,
+          "ci95_sample_bootstrap": [
+            -0.033025,
+            0.001
+          ]
+        },
+        "sp_f1": {
+          "delta": -0.011448412698412699,
+          "right_wins": 102,
+          "ties": 760,
+          "left_wins": 138,
+          "ci95_sample_bootstrap": [
+            -0.02340095238095238,
+            -0.0004804166666666699
+          ]
+        },
+        "joint_em": {
+          "delta": -0.015,
+          "right_wins": 33,
+          "ties": 919,
+          "left_wins": 48,
+          "ci95_sample_bootstrap": [
+            -0.033,
+            0.003
+          ]
+        },
+        "joint_f1": {
+          "delta": -0.05011648067048419,
+          "right_wins": 88,
+          "ties": 729,
+          "left_wins": 183,
+          "ci95_sample_bootstrap": [
+            -0.06765635482532205,
+            -0.033737252712930973
+          ]
+        }
+      }
+    },
+    {
+      "left": "pipeline_adaptive",
+      "right": "lead",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": -0.135,
+          "right_wins": 62,
+          "ties": 741,
+          "left_wins": 197,
+          "ci95_sample_bootstrap": [
+            -0.165,
+            -0.104
+          ]
+        },
+        "f1": {
+          "delta": -0.15241283315889925,
+          "right_wins": 100,
+          "ties": 624,
+          "left_wins": 276,
+          "ci95_sample_bootstrap": [
+            -0.18364205421239857,
+            -0.1202887457868723
+          ]
+        },
+        "sp_em": {
+          "delta": -0.132,
+          "right_wins": 64,
+          "ties": 740,
+          "left_wins": 196,
+          "ci95_sample_bootstrap": [
+            -0.162,
+            -0.102
+          ]
+        },
+        "sp_f1": {
+          "delta": -0.09934682539682539,
+          "right_wins": 200,
+          "ties": 410,
+          "left_wins": 390,
+          "ci95_sample_bootstrap": [
+            -0.11902317460317459,
+            -0.07867341269841271
+          ]
+        },
+        "joint_em": {
+          "delta": -0.101,
+          "right_wins": 46,
+          "ties": 807,
+          "left_wins": 147,
+          "ci95_sample_bootstrap": [
+            -0.127,
+            -0.073
+          ]
+        },
+        "joint_f1": {
+          "delta": -0.14782131017140254,
+          "right_wins": 158,
+          "ties": 470,
+          "left_wins": 372,
+          "ci95_sample_bootstrap": [
+            -0.1751807215507592,
+            -0.12090136973786067
+          ]
+        }
+      }
+    },
+    {
+      "left": "pipeline_adaptive",
+      "right": "debate",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": -0.22,
+          "right_wins": 26,
+          "ties": 728,
+          "left_wins": 246,
+          "ci95_sample_bootstrap": [
+            -0.25,
+            -0.191
+          ]
+        },
+        "f1": {
+          "delta": -0.2534409060663839,
+          "right_wins": 51,
+          "ties": 601,
+          "left_wins": 348,
+          "ci95_sample_bootstrap": [
+            -0.28309930524467036,
+            -0.2238312751232817
+          ]
+        },
+        "sp_em": {
+          "delta": -0.195,
+          "right_wins": 27,
+          "ties": 751,
+          "left_wins": 222,
+          "ci95_sample_bootstrap": [
+            -0.224,
+            -0.166
+          ]
+        },
+        "sp_f1": {
+          "delta": -0.14505158730158732,
+          "right_wins": 131,
+          "ties": 415,
+          "left_wins": 454,
+          "ci95_sample_bootstrap": [
+            -0.1644599007936508,
+            -0.12626160714285714
+          ]
+        },
+        "joint_em": {
+          "delta": -0.152,
+          "right_wins": 19,
+          "ties": 810,
+          "left_wins": 171,
+          "ci95_sample_bootstrap": [
+            -0.176,
+            -0.126
+          ]
+        },
+        "joint_f1": {
+          "delta": -0.23515844200917335,
+          "right_wins": 83,
+          "ties": 487,
+          "left_wins": 430,
+          "ci95_sample_bootstrap": [
+            -0.25960643137561507,
+            -0.21069358750566042
+          ]
+        }
+      }
+    },
+    {
+      "left": "multi_expert",
+      "right": "lead",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": -0.088,
+          "right_wins": 71,
+          "ties": 770,
+          "left_wins": 159,
+          "ci95_sample_bootstrap": [
+            -0.117,
+            -0.059
+          ]
+        },
+        "f1": {
+          "delta": -0.08949294799291434,
+          "right_wins": 122,
+          "ties": 660,
+          "left_wins": 218,
+          "ci95_sample_bootstrap": [
+            -0.12021415456825783,
+            -0.059489968712693526
+          ]
+        },
+        "sp_em": {
+          "delta": -0.116,
+          "right_wins": 65,
+          "ties": 754,
+          "left_wins": 181,
+          "ci95_sample_bootstrap": [
+            -0.146,
+            -0.08697500000000014
+          ]
+        },
+        "sp_f1": {
+          "delta": -0.0878984126984127,
+          "right_wins": 206,
+          "ties": 415,
+          "left_wins": 379,
+          "ci95_sample_bootstrap": [
+            -0.10947204365079366,
+            -0.06721148809523814
+          ]
+        },
+        "joint_em": {
+          "delta": -0.086,
+          "right_wins": 49,
+          "ties": 816,
+          "left_wins": 135,
+          "ci95_sample_bootstrap": [
+            -0.112,
+            -0.06
+          ]
+        },
+        "joint_f1": {
+          "delta": -0.09770482950091837,
+          "right_wins": 181,
+          "ties": 507,
+          "left_wins": 312,
+          "ci95_sample_bootstrap": [
+            -0.123257374334634,
+            -0.06970547838961712
+          ]
+        }
+      }
+    },
+    {
+      "left": "multi_expert",
+      "right": "debate",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": -0.173,
+          "right_wins": 43,
+          "ties": 741,
+          "left_wins": 216,
+          "ci95_sample_bootstrap": [
+            -0.204,
+            -0.14297500000000013
+          ]
+        },
+        "f1": {
+          "delta": -0.19052102090039902,
+          "right_wins": 74,
+          "ties": 641,
+          "left_wins": 285,
+          "ci95_sample_bootstrap": [
+            -0.22031717267171624,
+            -0.1589585323702953
+          ]
+        },
+        "sp_em": {
+          "delta": -0.179,
+          "right_wins": 29,
+          "ties": 763,
+          "left_wins": 208,
+          "ci95_sample_bootstrap": [
+            -0.207,
+            -0.151
+          ]
+        },
+        "sp_f1": {
+          "delta": -0.1336031746031746,
+          "right_wins": 144,
+          "ties": 420,
+          "left_wins": 436,
+          "ci95_sample_bootstrap": [
+            -0.1530003373015873,
+            -0.11463317460317464
+          ]
+        },
+        "joint_em": {
+          "delta": -0.137,
+          "right_wins": 24,
+          "ties": 815,
+          "left_wins": 161,
+          "ci95_sample_bootstrap": [
+            -0.162,
+            -0.113
+          ]
+        },
+        "joint_f1": {
+          "delta": -0.18504196133868916,
+          "right_wins": 108,
+          "ties": 532,
+          "left_wins": 360,
+          "ci95_sample_bootstrap": [
+            -0.21108863780146572,
+            -0.15909011686393953
+          ]
+        }
+      }
+    },
+    {
+      "left": "lead",
+      "right": "debate",
+      "paired_samples": 1000,
+      "planned_samples": 1000,
+      "complete": true,
+      "direction": "right minus left",
+      "metrics": {
+        "em": {
+          "delta": -0.085,
+          "right_wins": 67,
+          "ties": 781,
+          "left_wins": 152,
+          "ci95_sample_bootstrap": [
+            -0.113025,
+            -0.057
+          ]
+        },
+        "f1": {
+          "delta": -0.10102807290748467,
+          "right_wins": 104,
+          "ties": 686,
+          "left_wins": 210,
+          "ci95_sample_bootstrap": [
+            -0.12943431061585473,
+            -0.07426715327972684
+          ]
+        },
+        "sp_em": {
+          "delta": -0.063,
+          "right_wins": 57,
+          "ties": 823,
+          "left_wins": 120,
+          "ci95_sample_bootstrap": [
+            -0.086,
+            -0.037
+          ]
+        },
+        "sp_f1": {
+          "delta": -0.04570476190476191,
+          "right_wins": 239,
+          "ties": 429,
+          "left_wins": 332,
+          "ci95_sample_bootstrap": [
+            -0.06803579365079365,
+            -0.02449779761904767
+          ]
+        },
+        "joint_em": {
+          "delta": -0.051,
+          "right_wins": 42,
+          "ties": 865,
+          "left_wins": 93,
+          "ci95_sample_bootstrap": [
+            -0.073,
+            -0.029
+          ]
+        },
+        "joint_f1": {
+          "delta": -0.08733713183777081,
+          "right_wins": 149,
+          "ties": 580,
+          "left_wins": 271,
+          "ci95_sample_bootstrap": [
+            -0.11272347796241661,
+            -0.06294292662599942
+          ]
+        }
+      }
+    }
+  ],
+  "bootstrap": {
+    "seed": 42,
+    "replicates": 2000,
+    "unit": "sample_mean_across_repeats"
+  },
+  "all_attempt_metrics": {
+    "llm_call_count": {
+      "reported_total": 25652,
+      "mean_reported": 4.275333333333333,
+      "reported": 6000,
+      "attempted": 6000,
+      "median_reported": 4.0,
+      "p95_reported": 13.0
+    },
+    "prompt_tokens": {
+      "reported_total": 70586179,
+      "mean_reported": 11953.628958509738,
+      "reported": 5905,
+      "attempted": 6000,
+      "median_reported": 7361.0,
+      "p95_reported": 58287.40000000001
+    },
+    "completion_tokens": {
+      "reported_total": 6265867,
+      "mean_reported": 1061.1121083827265,
+      "reported": 5905,
+      "attempted": 6000,
+      "median_reported": 665.0,
+      "p95_reported": 4185.600000000001
+    },
+    "total_tokens": {
+      "reported_total": 76852046,
+      "mean_reported": 13014.741066892464,
+      "reported": 5905,
+      "attempted": 6000,
+      "median_reported": 8067.0,
+      "p95_reported": 62510.20000000002
+    },
+    "duration_ms": {
+      "reported_total": 64078472,
+      "mean_reported": 10679.745333333334,
+      "reported": 6000,
+      "attempted": 6000,
+      "median_reported": 6241.0,
+      "p95_reported": 33924.35000000001
+    }
+  },
+  "per_call_usage": {
+    "prompt_tokens": 72018536,
+    "completion_tokens": 6386254,
+    "total_tokens": 78404790,
+    "records": 25652,
+    "known_records": 25557
+  },
+  "recorded_call_outcomes": {
+    "ok": 24937,
+    "invalid_schema": 590,
+    "request_error": 95,
+    "invalid_citation": 30
+  },
+  "request_error_codes": [
+    {
+      "category": "timeout",
+      "provider_code": null,
+      "http_status": null,
+      "calls": 55
+    },
+    {
+      "category": "provider_service_error",
+      "provider_code": "ServiceUnavailable",
+      "http_status": 503,
+      "calls": 9
+    },
+    {
+      "category": "provider_service_error",
+      "provider_code": "internal_server_error",
+      "http_status": 500,
+      "calls": 19
+    },
+    {
+      "category": "content_filter",
+      "provider_code": "data_inspection_failed",
+      "http_status": 400,
+      "calls": 12
+    }
+  ],
+  "recovered_request_error_tasks": 28,
+  "failure_categories": {
+    "debate_output_validation": 25,
+    "protocol_timeout": 55,
+    "content_filter": 12
+  },
+  "failed_questions": 81,
+  "failure_stages": {
+    "content_filter": {
+      "review": 5,
+      "plan": 3,
+      "coordinate": 1,
+      "initial": 1,
+      "answer": 1,
+      "revise": 1
+    },
+    "debate_output_validation": {
+      "revise": 25
+    },
+    "protocol_timeout": {
+      "critique": 9,
+      "revise": 11,
+      "review": 15,
+      "work": 8,
+      "coordinate": 5,
+      "opinions": 3,
+      "plan": 3,
+      "initial": 1
+    }
+  },
+  "common_completed_sensitivity": {
+    "questions": 919,
+    "f1": {
+      "single_rag": 0.570575859887774,
+      "pipeline_fixed": 0.6127435975006622,
+      "pipeline_adaptive": 0.6137135041453888,
+      "multi_expert": 0.5543260960679919,
+      "lead": 0.46955933755423035,
+      "debate": 0.3766191455053524
+    },
+    "note": "Post-outcome selection; sensitivity only, not the primary evaluation set."
+  },
+  "examples": {
+    "pipeline_improvement": [
+      {
+        "sample_id": "5a7147fd5542994082a3e758",
+        "question": "When was the king that started coin production in Copenhagen born?",
+        "gold": "2 February 1455",
+        "methods": {
+          "debate": {
+            "run_id": "058696e7-6787-4703-a76b-53cc4ed8b38d",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "sq_1确认King Hans是首位在哥本哈根开始铸币的国王，但所有提供证据均未包含其出生日期，因此原始问题缺少必要证据，无法作答。"
+          },
+          "single_rag": {
+            "run_id": "49172c7f-2a37-416e-be23-76f61a8c8d6b",
+            "answer": "Unknown",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.0,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "Evidence identifies King Hans as the king who started coin production in Copenhagen, but no supplied evidence gives his birth date. The other retrieved passages are unrelated (1974 aluminum cent; Talking Statues). Therefore the original question cannot be answered from the local evidence."
+          },
+          "pipeline_fixed": {
+            "run_id": "c5559eb7-f3ab-4fe4-ac52-01602f7a8247",
+            "answer": "2 February 1455",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "coverage": 1.0,
+            "verification_note": "Evidence states King Hans first started coin production in Copenhagen (sq_1). John, King of Denmark, identified as 'Hans', was born 2 February 1455 (sq_2). The Hans Engell chunk is a different person and irrelevant. Both hops are supported, no conflict."
+          },
+          "pipeline_adaptive": {
+            "run_id": "292ee206-d2a9-417f-8531-685b6ffbb013",
+            "answer": "2 February 1455",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "coverage": 1.0,
+            "verification_note": "证据表明在哥本哈根开始铸币的国王是 King Hans（sq_1）。另一证据将 John, King of Denmark（丹麦语/挪威语称 Hans）的出生日期记为 1455 年 2 月 2 日（sq_2），身份与 King Hans 一致。因此答案完整，无相关冲突。"
+          },
+          "multi_expert": {
+            "run_id": "2802721b-4b46-4bec-8471-20c1152a5edb",
+            "answer": "insufficient",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "Evidence confirms King Hans started coin production in Copenhagen, but no birth date for King Hans appears in the supplied evidence, so the original question cannot be answered."
+          },
+          "lead": {
+            "run_id": "c25abbca-7cd3-41f9-9490-d61440ec4ebf",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "证据确认首位在哥本哈根开始生产硬币的国王是 King Hans，但所有提供的证据均未给出其出生日期或年份，因此无法回答原始问题。"
+          }
+        }
+      },
+      {
+        "sample_id": "5a714f6f5542994082a3e7b3",
+        "question": "How many people live in the County serviced by The Collier Area Transit system?",
+        "gold": "321,520",
+        "methods": {
+          "pipeline_fixed": {
+            "run_id": "cf455eca-874b-4b8e-95fe-a8c72f5c4c2d",
+            "answer": "321,520",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.8
+            },
+            "coverage": 1.0,
+            "verification_note": "CAT serves Collier County, Florida (sq_1 evidence). Collier County population as of 2010 census was 321,520 (sq_2 evidence). Both hops are supported with no conflicting facts."
+          },
+          "pipeline_adaptive": {
+            "run_id": "0e6b6432-b1a8-47ea-8f43-910bd0f1fd93",
+            "answer": "321,520",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.8
+            },
+            "coverage": 1.0,
+            "verification_note": "证据表明Collier Area Transit服务于佛罗里达州Collier County；同一来源指出截至2010年人口普查该县人口为321,520。实体身份与时间条件一致，无冲突。"
+          },
+          "multi_expert": {
+            "run_id": "b3972ec2-17fc-429c-a3e4-d04d8e468499",
+            "answer": "321,520",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.8
+            },
+            "coverage": 1.0,
+            "verification_note": "CAT is the public transportation system in Collier County, Florida; the Collier County article states the 2010 census population was 321,520. The question asks how many people live there; the only population figure provided is the 2010 census count, which directly answers the numeric question."
+          },
+          "lead": {
+            "run_id": "d3df3d22-ddc7-44c3-bc2d-28665658b260",
+            "answer": "321,520",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.8
+            },
+            "coverage": 0.6666666666666666,
+            "verification_note": "Evidence states CAT is the public transportation system in Collier County, Florida, and that Collier County's population was 321,520 as of the 2010 census. The county identity and population figure are both supported; the figure is the 2010 census count."
+          },
+          "debate": {
+            "run_id": "db3e6821-ccdc-4a87-8287-e80300f9dc8a",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.6666666666666666,
+            "verification_note": "证据确认 CAT 是 Collier County, Florida 的公共交通系统，且 Collier County 位于佛罗里达州；但所有证据块均未提供人口数量，必要事实缺失，故无法作答。"
+          },
+          "single_rag": {
+            "run_id": "ff72134d-443a-4788-bdd3-db4121760a84",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.6666666666666666,
+            "verification_note": "Evidence establishes that Collier Area Transit serves Collier County, Florida, but no supplied evidence states the county's population. Therefore the original question cannot be answered from the provided material."
+          }
+        }
+      },
+      {
+        "sample_id": "5a724dc25542990c210a40df",
+        "question": "Which was released later, The Strongest Man in the World, or Roving Mars?",
+        "gold": "Roving Mars",
+        "methods": {
+          "multi_expert": {
+            "run_id": "455e3bd8-469d-4f19-8a3b-e1e319bd696a",
+            "answer": "insufficient",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 1.0,
+            "verification_note": "Evidence confirms The Strongest Man in the World is a 1975 Disney film. However, no release date for Roving Mars is provided; the only release-related evidence mentions a Blu-ray release without a date. Without Roving Mars' release date, the comparison of which was released later cannot be determined."
+          },
+          "lead": {
+            "run_id": "cccfe18b-a37a-4115-8292-39f5e33f0d0a",
+            "answer": "insufficient",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 1.0,
+            "verification_note": "The Strongest Man in the World 仅有1975年信息；Roving Mars 证据只描述主题、动画和蓝光发行，未给任何发行日期，故无法判断哪部更晚。"
+          },
+          "debate": {
+            "run_id": "a91ec763-cdca-4e43-8885-520e3a97f097",
+            "answer": "",
+            "status": "failed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.0,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": null
+          },
+          "single_rag": {
+            "run_id": "0e25c807-2403-40ea-9827-b819d02eb05b",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "The evidence identifies Roving Mars as an IMAX documentary and notes a Blu-ray release, but provides no release date. There is no evidence at all about The Strongest Man in the World. Therefore the comparison cannot be resolved from the supplied material."
+          },
+          "pipeline_fixed": {
+            "run_id": "dc76780e-13ea-4c34-89d1-4e0fed302ac2",
+            "answer": "Roving Mars",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.6666666666666666
+            },
+            "coverage": 1.0,
+            "verification_note": "The Strongest Man in the World is dated 1975 in the evidence. Roving Mars evidence lacks a release date, so the comparison cannot be fully verified; the answer is inferred only if Roving Mars is known to be later, which is not supported by the provided evidence."
+          },
+          "pipeline_adaptive": {
+            "run_id": "52d6382b-cb2b-4cd2-a162-c36e19f6b848",
+            "answer": "Roving Mars",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "coverage": 1.0,
+            "verification_note": "The Strongest Man in the World is a 1975 Disney film. Roving Mars is an IMAX documentary about the Mars Exploration Rovers (Spirit and Opportunity), which launched in 2003 and operated in 2004, so it was released after 1975. The 2013/2014 World's Strongest Man chunks refer to a different entity and are irrelevant. Thus Roving Mars was released later."
+          }
+        }
+      }
+    ],
+    "debate_abstention": [
+      {
+        "sample_id": "5a7147fd5542994082a3e758",
+        "question": "When was the king that started coin production in Copenhagen born?",
+        "gold": "2 February 1455",
+        "methods": {
+          "debate": {
+            "run_id": "058696e7-6787-4703-a76b-53cc4ed8b38d",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "sq_1确认King Hans是首位在哥本哈根开始铸币的国王，但所有提供证据均未包含其出生日期，因此原始问题缺少必要证据，无法作答。"
+          },
+          "single_rag": {
+            "run_id": "49172c7f-2a37-416e-be23-76f61a8c8d6b",
+            "answer": "Unknown",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.0,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "Evidence identifies King Hans as the king who started coin production in Copenhagen, but no supplied evidence gives his birth date. The other retrieved passages are unrelated (1974 aluminum cent; Talking Statues). Therefore the original question cannot be answered from the local evidence."
+          },
+          "pipeline_fixed": {
+            "run_id": "c5559eb7-f3ab-4fe4-ac52-01602f7a8247",
+            "answer": "2 February 1455",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "coverage": 1.0,
+            "verification_note": "Evidence states King Hans first started coin production in Copenhagen (sq_1). John, King of Denmark, identified as 'Hans', was born 2 February 1455 (sq_2). The Hans Engell chunk is a different person and irrelevant. Both hops are supported, no conflict."
+          },
+          "pipeline_adaptive": {
+            "run_id": "292ee206-d2a9-417f-8531-685b6ffbb013",
+            "answer": "2 February 1455",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 1.0,
+              "sp_f1": 1.0,
+              "joint_em": 1.0,
+              "joint_f1": 1.0
+            },
+            "coverage": 1.0,
+            "verification_note": "证据表明在哥本哈根开始铸币的国王是 King Hans（sq_1）。另一证据将 John, King of Denmark（丹麦语/挪威语称 Hans）的出生日期记为 1455 年 2 月 2 日（sq_2），身份与 King Hans 一致。因此答案完整，无相关冲突。"
+          },
+          "multi_expert": {
+            "run_id": "2802721b-4b46-4bec-8471-20c1152a5edb",
+            "answer": "insufficient",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "Evidence confirms King Hans started coin production in Copenhagen, but no birth date for King Hans appears in the supplied evidence, so the original question cannot be answered."
+          },
+          "lead": {
+            "run_id": "c25abbca-7cd3-41f9-9490-d61440ec4ebf",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "证据确认首位在哥本哈根开始生产硬币的国王是 King Hans，但所有提供的证据均未给出其出生日期或年份，因此无法回答原始问题。"
+          }
+        }
+      },
+      {
+        "sample_id": "5a714f6f5542994082a3e7b3",
+        "question": "How many people live in the County serviced by The Collier Area Transit system?",
+        "gold": "321,520",
+        "methods": {
+          "pipeline_fixed": {
+            "run_id": "cf455eca-874b-4b8e-95fe-a8c72f5c4c2d",
+            "answer": "321,520",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.8
+            },
+            "coverage": 1.0,
+            "verification_note": "CAT serves Collier County, Florida (sq_1 evidence). Collier County population as of 2010 census was 321,520 (sq_2 evidence). Both hops are supported with no conflicting facts."
+          },
+          "pipeline_adaptive": {
+            "run_id": "0e6b6432-b1a8-47ea-8f43-910bd0f1fd93",
+            "answer": "321,520",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.8
+            },
+            "coverage": 1.0,
+            "verification_note": "证据表明Collier Area Transit服务于佛罗里达州Collier County；同一来源指出截至2010年人口普查该县人口为321,520。实体身份与时间条件一致，无冲突。"
+          },
+          "multi_expert": {
+            "run_id": "b3972ec2-17fc-429c-a3e4-d04d8e468499",
+            "answer": "321,520",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.8
+            },
+            "coverage": 1.0,
+            "verification_note": "CAT is the public transportation system in Collier County, Florida; the Collier County article states the 2010 census population was 321,520. The question asks how many people live there; the only population figure provided is the 2010 census count, which directly answers the numeric question."
+          },
+          "lead": {
+            "run_id": "d3df3d22-ddc7-44c3-bc2d-28665658b260",
+            "answer": "321,520",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.8
+            },
+            "coverage": 0.6666666666666666,
+            "verification_note": "Evidence states CAT is the public transportation system in Collier County, Florida, and that Collier County's population was 321,520 as of the 2010 census. The county identity and population figure are both supported; the figure is the 2010 census count."
+          },
+          "debate": {
+            "run_id": "db3e6821-ccdc-4a87-8287-e80300f9dc8a",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.6666666666666666,
+            "verification_note": "证据确认 CAT 是 Collier County, Florida 的公共交通系统，且 Collier County 位于佛罗里达州；但所有证据块均未提供人口数量，必要事实缺失，故无法作答。"
+          },
+          "single_rag": {
+            "run_id": "ff72134d-443a-4788-bdd3-db4121760a84",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.8,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.6666666666666666,
+            "verification_note": "Evidence establishes that Collier Area Transit serves Collier County, Florida, but no supplied evidence states the county's population. Therefore the original question cannot be answered from the provided material."
+          }
+        }
+      },
+      {
+        "sample_id": "5a716c415542994082a3e827",
+        "question": "Which airline partners with Gogo Inflight Internet and opened in 1984?",
+        "gold": "Virgin Atlantic",
+        "methods": {
+          "pipeline_adaptive": {
+            "run_id": "d113b9a0-5972-4bf9-ae5b-7aab81672d8d",
+            "answer": "Virgin Atlantic",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.4,
+              "joint_em": 0.0,
+              "joint_f1": 0.4
+            },
+            "coverage": 0.6666666666666666,
+            "verification_note": "Gogo 合作伙伴名单包含 Virgin Atlantic；Virgin Atlantic 词条说明该航空公司于 1984 年成立（原名 British Atlantic Airways）。两跳关系均成立，无冲突。"
+          },
+          "multi_expert": {
+            "run_id": "117b383d-0bf4-4667-b835-4704d955fca4",
+            "answer": "Virgin Atlantic",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.4,
+              "joint_em": 0.0,
+              "joint_f1": 0.4
+            },
+            "coverage": 1.0,
+            "verification_note": "Gogo 合作伙伴名单明确包含 Virgin Atlantic；Virgin Atlantic 于 1984 年成立（原名 British Atlantic Airways），两项条件同时满足，无相关冲突。"
+          },
+          "lead": {
+            "run_id": "710f29ee-a52d-4160-80b8-3a7de5160267",
+            "answer": "insufficient",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.4,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.3333333333333333,
+            "verification_note": "Virgin Atlantic 证据仅支持其1984年成立（原名 British Atlantic Airways）；Gogo 证据仅说明其为机上宽带互联网服务提供商，未提及任何航空公司合作方。缺少将1984年成立的航空公司与 Gogo 合作联系起来的必要证据，故无法完整回答原始问题。"
+          },
+          "debate": {
+            "run_id": "95eb1aa7-ba15-4f21-92ae-bfbc37b98087",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.0,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.3333333333333333,
+            "verification_note": "现有证据无法验证任一条件：没有 chunk 表明某航空公司与 Gogo Inflight Internet 合作，也没有 chunk 提及1984年成立或开通。Duty Free World 的合作伙伴名单不能归因于 Gogo，因此答案为 insufficient。"
+          },
+          "single_rag": {
+            "run_id": "38fca727-7f7e-47db-b0e2-34e698630488",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.0,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.3333333333333333,
+            "verification_note": "The supplied evidence does not name any airline partnering with Gogo Inflight Internet, nor does it state that any airline opened in 1984. The Duty Free World evidence lists airline partners (Aeromexico, LATAM, United) but not in connection with Gogo or 1984, so it cannot support the answer."
+          },
+          "pipeline_fixed": {
+            "run_id": "16f5cbf7-c931-4c7e-9028-b762c8fa15f1",
+            "answer": "Virgin Atlantic",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.4,
+              "joint_em": 0.0,
+              "joint_f1": 0.4
+            },
+            "coverage": 0.6666666666666666,
+            "verification_note": "Gogo Inflight Internet 的合作伙伴列表包含 Virgin Atlantic；Virgin Atlantic 词条说明该航空公司于1984年成立（原名 British Atlantic Airways）。两条证据共同支持 Virgin Atlantic 同时满足两个条件。"
+          }
+        }
+      }
+    ],
+    "debate_correct_pipeline_wrong": [
+      {
+        "sample_id": "5a71214d5542994082a3e5b9",
+        "question": "What production company was founded by George Balanchine to create a live stage version of the 1942 film Casablanca?",
+        "gold": "The Los Angeles Dance Theater",
+        "methods": {
+          "pipeline_adaptive": {
+            "run_id": "a4dc3fcf-ac55-40a9-8cc8-6c6477d7c0b4",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.0,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "The only relevant chunk states a company was founded to create a live-stage dance version of Casablanca, but it does not name the company nor mention George Balanchine. The Casablanca film chunk confirms the 1942 film but not the production company or Balanchine. The Razzia chunk is irrelevant. Thus the necessary entity name and the Balanchine relationship are missing, so the answer cannot be verified."
+          },
+          "multi_expert": {
+            "run_id": "5bbce59e-f34a-49be-9042-9917e387de05",
+            "answer": "Los Angeles Dance Theater",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.0,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "证据仅说明 Los Angeles Dance Theater 是为创作电影《Casablanca》的现场舞台舞蹈版而成立，未提及 George Balanchine 是其创始人，因此“由 George Balanchine 创立”这一必要关系缺乏证据，答案不完整。"
+          },
+          "lead": {
+            "run_id": "36bcb787-d6fc-4a01-8cd1-016261c2c7a9",
+            "answer": "Los Angeles Dance Theater",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.4,
+              "joint_em": 0.0,
+              "joint_f1": 0.4
+            },
+            "coverage": 0.5,
+            "verification_note": "Los Angeles Dance Theater 确为创作《Casablanca》舞台舞蹈版而成立，但证据明确其由 Balanchine 门生 John Clifford 于2003年创立，而非 Balanchine 本人；Les Ballets 1933 虽由 Balanchine 参与创办，却与 Casablanca 无关。问题所要求的“Balanchine 创立”关系与证据冲突，故 verified=false。"
+          },
+          "debate": {
+            "run_id": "853d756a-b258-4b2e-8bf3-154034866590",
+            "answer": "Los Angeles Dance Theater",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.5
+            },
+            "coverage": 0.5,
+            "verification_note": "Evidence 07e60a40e1ef87af32b9f15a7436ad851e1738d6b7ff06e0886b0251230b2bde confirms Los Angeles Dance Theater was founded to create a live-stage dance version of Casablanca. However, evidence 3f7eb5b86dd0a844a5222d6e9cc18e20659e294af79da4a25c9b590c1071067f states it was founded in 2003 by George Balanchine protege John Clifford, not by George Balanchine. The question's founder premise conflicts with the evidence, so verified=false with conflict."
+          },
+          "single_rag": {
+            "run_id": "498861c5-cba8-4716-9fa1-777649421186",
+            "answer": "Los Angeles Dance Theater",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.5
+            },
+            "coverage": 0.5,
+            "verification_note": "Evidence states the Los Angeles Dance Theater was founded to create a live-stage dance version of the film Casablanca, and that it is a production company founded in 2003 by George Balanchine protege John Clifford. The question attributes founding to George Balanchine himself, but the evidence identifies the founder as his protege John Clifford; the company name answering the question is Los Angeles Dance Theater. The third evidence item about 'Too Darn Hot' is irrelevant."
+          },
+          "pipeline_fixed": {
+            "run_id": "82ec5ac4-04f2-436f-a4d0-e2fbee92e991",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.0,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "The only relevant chunk states a company was founded to create a live-stage dance version of Casablanca, but it does not name the company nor mention George Balanchine. The Casablanca film chunk confirms the 1942 film but not the production company. The 'Too Darn Hot' chunk is irrelevant. Thus the necessary entity name and the Balanchine connection are missing, so the question cannot be answered from the provided evidence."
+          }
+        }
+      },
+      {
+        "sample_id": "5a7354e35542994cef4bc55b",
+        "question": "What is the name of second extended play by the artists of the mini-abum Code#01?",
+        "gold": "Code#02 Pretty Pretty",
+        "methods": {
+          "lead": {
+            "run_id": "42cfe129-c34d-45c9-8bb8-4755a1cde357",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.6666666666666666,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "Ladies' Code 段落2确认 Code#01 是 Ladies' Code 的出道迷你专辑，从而确定艺人身份；但所有证据均未提及该艺人的第二张迷你专辑名称，Strang3r 仅为2016年新迷你专辑，未标明为第二张。必要证据缺失，无法作答。"
+          },
+          "debate": {
+            "run_id": "97d6a588-52f4-470e-9492-860cf11353b1",
+            "answer": "Code#02 Pretty Pretty",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.5
+            },
+            "coverage": 0.5,
+            "verification_note": "Evidence identifies Code#01 Bad Girl as the debut extended play by Ladies' Code and Code#02 Pretty Pretty as the second extended play by the same group, so the second EP by the artists of Code#01 is Code#02 Pretty Pretty."
+          },
+          "single_rag": {
+            "run_id": "f5675b3b-f14e-4675-a995-9c893bd8979e",
+            "answer": "Code#02 Pretty Pretty",
+            "status": "completed",
+            "scores": {
+              "em": 1.0,
+              "f1": 1.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.5
+            },
+            "coverage": 0.5,
+            "verification_note": "Code#01 Bad Girl is the debut EP by Ladies' Code; Code#02 Pretty Pretty is explicitly stated as the second EP by the same group, so the second EP following Code#01 is Code#02 Pretty Pretty."
+          },
+          "pipeline_fixed": {
+            "run_id": "7c3eda9a-63b6-4dce-b337-a4bebf7da0d2",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "证据确认 Code#01 是 Ladies' Code 的出道迷你专辑，因此艺人身份已确定。但所提供证据只说明 Code#01 是首张 EP，并提到 2016 年的迷你专辑 Strang3r，未明确说明 Ladies' Code 的第二张 extended play 是哪一张，缺少回答原始问题所需的必要证据。"
+          },
+          "pipeline_adaptive": {
+            "run_id": "24eeab71-3c8f-4710-9c52-748e1b2274ff",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "证据确认 Code#01 是 Ladies' Code 的出道迷你专辑，因此艺人身份已确定。但所提供证据未列出其第二张 extended play 的名称；sq_2 的检索结果仅涉及 Code#01 本身（出道 EP、主打歌、发行日期），未提供第二张 EP 的信息，故无法回答原始问题。"
+          },
+          "multi_expert": {
+            "run_id": "6fc4cfac-1e24-4b38-a92f-edf932f70ed4",
+            "answer": "",
+            "status": "completed",
+            "scores": {
+              "em": 0.0,
+              "f1": 0.0,
+              "sp_em": 0.0,
+              "sp_f1": 0.5,
+              "joint_em": 0.0,
+              "joint_f1": 0.0
+            },
+            "coverage": 0.5,
+            "verification_note": "Evidence identifies Ladies' Code as the artists of Code#01, but no evidence names their second extended play, so the original question cannot be answered."
+          }
+        }
+      }
+    ]
+  },
+  "source_sha256": "727bcd49052e6f39d7e4ceeca50300e0dbea4c0f61761b215298f91e421261da",
+  "protected_file_hashes": {
+    "data\\experiments\\baseline-evaluation-001\\config.resolved.json": "67954c385578019dfec59a3f38647a58d5de72618df9d116affa08c624051f57",
+    "data\\experiments\\baseline-evaluation-001\\manifest.json": "3046dfc42cf533dd5a9e0c43f5803eac2f37f736919d90a436e968fdd89490a2",
+    "data\\experiments\\baseline-evaluation-001\\provenance.json": "7d690cdecef6e6e81d65e24832fbc28335d28ecc48302e9c86420f25ea9a3c65",
+    "data\\experiments\\baseline-evaluation-001\\source.zip": "454b70753edb7fba7bf449dc4e5eade42502efe20fcf8f67ca93d0ed2ab9afb1",
+    "data\\experiments\\baseline-evaluation-001\\results.jsonl": "318864860479d49c9405f3cef0243ff0a76c46d9aba151b1749cc4d4b174eee9",
+    "data\\experiments\\baseline-evaluation-001\\runs.sqlite3": "673de93255927c1b9c990a40fa00bd15db451073a670aa6ca7f7a19c988fb3c9",
+    "data\\experiments\\baseline-evaluation-001\\tasks.sqlite3": "a4d0c087dcb403a6807e72795b0b5acd3d015a673431b75768c5c3ee4df243b1",
+    "data\\experiments\\baseline-evaluation-001\\logs\\progress.jsonl": "eb7533bc4ffa74eeb35c83708a77eb8f389a5c2596b4239fca7dd93fe147c645",
+    "data\\experiments\\baseline-evaluation-001\\methods\\debate.json": "b3d6d990ded3ee29ddb4d8758b41a4d4ea406d5e4da97f5b50243763394c6aa4",
+    "data\\experiments\\baseline-evaluation-001\\methods\\lead.json": "0a146846b976d36c1df75cbe50ed502b7aad8880d4fc3c8d4d129c9bcaef4f1f",
+    "data\\experiments\\baseline-evaluation-001\\methods\\multi_expert.json": "5786af70e2ff3f7073dd0b37f13e2e5f1f296361e24470b0a03a8368e0d0ac2e",
+    "data\\experiments\\baseline-evaluation-001\\methods\\pipeline_adaptive.json": "224030fe3190646b924ab2974111e2c96200db9d1b3693b87b2e56ba44da10af",
+    "data\\experiments\\baseline-evaluation-001\\methods\\pipeline_fixed.json": "f4536788e613bfd2c0ea2b9fc60f8a599f93a0acdaea6bdc138fd25b92e3e72c",
+    "data\\experiments\\baseline-evaluation-001\\methods\\single_rag.json": "0df0beff3a57f4ae2e0986c537eb5775afb2a498de356a7adb3a381ad67d60d1",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\examples.json": "936c68308c56b36c46e888352bce06a82baa1f59c6c9bd6164896e98ef2c856b",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\gold.json": "5090f9200dbed2a6dbe612edbfb6c342fe4040e51e3b3d4c5f97f6339562e10c",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\paired-differences.csv": "5753cdc0bf54d5d81ed387816042587cf276e67dd583bba5f23d39e96ec3d828",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\per-question.csv": "49fd262221ef19d552068c9b943dc8e192f2dd54fcd67c36a73a64bf7f6fd101",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\report.md": "020f7192ac373d534551e6395bf0282a0d66d9828b8abf2ee8321fbde45901e4",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\review.csv": "65272e8d02c61d3c0993f32a45ed3a9406e6ea882efb9b4aa5e8d588bdd84fe6",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\summary.json": "d2e182b6d25c8d6d267a496c80102c2c7547c8c2b048d8f10b9d8a7068ff9288",
+    "data\\experiments\\baseline-dev-001\\manifest.json": "79247ab9f4fdc7df80a8f099ae7355b3717704f39c34510bbc8c686e6efaf578",
+    "data\\experiments\\baseline-dev-001\\provenance.json": "e63042dffa67113254616a9630a2e36b0bb4ab27cd147696d55329071eb307a1",
+    "data\\experiments\\baseline-dev-001\\results.jsonl": "ab6f08278fe608842b1f5a19348649dd9dbd8db3b5f9150c9d81e71075c6d64a"
+  },
+  "caveats": [
+    "Internal split of public HotpotQA dev-distractor, not official hidden test.",
+    "One real run per question and method, not replicated seeds.",
+    "Bootstrap intervals are unadjusted and resample questions, not provider variability.",
+    "Shared ceilings do not match actual calls or evidence volume.",
+    "Unknown token usage is not zero; no monetary bill is inferred."
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "checked": 24,
+  "unchanged": true,
+  "files": {
+    "data\\experiments\\baseline-evaluation-001\\config.resolved.json": "67954c385578019dfec59a3f38647a58d5de72618df9d116affa08c624051f57",
+    "data\\experiments\\baseline-evaluation-001\\manifest.json": "3046dfc42cf533dd5a9e0c43f5803eac2f37f736919d90a436e968fdd89490a2",
+    "data\\experiments\\baseline-evaluation-001\\provenance.json": "7d690cdecef6e6e81d65e24832fbc28335d28ecc48302e9c86420f25ea9a3c65",
+    "data\\experiments\\baseline-evaluation-001\\source.zip": "454b70753edb7fba7bf449dc4e5eade42502efe20fcf8f67ca93d0ed2ab9afb1",
+    "data\\experiments\\baseline-evaluation-001\\results.jsonl": "318864860479d49c9405f3cef0243ff0a76c46d9aba151b1749cc4d4b174eee9",
+    "data\\experiments\\baseline-evaluation-001\\runs.sqlite3": "673de93255927c1b9c990a40fa00bd15db451073a670aa6ca7f7a19c988fb3c9",
+    "data\\experiments\\baseline-evaluation-001\\tasks.sqlite3": "a4d0c087dcb403a6807e72795b0b5acd3d015a673431b75768c5c3ee4df243b1",
+    "data\\experiments\\baseline-evaluation-001\\logs\\progress.jsonl": "eb7533bc4ffa74eeb35c83708a77eb8f389a5c2596b4239fca7dd93fe147c645",
+    "data\\experiments\\baseline-evaluation-001\\methods\\debate.json": "b3d6d990ded3ee29ddb4d8758b41a4d4ea406d5e4da97f5b50243763394c6aa4",
+    "data\\experiments\\baseline-evaluation-001\\methods\\lead.json": "0a146846b976d36c1df75cbe50ed502b7aad8880d4fc3c8d4d129c9bcaef4f1f",
+    "data\\experiments\\baseline-evaluation-001\\methods\\multi_expert.json": "5786af70e2ff3f7073dd0b37f13e2e5f1f296361e24470b0a03a8368e0d0ac2e",
+    "data\\experiments\\baseline-evaluation-001\\methods\\pipeline_adaptive.json": "224030fe3190646b924ab2974111e2c96200db9d1b3693b87b2e56ba44da10af",
+    "data\\experiments\\baseline-evaluation-001\\methods\\pipeline_fixed.json": "f4536788e613bfd2c0ea2b9fc60f8a599f93a0acdaea6bdc138fd25b92e3e72c",
+    "data\\experiments\\baseline-evaluation-001\\methods\\single_rag.json": "0df0beff3a57f4ae2e0986c537eb5775afb2a498de356a7adb3a381ad67d60d1",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\examples.json": "936c68308c56b36c46e888352bce06a82baa1f59c6c9bd6164896e98ef2c856b",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\gold.json": "5090f9200dbed2a6dbe612edbfb6c342fe4040e51e3b3d4c5f97f6339562e10c",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\paired-differences.csv": "5753cdc0bf54d5d81ed387816042587cf276e67dd583bba5f23d39e96ec3d828",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\per-question.csv": "49fd262221ef19d552068c9b943dc8e192f2dd54fcd67c36a73a64bf7f6fd101",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\report.md": "020f7192ac373d534551e6395bf0282a0d66d9828b8abf2ee8321fbde45901e4",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\review.csv": "65272e8d02c61d3c0993f32a45ed3a9406e6ea882efb9b4aa5e8d588bdd84fe6",
+    "data\\experiments\\baseline-evaluation-001\\reports\\20261028T232306054658Z\\summary.json": "d2e182b6d25c8d6d267a496c80102c2c7547c8c2b048d8f10b9d8a7068ff9288",
+    "data\\experiments\\baseline-dev-001\\manifest.json": "79247ab9f4fdc7df80a8f099ae7355b3717704f39c34510bbc8c686e6efaf578",
+    "data\\experiments\\baseline-dev-001\\provenance.json": "e63042dffa67113254616a9630a2e36b0bb4ab27cd147696d55329071eb307a1",
+    "data\\experiments\\baseline-dev-001\\results.jsonl": "ab6f08278fe608842b1f5a19348649dd9dbd8db3b5f9150c9d81e71075c6d64a"
+  },
+  "source_matches_frozen": true,
+  "new_model_calls": 0
+}
