@@ -44,6 +44,8 @@ export default function EvaluationsView() {
   const detailRequest = useRef(0)
   const selectedBank = banks.find(b => `${b.bank_id}:${b.version}` === bankKey)
   const planned = selected.length * (sampleSize ?? selectedBank?.count ?? 0) * repeats
+  const invalidSystemSelection = kind === 'system' && selected.some(value => !options.systems.some(
+    s => `${s.system_id}:${s.version}` === value && s.available !== false))
   const retryCount = job?.retryable_count ?? 0
   const retryDisabledReason = retryCount === 0
     ? job && job.progress.attempted === job.progress.planned
@@ -147,8 +149,12 @@ export default function EvaluationsView() {
             onChange={v => { setKind(v); setSelected([]); setOverride(v === 'builtin'); setContextMode(v === 'builtin' ? 'question_context' : 'system_sources') }} /></label>
           <label>待比较方法<Select aria-label="待比较方法" mode="multiple" value={selected} maxCount={6} placeholder="选择 1～6 项"
             options={kind === 'builtin' ? options.methods.map(m => ({ value: m, label: METHOD_NAMES[m] ?? m })) :
-              options.systems.map(s => ({ value: `${s.system_id}:${s.version}`, label: `${s.name} · ${s.version}` }))}
+              options.systems.map(s => ({ value: `${s.system_id}:${s.version}`, label: `${s.name} · ${s.version}${s.available === false ? '（暂不可用）' : ''}`,
+                disabled: s.available === false, title: s.unavailable_reason ?? undefined }))}
             onChange={setSelected} /></label>
+          {kind === 'system' && <small>可比较同一系统的不同发布版本，也可比较不同系统。每次评测固定所选版本的配置。</small>}
+          {kind === 'system' && options.systems.filter(s => s.available === false).map(s =>
+            <small key={`${s.system_id}:${s.version}`}>{s.name} · {s.version}：{s.unavailable_reason ?? '此版本暂不可用，请检查系统配置。'}</small>)}
           <label>回答材料<Select aria-label="回答材料" value={contextMode} disabled={kind === 'builtin'} onChange={setContextMode}
             options={[{ value: 'question_context', label: '使用每道题自带的 context' }, { value: 'system_sources', label: '沿用各智能体绑定的固定知识源' }]} /></label>
           {contextMode === 'question_context' && <small>本次运行会用每题 context 替换检索材料，原发布系统保持独立保存。</small>}
@@ -162,7 +168,7 @@ export default function EvaluationsView() {
             <Space wrap><label>温度<InputNumber aria-label="评测温度" min={0} max={2} step={0.1} value={temperature} onChange={v => setTemperature(v ?? 0)} /></label>
               <label>输出 Token 上限<InputNumber aria-label="输出 Token 上限" min={1} max={65536} value={maxTokens} onChange={v => setMaxTokens(v ?? 4096)} /></label></Space></>}
           <p>计划 {planned.toLocaleString()} 次完整问答；实际模型请求数和费用取决于协作过程。</p>
-          <Button type="primary" disabled={busy || !selectedBank || !selected.length || !name.trim() || (override && !model.trim())}
+          <Button type="primary" disabled={busy || !selectedBank || !selected.length || invalidSystemSelection || !name.trim() || (override && !model.trim())}
             onClick={() => void action(async () => {
               const targets = selected.map(value => kind === 'builtin' ? { kind, method: value } : {
                 kind, system_id: options.systems.find(s => `${s.system_id}:${s.version}` === value)!.system_id,

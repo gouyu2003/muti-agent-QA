@@ -112,6 +112,41 @@ it('freezes a named system version with its own materials before execution', asy
   expect(vi.mocked(evaluationRequest).mock.calls.some(([path]) => path.endsWith('/start'))).toBe(false)
 })
 
+it('compares versions across systems and keeps unavailable releases visible with a reason', async () => {
+  const original = vi.mocked(evaluationRequest).getMockImplementation()!
+  vi.mocked(evaluationRequest).mockImplementation(async (path, method, body) => {
+    if (path === '/options') return { methods: [], systems: [
+      { system_id: 'lead', name: 'Lead测试系统', version: 'v2', available: true },
+      { system_id: 'lead', name: 'Lead测试系统', version: 'v1', available: true },
+      { system_id: 'team', name: '英文双专家汇总测试', version: 'v1', available: true },
+      { system_id: 'broken', name: '旧系统', version: 'v1', available: false, unavailable_reason: '绑定的知识源文件缺失。' },
+    ] }
+    return original(path, method, body)
+  })
+  render(<EvaluationsView />)
+  await screen.findByRole('button', { name: /Comparison/ })
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: '问题库版本' }))
+  fireEvent.click(await screen.findByText('Questions · v1 · 2 题', { selector: '.ant-select-item-option-content' }))
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: '评测对象' }))
+  fireEvent.click(await screen.findByText('我的系统：已发布版本', { selector: '.ant-select-item-option-content' }))
+  expect(screen.getByText('旧系统 · v1：绑定的知识源文件缺失。')).toBeInTheDocument()
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: '待比较方法' }))
+  fireEvent.click(await screen.findByText('旧系统 · v1（暂不可用）', { selector: '.ant-select-item-option-content' }))
+  expect(screen.getByRole('button', { name: '冻结并创建任务（不调用模型）' })).toBeDisabled()
+  for (const label of ['Lead测试系统 · v2', 'Lead测试系统 · v1', '英文双专家汇总测试 · v1']) {
+    fireEvent.click(await screen.findByText(label, { selector: '.ant-select-item-option-content' }))
+  }
+  fireEvent.click(screen.getByRole('button', { name: '冻结并创建任务（不调用模型）' }))
+  await waitFor(() => expect(evaluationRequest).toHaveBeenCalledWith('/jobs', 'POST', expect.objectContaining({
+    context_mode: 'system_sources', model: null, targets: [
+      { kind: 'system', system_id: 'lead', version: 'v2' },
+      { kind: 'system', system_id: 'lead', version: 'v1' },
+      { kind: 'system', system_id: 'team', version: 'v1' },
+    ],
+  })))
+  expect(vi.mocked(evaluationRequest).mock.calls.some(([path]) => path.endsWith('/start'))).toBe(false)
+})
+
 it('opens recorded diagnostics using only GET requests and keeps the creation draft', async () => {
   const detail = diagnosticDetail()
   const original = vi.mocked(evaluationRequest).getMockImplementation()!

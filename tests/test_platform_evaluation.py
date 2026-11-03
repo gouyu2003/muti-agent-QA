@@ -15,6 +15,8 @@ from src.evaluation.experiment_store import Ledger, experiment_lock
 from src.evaluation.platform_store import EvaluationFailure, EvaluationStore, JobRequest
 from src.evaluation.platform_worker import execute, reconcile, start_job, stop_job, exported_csv
 from src.runtime.protocol_store import ProtocolStore
+from src.runtime.instances import templates
+from src.runtime.protocols import protocol_templates_v1
 from src.runtime.service import RunService
 from src.runtime.system_store import SystemStore
 
@@ -250,6 +252,126 @@ def published_custom_system(source_id='hotpotqa_fixture', source_version=None):
                                  protocol_bindings=definition['snapshot']['protocol_bindings']))
     systems.publish(system['system_id'], 1)
     return systems, system['system_id']
+
+
+def published_native_system(format, source_id='hotpotqa_fixture', source_version=None):
+    systems = SystemStore()
+    fields = dict(name=f'{format} system', workflow_id='multi_hop_qa_fixed',
+                  source_id=source_id, source_version=source_version)
+    if format != 'legacy':
+        roles = [('planner', 'plan'), ('expert', 'expert_a'), ('expert', 'expert_b'), ('answer_validator', 'review')]
+        if format == 'protocol_v1':
+            roles = [('planner', 'plan'), ('retriever', 'retrieve'), ('answer_validator', 'review')]
+        agents = []
+        for role, key in roles:
+            agent = deepcopy(next(t['defaults'] for t in templates() if t['agent_type'] == role))
+            agent.update(agent_id=key, name=key)
+            if role in ('expert', 'retriever'):
+                agent.update(source_id=source_id, source_version=source_version)
+            agents.append(agent)
+        fields = dict(name=f'{format} system', agents=agents, workflow_id='multi_expert', execution_mode='sequential')
+        if format == 'protocol_v1':
+            protocols = ProtocolStore()
+            spec = deepcopy(next(t['spec'] for t in protocol_templates_v1() if t['template_id'] == 'pipeline'))
+            protocol = protocols.save(dict(name='V1 pipeline', spec=spec))
+            protocols.publish(protocol['protocol_id'], 1)
+            fields.pop('workflow_id')
+            fields.update(protocol_ref=dict(protocol_id=protocol['protocol_id'], version='v1'),
+                          protocol_bindings={slot: [a['agent_id'] for a in agents if a['agent_type'] == contract['role']]
+                                             for slot, contract in spec['slots'].items()})
+    item = systems.create(fields)
+    systems.publish(item['system_id'], 1)
+    fields['name'] += ' updated'
+    systems.save(item['system_id'], 1, fields)
+    systems.publish(item['system_id'], 2)
+    return systems, item['system_id']
+
+
+@pytest.mark.parametrize('format', ['legacy', 'instances', 'protocol_v1'])
+@pytest.mark.parametrize('context_mode', ['question_context', 'system_sources'])
+def test_all_native_versions_execute_with_frozen_materials_and_parameters(monkeypatch, format, context_mode):
+    from src.knowledge.store import KnowledgeStore
+    material = KnowledgeStore().import_files('workspace', 'Native notes', [('notes.txt', b'Cedar Institute is in Northbridge.')])
+    systems, key = published_native_system(format, material['source_id'], 1)
+    original = systems.run_snapshot(key, 'v1')
+    before = systems.database.read_bytes()
+    store = EvaluationStore()
+    records = questions(1)
+    records[0]['answer'] = 'GOLD_IS_PRIVATE'
+    bank = store.import_bank('Native questions', '', records)
+    override = dict(name='comparison-model', temperature=0.2, max_tokens=1200, output_retries=0) if context_mode == 'system_sources' else None
+    job = store.create_job(JobRequest(name='Native versions', bank_id=bank['bank_id'], bank_version=1,
+        targets=[dict(kind='system', system_id=key, version=v) for v in ('v1', 'v2')],
+        context_mode=context_mode, model=override), systems)
+    assert systems.database.read_bytes() == before
+    frozen = store.frozen(job['job_id'])[1]
+    assert len(frozen['definitions']) == 2
+    assert {d['source']['version'] for d in frozen['definitions'].values()} == {'v1', 'v2'}
+    for definition in frozen['definitions'].values():
+        snapshot = definition['snapshot']
+        assert snapshot['schema_version'] == original['schema_version']
+        assert snapshot['workflow_spec'] == original['workflow_spec']
+        for agent in snapshot['agents'].values():
+            if agent.get('model_config'):
+                assert agent['model_config']['system_prompt'] == original['agents'][agent['agent_id']]['model_config']['system_prompt']
+                if override:
+                    assert agent['model_config']['model_name'] == 'comparison-model'
+                    assert agent['model_config']['max_tokens'] == 1200
+    # Neither the saved system nor its material store is consulted during execution.
+    systems.delete(key, 2)
+    for source in (original.get('sources') or {'legacy': original['source']}).values():
+        for field in ('resolved_path', 'index_path'):
+            if field in source:
+                Path(source[field]).unlink(missing_ok=True)
+    seen = []
+    class Chat:
+        def __init__(self, config): self.config = config
+        def invoke(self, prompt, **kwargs):
+            seen.append((prompt, deepcopy(self.config)))
+            return SimpleNamespace(content=json.dumps(dict(answer='Northbridge', verified=False, failure_type='insufficient',
+                supporting_evidence=[], verification_note='Offline response')),
+                usage_metadata=dict(input_tokens=10, output_tokens=5, total_tokens=15))
+    monkeypatch.setattr('src.agents.answer_validator.default_llm', lambda config: Chat(config))
+    def plan(state, **kwargs):
+        return dict(sub_questions=[dict(id='sq_1', question=state['question'], keywords=['Cedar'], depends_on=[])])
+    for path in ('src.graph.planner_fn', 'src.runtime.nodes.planner_fn', 'src.runtime.protocol_runtime.planner_fn'):
+        monkeypatch.setattr(path, plan)
+    store.queue(job['job_id']); execute(store, job['job_id'], service_factory=RunService)
+    current = store.job(job['job_id'])
+    assert current['status'] == 'completed' and current['progress']['completed'] == 2
+    assert current['report']['complete'] and len(current['report']['methods']) == 2
+    assert seen and 'GOLD_IS_PRIVATE' not in json.dumps(seen)
+    for path in (store.job_directory(job['job_id']) / 'runs').glob('*.json'):
+        detail = json.loads(path.read_text(encoding='utf-8'))
+        assert detail['run']['status'] == 'completed'
+        assert 'GOLD_IS_PRIVATE' not in json.dumps(detail)
+        assert detail['run']['metrics']['total_tokens'] > 0
+
+
+def test_options_include_every_published_version_and_explain_invalid_releases():
+    from src.knowledge.store import KnowledgeStore
+    material = KnowledgeStore().import_files('workspace', 'Broken notes', [('notes.txt', b'Cedar Institute is in Northbridge.')])
+    systems, broken = published_native_system('instances', material['source_id'], 1)
+    for format in ('legacy', 'instances', 'protocol_v1'):
+        published_native_system(format)
+    published_custom_system()
+    draft = systems.create(dict(name='Unpublished', workflow_id='multi_hop_qa_fixed', source_id='hotpotqa_fixture'))
+    snapshot = systems.run_snapshot(broken, 'v1')
+    for source in snapshot['sources'].values():
+        Path(source['resolved_path']).unlink(missing_ok=True)
+    with TestClient(app) as client:
+        choices = client.get('/api/v1/evaluations/options').json()['systems']
+        assert len(choices) == 9
+        assert all(c['system_id'] != draft['system_id'] for c in choices)
+        unavailable = [c for c in choices if c['system_id'] == broken]
+        assert len(unavailable) == 2
+        assert all(not c['available'] and c['unavailable_reason'] for c in unavailable)
+        assert all(c['available'] for c in choices if c['system_id'] != broken)
+        bank = client.post('/api/v1/evaluations/question-banks', data={'name': 'Questions'},
+            files={'file': ('q.json', json.dumps(questions(1)).encode(), 'application/json')}).json()
+        response = client.post('/api/v1/evaluations/jobs', json=dict(name='Unavailable version',
+            bank_id=bank['bank_id'], bank_version=1, targets=[dict(kind='system', system_id=broken, version='v1')]))
+        assert response.status_code == 422 and '暂不可评测' in response.json()['detail']
 
 
 def test_custom_published_versions_and_own_materials(monkeypatch):

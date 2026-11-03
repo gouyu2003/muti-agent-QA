@@ -31,6 +31,19 @@ class EvaluationFailure(ValueError):
         self.status = status
 
 
+def published_snapshot(systems, system_id, version):
+    """Use the same validation as interactive runs, without migrating saved releases."""
+    try:
+        snapshot = systems.run_snapshot(system_id, version)
+    except (ValueError, OSError) as exc:
+        raise EvaluationFailure(f'该系统版本暂不可评测：{exc}') from exc
+    except (KeyError, TypeError) as exc:
+        raise EvaluationFailure('该系统版本暂不可评测：保存的配置不完整。') from exc
+    if snapshot.get('schema_version') not in ('1', '2', '3'):
+        raise EvaluationFailure('该系统版本暂不可评测：当前运行服务不支持此配置格式。')
+    return snapshot
+
+
 class Target(BaseModel):
     model_config = ConfigDict(extra='forbid')
     kind: Literal['builtin', 'system']
@@ -125,7 +138,11 @@ def freeze_materials(snapshot, directory):
     """Pin corpus/index bytes locally so later deletion of a system cannot break a job."""
     directory.mkdir(parents=True, exist_ok=True)
     pinned = {}
-    for agent_id, source in snapshot.get('sources', {}).items():
+    sources = snapshot.get('sources') or {
+        key: snapshot['source'] for key, agent in snapshot['agents'].items()
+        if snapshot.get('source') and agent.get('role') in ('retriever', 'expert')
+    }
+    for agent_id, source in sources.items():
         local = deepcopy(source)
         for path_key, hash_key in [('resolved_path', 'sha256'), ('index_path', 'index_sha256')]:
             if path_key not in source:
@@ -241,20 +258,20 @@ class EvaluationStore:
                 definition = method_definition(config, target.method)
                 definition['label'] = target.method
             else:
-                snapshot = systems.run_snapshot(target.system_id, target.version)
-                if snapshot.get('schema_version') != '3' or snapshot['protocol_document']['spec'].get('language_version') != '2':
-                    raise EvaluationFailure('首版批测支持已发布的 schema-3 / V2 用户系统。')
+                snapshot = published_snapshot(systems, target.system_id, target.version)
                 original = snapshot['config_sha256']
                 if fields.context_mode == 'system_sources':
                     freeze_materials(snapshot, self.root / 'jobs' / job_id / 'materials')
                 if fields.model:
-                    for instance in snapshot['instances']:
+                    for instance in snapshot.get('instances', []):
                         if instance.get('model_config'):
                             instance['model_config'].update(model_name=fields.model.name, temperature=fields.model.temperature,
                                                             max_tokens=fields.model.max_tokens)
                             snapshot['agents'][instance['agent_id']]['model_config'].update(instance['model_config'])
                     for agent in snapshot['agents'].values():
                         if agent.get('model_config'):
+                            agent['model_config'].update(model_name=fields.model.name, temperature=fields.model.temperature,
+                                                         max_tokens=fields.model.max_tokens)
                             agent['failure_handling'] = {'max_retries': fields.model.output_retries}
                 snapshot['config_sha256'] = fingerprint(snapshot)
                 method_id = 'system_' + key[:16]

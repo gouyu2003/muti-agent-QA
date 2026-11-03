@@ -118,15 +118,19 @@ def build_context(definition, record, directory, experiment_id, run_id, code_id)
     source_id = 'sample_' + digest(public['_id'])[:24]
     source = dict(source_id=source_id, source_type='hotpotqa_context', resolved_path=str(path.resolve()),
                   sha256=sha256_file(path), name='Isolated HotpotQA context')
-    for instance in snapshot['instances']:
+    snapshot['sources'] = {}
+    for instance in snapshot.get('instances', []):
         if instance['agent_type'] in ('expert', 'retriever'):
             instance.update(source_id=source_id, source_version=None)
-            snapshot['sources'][instance['agent_id']] = deepcopy(source)
-            snapshot['agents'][instance['agent_id']]['knowledge_sources'] = [
+    for key, agent in snapshot['agents'].items():
+        if agent.get('role') in ('expert', 'retriever'):
+            snapshot['sources'][key] = deepcopy(source)
+            agent['knowledge_sources'] = [
                 dict(source_id=source_id, source_type='hotpotqa_context')]
     snapshot['source'] = source
-    snapshot['protocol_plan'] = compile_protocol(snapshot['protocol_document']['spec'],
-                                                snapshot['protocol_bindings'], snapshot['instances'])
+    if snapshot.get('schema_version') == '3':
+        snapshot['protocol_plan'] = compile_protocol(snapshot['protocol_document']['spec'],
+                                                    snapshot['protocol_bindings'], snapshot['instances'])
     snapshot['experiment_derivation'] = dict(method_sha256=definition['sha256'],
                                               adapter_version=ADAPTER_VERSION, origin=definition['source'])
     snapshot['config_sha256'] = fingerprint(snapshot)

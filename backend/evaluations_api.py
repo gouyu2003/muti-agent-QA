@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.evaluation.experiment_config import METHODS
-from src.evaluation.platform_store import EvaluationStore, JobRequest, EvaluationFailure
+from src.evaluation.platform_store import EvaluationStore, JobRequest, EvaluationFailure, published_snapshot
 from src.evaluation.platform_worker import exported_csv, reconcile, start_job, stop_job
 from src.runtime.sqlite_repository import SQLiteRunRepository
 
@@ -46,9 +46,13 @@ def options(request: Request):
     systems = []
     for item in request.app.state.system_store.list():
         for version in item['versions']:
-            snapshot = version['snapshot']
-            if snapshot.get('schema_version') == '3' and snapshot.get('protocol_document', {}).get('spec', {}).get('language_version') == '2':
-                systems.append(dict(system_id=item['system_id'], version=version['version'], name=version['name']))
+            reason = None
+            try:
+                published_snapshot(request.app.state.system_store, item['system_id'], version['version'])
+            except EvaluationFailure as exc:
+                reason = str(exc)
+            systems.append(dict(system_id=item['system_id'], version=version['version'], name=version['name'],
+                                available=reason is None, unavailable_reason=reason))
     return dict(methods=METHODS, systems=systems)
 
 

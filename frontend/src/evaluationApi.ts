@@ -6,7 +6,9 @@ export interface QuestionBank {
   preview: { _id: string; question: string; answer: string | null }[]
 }
 export interface EvaluationOptions {
-  methods: string[]; systems: { system_id: string; version: string; name: string }[]
+  methods: string[]; systems: {
+    system_id: string; version: string; name: string; available?: boolean; unavailable_reason?: string | null
+  }[]
 }
 export interface EvaluationResult {
   run_id: string; sample_id: string; method_id: string; repeat: number; attempt: number
