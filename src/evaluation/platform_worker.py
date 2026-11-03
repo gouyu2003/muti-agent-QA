@@ -24,7 +24,7 @@ from src.evaluation.experiment_scores import score_detail
 from src.evaluation.experiment_report import percentile
 from src.evaluation.experiment_store import Ledger, experiment_lock
 from src.evaluation.metrics import answer_scores
-from src.evaluation.platform_store import EvaluationFailure, EvaluationStore
+from src.evaluation.platform_store import EvaluationFailure, EvaluationStore, RETRYABLE_STATUSES
 from src.llm import ENV_API_KEY, ENV_BASE_URL, require_env
 from src.runtime.models import RunContext
 from src.runtime.service import RunService
@@ -78,17 +78,20 @@ def start_job(store, job_id, *, allow_model_calls, retry_failed=False):
         raise EvaluationFailure('启动会调用模型，需明确确认 allow_model_calls。')
     for job in store.jobs():
         reconcile(store, job['job_id'])
+    try:
+        with experiment_lock(store.job_directory(job_id)):
+            if retry_failed and store.retryable_count(job_id) == 0:
+                raise EvaluationFailure('暂无可补跑项；仅补跑最新尝试仍为失败、状态不明或已取消的项。', 409)
+    except EvaluationFailure:
+        raise
+    except ValueError as exc:
+        raise EvaluationFailure('后台进程仍在执行或生成报告，请稍后再操作。', 409) from exc
     load_dotenv(ROOT / '.env')
     try:
         require_env(ENV_API_KEY)
         require_env(ENV_BASE_URL)
     except RuntimeError as exc:
         raise EvaluationFailure('请先在后端环境配置模型 API Key 和 Base URL。') from exc
-    try:
-        with experiment_lock(store.job_directory(job_id)):
-            pass
-    except ValueError as exc:
-        raise EvaluationFailure('后台进程仍在执行或生成报告，请稍后再操作。', 409) from exc
     store.queue(job_id)
     directory = store.job_directory(job_id)
     directory.mkdir(parents=True, exist_ok=True)
@@ -228,7 +231,7 @@ def execute(store, job_id, *, retry_failed=False, service_factory=None):
                     store.state(job_id, 'paused')
                     break
                 attempts = ledger.attempts(task['task_id'])
-                if attempts and (not retry_failed or attempts[-1]['status'] not in ('failed', 'interrupted', 'cancelled')):
+                if attempts and (not retry_failed or attempts[-1]['status'] not in RETRYABLE_STATUSES):
                     continue
                 definition = frozen['definitions'][task['method_id']]
                 record = records[task['sample_id']]

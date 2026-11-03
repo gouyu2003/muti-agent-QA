@@ -97,6 +97,7 @@ def test_six_graphs_labels_and_storage_isolation(monkeypatch):
     result = store.job(job['job_id'])
     assert result['status'] == 'completed' and result['report']['complete']
     assert result['progress']['completed'] == 6
+    assert result['retryable_count'] == 0
     assert result['report']['retry_count'] == 0
     assert 'SECRET_GOLD_ONLY_FOR_SCORING' not in json.dumps(calls)
     for path in (store.job_directory(job['job_id']) / 'runs').glob('*.json'):
@@ -120,6 +121,7 @@ def test_pause_resume_and_retry_keep_first_attempt(monkeypatch):
     store.queue(job['job_id']); execute(store, job['job_id'], service_factory=RunService)
     assert len(calls) == 1
     assert store.job(job['job_id'])['progress']['failed'] == 1
+    assert store.job(job['job_id'])['retryable_count'] == 1
     calls = fake_graph_phases(monkeypatch)
     store.queue(job['job_id']); execute(store, job['job_id'], service_factory=RunService)
     assert not calls  # Default resume cannot replay failures.
@@ -128,6 +130,7 @@ def test_pause_resume_and_retry_keep_first_attempt(monkeypatch):
     assert report['retry_count'] == 1
     assert report['methods']['single_rag']['scores']['em']['value'] == .5
     assert report['latest_attempt_supplement']['single_rag']['scores']['em']['value'] == 1
+    assert store.job(job['job_id'])['retryable_count'] == 0
 
 
 def test_dead_worker_reconciles_persisted_terminal_without_duplicate(monkeypatch):
@@ -141,6 +144,7 @@ def test_dead_worker_reconciles_persisted_terminal_without_duplicate(monkeypatch
     with pytest.raises(KeyboardInterrupt): execute(store, job['job_id'], service_factory=CrashAfterPersist)
     reconcile(store, job['job_id'])
     assert store.job(job['job_id'])['status'] == 'interrupted'
+    assert store.job(job['job_id'])['retryable_count'] == 0  # Runtime already persisted completion.
     store.queue(job['job_id']); execute(store, job['job_id'], service_factory=RunService)
     assert len(calls) == 2 and store.job(job['job_id'])['progress']['completed'] == 2
 
@@ -153,6 +157,7 @@ def test_unknown_request_is_not_automatically_replayed(monkeypatch):
     store.queue(job['job_id'])
     with pytest.raises(KeyboardInterrupt): execute(store, job['job_id'], service_factory=Unknown)
     reconcile(store, job['job_id'])
+    assert store.job(job['job_id'])['retryable_count'] == 1
     calls = fake_graph_phases(monkeypatch)
     store.queue(job['job_id']); execute(store, job['job_id'], service_factory=RunService)
     report = store.job(job['job_id'])['report']
@@ -179,6 +184,47 @@ def test_worker_lock_single_job_and_explicit_launch(monkeypatch):
         assert store.job(first['job_id'])['status'] == 'running'
     reconcile(store, first['job_id'])
     assert store.job(first['job_id'])['status'] == 'interrupted'
+
+
+@pytest.mark.parametrize('status', ['failed', 'interrupted', 'cancelled'])
+def test_retry_count_uses_latest_attempt_and_excludes_unstarted_tasks(status):
+    store = EvaluationStore(); job = new_job(store)
+    _, frozen = store.frozen(job['job_id'])
+    directory = store.job_directory(job['job_id'])
+    directory.mkdir(parents=True, exist_ok=True)
+    ledger = Ledger(directory)
+    try:
+        ledger.initialize(frozen['records'], SimpleNamespace(methods=['single_rag'], repeats=1, rotate_methods=True))
+        task = ledger.tasks()[0]
+        ledger.start(task, 'first'); ledger.finish('first', status, {})
+        assert store.job(job['job_id'])['retryable_count'] == 1
+        ledger.start(task, 'second'); ledger.finish('second', 'completed', {})
+        current = store.job(job['job_id'])
+        assert current['progress'][status] == 1
+        assert current['progress']['attempted'] == 1
+        assert current['retryable_count'] == 0
+    finally:
+        ledger.close()
+
+
+@pytest.mark.parametrize('completed', [False, True])
+def test_retry_start_without_candidates_preserves_job_and_never_launches(monkeypatch, completed):
+    store = EvaluationStore(); job = new_job(store)
+    if completed:
+        fake_graph_phases(monkeypatch)
+        store.queue(job['job_id']); execute(store, job['job_id'], service_factory=RunService)
+    before = store.job(job['job_id'])
+    def forbidden(*args, **kwargs):
+        raise AssertionError('Empty retries must not check credentials or launch a worker')
+    monkeypatch.setattr('src.evaluation.platform_worker.require_env', forbidden)
+    monkeypatch.setattr('src.evaluation.platform_worker.subprocess.Popen', forbidden)
+    with TestClient(app) as client:
+        response = client.post(f"/api/v1/evaluations/jobs/{job['job_id']}/start",
+                               json=dict(allow_model_calls=True, retry_failed=True))
+        assert response.status_code == 409
+        assert '暂无可补跑项' in response.json()['detail']
+    assert store.job(job['job_id']) == before
+    assert not (store.job_directory(job['job_id']) / 'worker.log').exists()
 
 
 def published_custom_system(source_id='hotpotqa_fixture', source_version=None):

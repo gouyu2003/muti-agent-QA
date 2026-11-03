@@ -11,7 +11,7 @@ vi.mock('./evaluationApi', () => ({ evaluationRequest: vi.fn() }))
 const bank: QuestionBank = { bank_id: 'bank_1', version: 1, name: 'Questions', description: '', count: 2,
   labelled: 2, contextual: 2, sha256: 'bank-hash', preview: [{ _id: 'q1', question: 'Where is Cedar?', answer: 'Northbridge' }] }
 const job: EvaluationJob = { job_id: 'eval_1', name: 'Comparison', status: 'draft', error: null, bank,
-  context_mode: 'question_context', sample_count: 2, repeats: 1, fingerprint: 'frozen-hash',
+  context_mode: 'question_context', sample_count: 2, repeats: 1, fingerprint: 'frozen-hash', retryable_count: 0,
   targets: [{ method_id: 'single_rag', label: 'single_rag' }],
   progress: { attempted: 0, planned: 2, completed: 0, failed: 0, interrupted: 0 }, report: null }
 
@@ -26,6 +26,50 @@ beforeEach(() => {
   })
 })
 afterEach(() => { cleanup(); vi.clearAllMocks() })
+
+function mockSelectedJob(selected: EvaluationJob) {
+  const original = vi.mocked(evaluationRequest).getMockImplementation()!
+  vi.mocked(evaluationRequest).mockImplementation(async (path, method, body) => {
+    if (path === '/jobs' && !method) return { items: [selected] }
+    if (path === '/jobs/eval_1') return selected
+    return original(path, method, body)
+  })
+}
+
+it.each([{ completed: 2, failed: 0 }, { completed: 1, failed: 1 }])(
+  'disables empty retries even after consent when first-attempt counts are %o', async counts => {
+    mockSelectedJob({ ...job, status: 'completed',
+      progress: { ...job.progress, ...counts, attempted: 2 }, retryable_count: 0 })
+    render(<EvaluationsView />)
+    fireEvent.click(await screen.findByRole('button', { name: /Comparison/ }))
+    const retry = await screen.findByRole('button', { name: '补跑失败／状态不明项' })
+    expect(retry).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: /我确认启动会调用真实模型/ }))
+    expect(retry).toBeDisabled()
+    fireEvent.mouseEnter(retry.parentElement!)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('暂无可补跑项，所有任务均已完成。')
+    fireEvent.click(retry)
+    expect(vi.mocked(evaluationRequest).mock.calls.some(([path]) => path.endsWith('/start'))).toBe(false)
+  },
+)
+
+it('shows the latest retry count and requires consent before retrying', async () => {
+  mockSelectedJob({ ...job, status: 'completed', retryable_count: 1,
+    progress: { ...job.progress, attempted: 2, completed: 1, failed: 1 } })
+  render(<EvaluationsView />)
+  fireEvent.click(await screen.findByRole('button', { name: /Comparison/ }))
+  const retry = await screen.findByRole('button', { name: '补跑失败／状态不明项（1）' })
+  expect(retry).toBeDisabled()
+  fireEvent.focus(retry.parentElement!)
+  expect(await screen.findByRole('tooltip')).toHaveTextContent('请先确认模型调用及费用。')
+  fireEvent.blur(retry.parentElement!)
+  fireEvent.click(screen.getByRole('checkbox', { name: /我确认启动会调用真实模型/ }))
+  expect(retry).toBeEnabled()
+  fireEvent.click(retry)
+  await waitFor(() => expect(evaluationRequest).toHaveBeenCalledWith('/jobs/eval_1/start', 'POST', {
+    allow_model_calls: true, retry_failed: true,
+  }))
+})
 
 it('requires explicit model confirmation and starts a detached job through the API', async () => {
   render(<EvaluationsView />)

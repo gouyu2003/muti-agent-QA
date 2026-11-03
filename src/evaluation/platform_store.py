@@ -22,6 +22,9 @@ from src.knowledge.hotpotqa_context import runtime_input
 from src.runtime.system_store import SystemStore, fingerprint
 
 
+RETRYABLE_STATUSES = ('failed', 'interrupted', 'cancelled')
+
+
 class EvaluationFailure(ValueError):
     def __init__(self, message, status=422):
         super().__init__(message)
@@ -285,6 +288,34 @@ class EvaluationStore:
         self.frozen(job_id)  # Never compose a path from an unvalidated caller ID.
         return self.root / 'jobs' / job_id
 
+    def retryable_count(self, job_id):
+        row, _ = self.frozen(job_id)
+        directory = self.root / 'jobs' / job_id
+        ledger = directory / 'tasks.sqlite3'
+        if not ledger.is_file():
+            return 0
+        with sqlite3.connect(ledger.as_uri() + '?mode=ro', uri=True) as db:
+            try:
+                latest = db.execute('''SELECT a.run_id, a.status FROM attempts a
+                    WHERE a.attempt = (SELECT MAX(b.attempt) FROM attempts b WHERE b.task_id = a.task_id)''').fetchall()
+            except sqlite3.OperationalError:
+                return 0  # Worker is still creating its tables.
+        count = sum(status in RETRYABLE_STATUSES for _, status in latest)
+        if row['status'] in ('queued', 'running', 'stopping'):
+            return count
+        # A dead worker can leave the ledger running after Runtime persisted a terminal result.
+        # Preview recovery without changing the ledger or replaying a completed request.
+        unfinished = [run_id for run_id, status in latest if status == 'running']
+        runtime = directory / 'runs.sqlite3'
+        if not unfinished or not runtime.is_file():
+            return count + len(unfinished)
+        with sqlite3.connect(runtime.as_uri() + '?mode=ro', uri=True) as db:
+            for run_id in unfinished:
+                saved = db.execute('SELECT status FROM runs WHERE run_id=?', (run_id,)).fetchone()
+                if not saved or saved[0] != 'completed':
+                    count += 1
+        return count
+
     def job(self, job_id):
         row, frozen = self.frozen(job_id)
         directory = self.root / 'jobs' / job_id
@@ -305,7 +336,7 @@ class EvaluationStore:
                     targets=[dict(method_id=k, label=v['label'], source=v['source']) for k, v in frozen['definitions'].items()],
                     context_mode=frozen['request']['context_mode'], model_override=frozen['request']['model'],
                     repeats=frozen['repeats'], sample_count=len(frozen['records']), progress=progress,
-                    fingerprint=frozen['sha256'], report=report)
+                    fingerprint=frozen['sha256'], report=report, retryable_count=self.retryable_count(job_id))
 
     def jobs(self):
         with self.connection() as db:

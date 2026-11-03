@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, Checkbox, Collapse, Empty, Input, InputNumber, Modal, Progress, Select, Skeleton, Space, Table, Tag } from 'antd'
+import { Alert, Button, Card, Checkbox, Collapse, Empty, Input, InputNumber, Modal, Progress, Select, Skeleton, Space, Table, Tag, Tooltip } from 'antd'
 import { evaluationRequest, type EvaluationJob, type EvaluationOptions, type EvaluationResult, type MethodSummary, type QuestionBank } from './evaluationApi'
 import EvaluationRunDetail from './EvaluationRunDetail'
 import { runDiagnosticSummary } from './diagnosticSummary'
@@ -44,6 +44,12 @@ export default function EvaluationsView() {
   const detailRequest = useRef(0)
   const selectedBank = banks.find(b => `${b.bank_id}:${b.version}` === bankKey)
   const planned = selected.length * (sampleSize ?? selectedBank?.count ?? 0) * repeats
+  const retryCount = job?.retryable_count ?? 0
+  const retryDisabledReason = retryCount === 0
+    ? job && job.progress.attempted === job.progress.planned
+      ? '暂无可补跑项，所有任务均已完成。'
+      : '暂无可补跑项；尚未开始的任务请点击“继续未开始的任务”。'
+    : busy ? '正在处理，请稍候。' : !consent ? '请先确认模型调用及费用。' : undefined
 
   async function refresh() {
     const [b, o, j] = await Promise.all([
@@ -192,9 +198,13 @@ export default function EvaluationsView() {
             <Space wrap className="evaluation-actions">{(job.status === 'draft' || job.progress.attempted < job.progress.planned) && <Button type="primary" disabled={busy || !consent} onClick={() => void action(async () => {
               setJob(await evaluationRequest<EvaluationJob>(`/jobs/${job.job_id}/start`, 'POST', { allow_model_calls: true })); setConsent(false)
             })}>{job.status === 'draft' ? '启动后台评测' : '继续未开始的任务'}</Button>}
-              {job.status !== 'draft' && <Button disabled={busy || !consent} onClick={() => void action(async () => {
-                setJob(await evaluationRequest<EvaluationJob>(`/jobs/${job.job_id}/start`, 'POST', { allow_model_calls: true, retry_failed: true })); setConsent(false)
-              })}>补跑失败／状态不明项</Button>}</Space>
+              {job.status !== 'draft' && <Tooltip title={retryDisabledReason} trigger={['hover', 'focus']}>
+                <span tabIndex={retryDisabledReason ? 0 : undefined} style={{ display: 'inline-block' }}>
+                  <Button disabled={!!retryDisabledReason} onClick={() => void action(async () => {
+                    setJob(await evaluationRequest<EvaluationJob>(`/jobs/${job.job_id}/start`, 'POST', { allow_model_calls: true, retry_failed: true })); setConsent(false)
+                  })}>补跑失败／状态不明项{retryCount > 0 ? `（${retryCount}）` : ''}</Button>
+                </span>
+              </Tooltip>}</Space>
           </> : <Button disabled={busy || job.status === 'stopping'} onClick={() => void action(async () => setJob(await evaluationRequest<EvaluationJob>(`/jobs/${job.job_id}/stop`, 'POST')))}>暂停（当前题结束后生效）</Button>}
           <p>后台执行与页面独立。关闭页面后任务继续；重启电脑会中断，恢复时核对终态。补跑另存尝试，主表保留首次成绩。</p>
           {job.report && <>

@@ -22,7 +22,7 @@ export interface MethodSummary {
 }
 export interface EvaluationJob {
   job_id: string; name: string; status: string; error: string | null; bank: Pick<QuestionBank, 'bank_id' | 'version' | 'name' | 'sha256'>
-  context_mode: string; sample_count: number; repeats: number; fingerprint: string
+  context_mode: string; sample_count: number; repeats: number; fingerprint: string; retryable_count: number
   targets: { method_id: string; label: string }[]
   progress: { attempted: number; planned: number; completed: number; failed: number; interrupted: number; cancelled?: number }
   report: { complete: boolean; methods: Record<string, MethodSummary>; retry_count: number } | null
