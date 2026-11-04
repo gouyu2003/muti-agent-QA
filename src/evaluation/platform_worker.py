@@ -78,6 +78,7 @@ def start_job(store, job_id, *, allow_model_calls, retry_failed=False):
         raise EvaluationFailure('启动会调用模型，需明确确认 allow_model_calls。')
     for job in store.jobs():
         reconcile(store, job['job_id'])
+    store.check_job_data(job_id)
     try:
         with experiment_lock(store.job_directory(job_id)):
             if retry_failed and store.retryable_count(job_id) == 0:
@@ -156,11 +157,12 @@ def aggregate(rows, planned, labelled_planned):
         # Support labels may cover fewer items than answer labels; disclose each denominator.
         result['scores'][name] = dict(value=sum(values) / len(values) if complete and values else None,
                                      scored=len(values), observed_mean=sum(values) / len(values) if values else None)
-    for name in ('total_tokens', 'llm_call_count', 'duration_ms'):
+    for name in ('prompt_tokens', 'completion_tokens', 'total_tokens', 'llm_call_count', 'duration_ms'):
         values = [r.get('metrics', {}).get(name) for r in rows]
         known = [v for v in values if v is not None]
         result['usage'][name] = dict(reported_total=sum(known) if known else None, reported=len(known), attempted=len(rows),
-                                   mean_reported=sum(known) / len(known) if known else None, p95_reported=percentile(known, .95))
+                                   mean_reported=sum(known) / len(known) if known else None,
+                                   median_reported=percentile(known, .5), p95_reported=percentile(known, .95))
     return result
 
 
@@ -177,6 +179,9 @@ def report(store, job_id, frozen, ledger, repository):
                                               for m in frozen['definitions']},
                    all_attempt_usage=aggregate(rows, len(rows), labelled)['usage'])
     directory = store.job_directory(job_id)
+    if frozen['schema_version'] >= 2:
+        from src.evaluation.platform_reports import research_report
+        summary['research'] = research_report(frozen, primary, aggregate, directory)
     atomic_json(directory / 'results.json', rows)
     atomic_json(directory / 'summary.json', summary)
     return summary
@@ -207,6 +212,7 @@ def execute(store, job_id, *, retry_failed=False, service_factory=None):
             return
         if row['status'] != 'queued':
             raise EvaluationFailure('任务没有获得执行授权。', 409)
+        store.check_job_data(job_id)
         ledger_path = directory / 'tasks.sqlite3'
         is_existing = ledger_path.exists()
         ledger = Ledger(directory, existing=is_existing)

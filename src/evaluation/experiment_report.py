@@ -61,15 +61,17 @@ def comparisons(rows, config, selected_ids):
         for sample_id in selected_ids:
             sample_rows = indexed[(method, sample_id)]
             if len(sample_rows) == config.repeats and all(r['status'] in ('completed', 'failed') for r in sample_rows):
-                grouped[method][sample_id] = {key: mean(r['scores'][key] for r in sample_rows) for key in METRICS}
+                grouped[method][sample_id] = {key: mean(r['scores'][key] for r in sample_rows) for key in METRICS
+                    if all(r.get('scores') and r['scores'].get(key) is not None for r in sample_rows)}
     pairs = []
     for left, right in combinations(config.methods, 2):
         ids = sorted(grouped[left].keys() & grouped[right].keys())
         result = dict(left=left, right=right, paired_samples=len(ids), planned_samples=len(selected_ids),
                       complete=len(ids) == len(selected_ids), direction='right minus left', metrics={})
         for metric in METRICS:
-            deltas = [grouped[right][i][metric] - grouped[left][i][metric] for i in ids]
-            if not result['complete'] or not deltas:
+            deltas = [grouped[right][i][metric] - grouped[left][i][metric] for i in ids
+                      if metric in grouped[right][i] and metric in grouped[left][i]]
+            if not result['complete'] or len(deltas) != len(selected_ids) or not deltas:
                 result['metrics'][metric] = None
                 continue
             rng = np.random.default_rng(int(digest([config.seed, left, right, metric])[:16], 16))

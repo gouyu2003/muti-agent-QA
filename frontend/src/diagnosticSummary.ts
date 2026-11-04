@@ -20,7 +20,9 @@ export function requestCategoryLabel(category?: string | null): string {
 export function errorTypeLabel(type: string): string {
   if (type.startsWith('provider_')) return requestCategoryLabel(type.slice('provider_'.length))
   return ({ model_request_error: '模型请求失败', output_error: '模型输出错误',
-    structured_output_error: '模型输出错误', execution_error: '运行异常' } as Record<string, string>)[type] ?? type
+    structured_output_error: '模型输出错误', execution_error: '运行异常', answer_mismatch: '答案与标准不一致',
+    runtime_failed: '执行失败', runtime_cancelled: '已取消', interrupted_unknown: '中断终态未知',
+    timeout: '任务超时', resource_limit: '资源或回合触限', correct_answer_support_mismatch: '答案正确但支撑证据不匹配' } as Record<string, string>)[type] ?? type
 }
 
 interface DiagnosticRun {

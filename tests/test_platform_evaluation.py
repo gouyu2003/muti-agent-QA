@@ -19,6 +19,8 @@ from src.runtime.instances import templates
 from src.runtime.protocols import protocol_templates_v1
 from src.runtime.service import RunService
 from src.runtime.system_store import SystemStore
+from src.evaluation.platform_datasets import (ManifestRequest, SplitRequest, ExposureRequest,
+    import_manifest, create_splits, add_exposures, get_manifest)
 
 
 @pytest.fixture(autouse=True)
@@ -26,7 +28,7 @@ def isolated(tmp_path_factory, monkeypatch):
     # Keep Windows paths below MAX_PATH, including the existing atomic context suffix.
     tmp_path = tmp_path_factory.mktemp('p')
     for env, folder in [('MAQA_EVALUATIONS_DIR', 'evaluations'), ('MAQA_SYSTEMS_DIR', 'systems'),
-                        ('MAQA_KNOWLEDGE_DIR', 'knowledge'), ('MAQA_PROTOCOLS_DIR', 'protocols')]:
+                        ('MAQA_KNOWLEDGE_DIR', 'knowledge'), ('MAQA_PROTOCOLS_DIR', 'protocols'), ('MAQA_EXPERIMENTS_DIR', 'experiments')]:
         monkeypatch.setenv(env, str(tmp_path / folder))
     monkeypatch.setenv('MAQA_RUN_DB_PATH', str(tmp_path / 'daily.sqlite3'))
     monkeypatch.setenv('MAQA_EXPERIMENT_CATALOG_PATH', str(tmp_path / 'missing.json'))
@@ -456,6 +458,304 @@ def test_http_creation_gate_export_and_errors(monkeypatch):
         assert client.get('/api/v1/evaluations/jobs').json()['items'][0]['job_id'] == job['job_id']
         assert client.get(f"/api/v1/evaluations/jobs/{job['job_id']}/results").json()['total'] == 0
     assert "'=evil" in exported_csv([dict(question='=evil')])
+
+
+def test_platform_splits_and_explicit_exposures_are_versioned_and_disjoint():
+    store = EvaluationStore()
+    bank = store.import_bank('Research data', '', questions(30))
+    binding = dict(bank_id=bank['bank_id'], bank_version=1)
+    add_exposures(store, ExposureRequest(**binding, sample_ids=['q29'], reason='Prior development'))
+    fields = SplitRequest(**binding, name='Protocol', development=6, evaluation=20, smoke=2)
+    first = create_splits(store, fields)['items']
+    second = create_splits(store, fields)['items']
+    ids = lambda doc: {r['sample_id'] for r in doc['samples']}
+    dev, evaluation, smoke = first
+    assert not ids(dev) & ids(evaluation) and ids(smoke) <= ids(dev)
+    assert 'q29' not in ids(evaluation)
+    assert [m['samples'] for m in first] == [m['samples'] for m in second]
+    assert get_manifest(store, evaluation['manifest_id']) == evaluation
+    store.import_bank('Research data v2', '', questions(30), bank['bank_id'])
+    new = import_manifest(store, ManifestRequest(bank_id=bank['bank_id'], bank_version=2,
+        name='Independent evaluation', purpose='evaluation'))
+    assert not ids(new) & (ids(dev) | {'q29'})
+    assert store.bank(bank['bank_id'], 1, public=True)['preview'] == []
+
+
+def test_historical_platform_trials_seed_exposure_without_rewriting_jobs():
+    store = EvaluationStore(); job = new_job(store)
+    _, frozen = store.frozen(job['job_id'])
+    from src.evaluation.experiment_config import digest
+    frozen['request'].pop('purpose')
+    frozen['sha256'] = digest({k: v for k, v in frozen.items() if k != 'sha256'})
+    with store.connection() as db:
+        db.execute('UPDATE jobs SET document=? WHERE id=?', (json.dumps(frozen), job['job_id']))
+        db.execute('DELETE FROM exposures')
+        db.execute("DELETE FROM platform_meta WHERE key='exposures-v1'")
+    upgraded = EvaluationStore()
+    assert upgraded.frozen(job['job_id'])[1] == frozen
+    with upgraded.connection() as db:
+        assert {r[0] for r in db.execute('SELECT sample_id FROM exposures')} == {'q0', 'q1'}
+    EvaluationStore()
+    assert upgraded.frozen(job['job_id'])[1] == frozen
+
+
+def test_manifest_import_checks_source_hash_membership_purpose_and_exposure():
+    import hashlib
+    from src.evaluation.experiment_config import digest
+    store = EvaluationStore()
+    raw = json.dumps(questions(10)).encode()
+    bank = store.import_bank('Original data', '', questions(10), raw_sha256=hashlib.sha256(raw).hexdigest())
+    binding = dict(bank_id=bank['bank_id'], bank_version=1)
+    source = dict(dataset_sha256=bank['raw_sha256'], purpose='evaluation', samples=[dict(sample_id='q3')])
+    source['sha256'] = digest(source)
+    fields = dict(**binding, name='Exact CLI selection', purpose='evaluation')
+    manifest = import_manifest(store, ManifestRequest(**fields, source_manifest=source))
+    assert [s['sample_id'] for s in manifest['samples']] == ['q3']
+    for change in (dict(dataset_sha256='different'), dict(purpose='development'), dict(samples=[dict(sample_id='missing')]),
+                   dict(samples=[dict(sample_id='q3'), dict(sample_id='q3')])):
+        invalid = {**source, **change}; invalid['sha256'] = digest({k: v for k, v in invalid.items() if k != 'sha256'})
+        with pytest.raises(EvaluationFailure):
+            import_manifest(store, ManifestRequest(**fields, source_manifest=invalid))
+    add_exposures(store, ExposureRequest(**binding, sample_ids=['q3'], reason='Human inspected'))
+    with pytest.raises(EvaluationFailure, match='曝光'):
+        import_manifest(store, ManifestRequest(**fields, source_manifest=source))
+
+
+def test_formal_mixed_seven_object_preflight_matches_7000_tasks_without_execution():
+    systems, key = published_custom_system()
+    store = EvaluationStore(); bank = store.import_bank('Full experiment data', '', questions(1100))
+    manifests = create_splits(store, SplitRequest(bank_id=bank['bank_id'], bank_version=1,
+        name='Formal study', development=100, evaluation=1000, smoke=6))['items']
+    evaluation = next(m for m in manifests if m['purpose'] == 'evaluation')
+    fields = JobRequest(name='Six plus custom', bank_id=bank['bank_id'], bank_version=1, purpose='evaluation',
+        manifest_id=evaluation['manifest_id'], targets=[dict(kind='builtin', method=m) for m in METHODS] +
+        [dict(kind='system', system_id=key, version='v1')], bootstrap_samples=100)
+    with pytest.raises(EvaluationFailure, match='启动前校验'):
+        store.create_job(fields, systems)
+    preview = store.preflight(fields, systems)
+    assert preview['planned_tasks'] == 7000 and preview['model_calls'] == 0
+    assert len(preview['targets']) == 7 and store.jobs() == []
+    assert not (store.root / 'jobs').exists()
+    assert next(t for t in preview['targets'] if t['method_id'] == 'lead')['limits']['max_llm_calls'] == 40
+    changed = fields.model_copy(update=dict(bootstrap_samples=200, preflight_token=preview['token']))
+    with pytest.raises(EvaluationFailure, match='重新执行'):
+        store.create_job(changed, systems)
+    job = store.create_job(fields.model_copy(update=dict(preflight_token=preview['token'])), systems)
+    assert job['progress']['planned'] == 7000 and job['sample_count'] == 1000
+    # Registering exposure after freezing is checked again before any credential lookup/worker launch.
+    add_exposures(store, ExposureRequest(bank_id=bank['bank_id'], bank_version=1,
+        sample_ids=[evaluation['samples'][0]['sample_id']], reason='Later human inspection'))
+    with pytest.raises(EvaluationFailure, match='曝光'):
+        start_job(store, job['job_id'], allow_model_calls=True)
+    assert store.job(job['job_id'])['status'] == 'draft'
+
+
+def test_mixed_formal_run_generates_paired_research_and_export_package(monkeypatch):
+    import io
+    import zipfile
+    systems, key = published_custom_system()
+    store = EvaluationStore(); bank = store.import_bank('Formal pair data', '', questions(2))
+    manifest = import_manifest(store, ManifestRequest(bank_id=bank['bank_id'], bank_version=1,
+        name='Fixed evaluation', purpose='evaluation'))
+    fields = JobRequest(name='Mixed formal comparison', bank_id=bank['bank_id'], bank_version=1,
+        purpose='evaluation', manifest_id=manifest['manifest_id'], repeats=2, bootstrap_samples=100,
+        targets=[dict(kind='builtin', method=m) for m in METHODS] + [dict(kind='system', system_id=key, version='v1')])
+    preview = store.preflight(fields, systems)
+    job = store.create_job(fields.model_copy(update=dict(preflight_token=preview['token'])), systems)
+    calls = fake_graph_phases(monkeypatch)
+    store.queue(job['job_id']); execute(store, job['job_id'], service_factory=RunService)
+    result = store.job(job['job_id'])
+    research = result['report']['research']
+    assert research['complete'] and len(research['pairs']) == 21
+    assert len(research['reference_pairs']) == 6
+    assert all(p['left'] == 'single_rag' for p in research['reference_pairs'])
+    assert all(p['paired_samples'] == 2 for p in research['pairs'])
+    assert all(p['metrics']['f1']['ci95_sample_bootstrap'] == [0, 0] for p in research['pairs'])
+    assert research['methods']['single_rag']['repeat_score_std']['f1'] == 0
+    assert research['methods']['single_rag']['by_type']['bridge']['planned'] == 4
+    total_calls = len(calls)
+    with TestClient(app) as client:
+        for format in ('json', 'markdown', 'pairs_csv', 'zip'):
+            response = client.get(f"/api/v1/evaluations/jobs/{job['job_id']}/report", params={'format': format})
+            assert response.status_code == 200, response.text[:200] if format != 'zip' else ''
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            assert set(archive.namelist()) == {'report.md', 'paired-differences.csv', 'summary.json', 'frozen-plan.json', 'per-question.csv'}
+    assert len(calls) == total_calls
+
+
+def test_paired_statistics_do_not_invent_missing_labels_or_support_metrics():
+    from src.evaluation.experiment_report import comparisons
+    config = SimpleNamespace(methods=['single_rag', 'system_custom'], repeats=1, seed=42, bootstrap_samples=100)
+    rows = [dict(method_id=m, sample_id=key, status='completed', scores=({'em': 1, 'f1': 1} if key == 'a' else None))
+            for m in config.methods for key in ('a', 'b')]
+    pair = comparisons(rows, config, ['a', 'b'])[0]
+    assert pair['complete'] and all(v is None for v in pair['metrics'].values())
+    pair = comparisons([r for r in rows if r['sample_id'] == 'a'], config, ['a'])[0]
+    assert pair['metrics']['f1']['delta'] == 0 and pair['metrics']['sp_f1'] is None
+
+
+def test_reference_comparisons_keep_object_minus_baseline_direction():
+    from src.evaluation.platform_reports import relative_pairs
+    pair = dict(left='object', right='baseline', metrics=dict(f1=dict(delta=0.2,
+        ci95_sample_bootstrap=[0.1, 0.3], left_wins=1, right_wins=2, ties=3), sp_f1=None))
+    normalized = relative_pairs([pair], 'baseline')[0]
+    assert normalized['left'] == 'baseline' and normalized['right'] == 'object'
+    assert normalized['metrics']['f1']['delta'] == -0.2
+    assert normalized['metrics']['f1']['ci95_sample_bootstrap'] == [-0.3, -0.1]
+    assert normalized['metrics']['f1']['left_wins'] == 2
+    assert normalized['metrics']['sp_f1'] is None
+    assert pair['metrics']['f1']['delta'] == 0.2
+
+
+def test_review_separates_first_latest_filters_and_same_question_without_rewriting(monkeypatch):
+    import hashlib
+    store = EvaluationStore(); job = new_job(store, methods=['single_rag', 'pipeline_fixed'], records=questions(1))
+    fake_graph_phases(monkeypatch, fail=True)
+    store.queue(job['job_id']); execute(store, job['job_id'], service_factory=RunService)
+    fake_graph_phases(monkeypatch)
+    store.queue(job['job_id']); execute(store, job['job_id'], service_factory=RunService, retry_failed=True)
+    path = store.job_directory(job['job_id']) / 'tasks.sqlite3'
+    before = hashlib.sha256(path.read_bytes()).hexdigest()
+    base = f"/api/v1/evaluations/jobs/{job['job_id']}"
+    with TestClient(app) as client:
+        first = client.get(base + '/results', params=dict(view='first', status='failed', label='runtime_failed', limit=1)).json()
+        assert first['total'] == 2 and len(first['items']) == 1
+        assert first['items'][0]['attempt'] == 1
+        latest = client.get(base + '/results', params=dict(view='latest')).json()
+        assert latest['total'] == 2 and all(r['attempt'] == 2 and r['status'] == 'completed' for r in latest['items'])
+        assert client.get(base + '/results', params=dict(view='latest', label='runtime_failed')).json()['total'] == 0
+        assert client.get(base + '/results', params=dict(view='all', method='single_rag')).json()['total'] == 2
+        assert client.get(base + '/results', params=dict(search='%')).json()['total'] == 0
+        compared = client.get(base + '/compare', params=dict(sample_id='q0', repeat=0, view='latest')).json()
+        assert len(compared['items']) == 2 and all(r['status'] == 'completed' for r in compared['items'])
+        assert client.get(base + '/compare', params=dict(sample_id='missing')).status_code == 404
+        live = client.get(base + '/monitor').json()
+        assert live['current'] is None
+        assert sum(m['failed'] for m in live['methods']) == 2  # first attempts remain failures
+        assert client.get(base).json()['report']['methods']['single_rag']['scores']['em']['value'] == 0
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == before
+
+
+def test_live_monitor_tracks_parallel_phases_and_pending_answers():
+    from datetime import datetime, timezone
+    from src.runtime.models import RunRecord, RunMetrics, TraceEvent
+    from src.evaluation.platform_review import monitor, compare_question
+    store = EvaluationStore(); job = new_job(store, methods=['multi_expert'], records=questions(1))
+    observed = []
+    class Observe(RunService):
+        def run(self, context):
+            now = datetime.now(timezone.utc)
+            self.repository.create_run(RunRecord(context=context, status='running', started_at=now))
+            events = [('run_started', None, {}), ('node_started', 'experts_0', dict(call_id='a', stage_id='propose', agent_name='Expert A')),
+                      ('node_started', 'experts_1', dict(call_id='b', stage_id='propose', agent_name='Expert B')),
+                      ('node_completed', 'experts_0', dict(call_id='a', stage_id='propose'))]
+            for sequence, (kind, node, payload) in enumerate(events):
+                self.repository.append_event(TraceEvent(run_id=context.run_id, sequence=sequence,
+                    event_type=kind, timestamp=now, node=node, cycle=1 if node else None, payload=payload))
+            live = monitor(store, job['job_id'])
+            observed.append(live)
+            assert [p['agent_name'] for p in live['current']['phases']] == ['Expert B']
+            compared = compare_question(store, job['job_id'], 'q0', 0, 'latest')
+            assert compared['items'][0]['status'] == 'running'
+            assert compared['items'][0]['run_id'] == context.run_id
+            self.repository.append_event(TraceEvent(run_id=context.run_id, sequence=4, event_type='run_completed', timestamp=now))
+            self.repository.update_run(RunRecord(context=context, status='completed', started_at=now, finished_at=now,
+                final_state=dict(answer='Northbridge', verified=False), metrics=RunMetrics(duration_ms=100)))
+            return self.repository.get_run_detail(context.run_id)
+    store.queue(job['job_id']); execute(store, job['job_id'], service_factory=Observe)
+    assert observed and monitor(store, job['job_id'])['current'] is None
+
+
+def test_saved_plans_copy_and_archive_never_start_or_replace_original():
+    from src.evaluation.platform_workspace import save_plan, get_plan, PlanRequest, copy_job_plan, archive_job
+    store = EvaluationStore(); original = new_job(store)
+    frozen = store.frozen(original['job_id'])[1]
+    plan = save_plan(store, PlanRequest(name='Reusable conditions', source_job_id=original['job_id']))
+    assert plan['request'].get('preflight_token') is None
+    assert get_plan(store, plan['id']) == plan
+    with pytest.raises(EvaluationFailure, match='指纹'):
+        save_plan(store, PlanRequest(name='Tampered', request=plan['request'], sha256='wrong'))
+    copied = copy_job_plan(store, original['job_id'])
+    assert copied['request']['preflight_token'] is None and copied['needs_preflight']
+    assert copied['request']['copied_from_job_id'] == original['job_id']
+    fields = JobRequest.model_validate({**copied['request'], 'saved_plan_id': plan['id']})
+    new = store.create_job(fields, SystemStore())
+    assert new['job_id'] != original['job_id'] and new['status'] == 'draft'
+    assert store.frozen(original['job_id'])[1] == frozen
+    archive_job(store, original['job_id'], True)
+    assert [j['job_id'] for j in store.jobs()] == [new['job_id']]
+    assert len(store.jobs(include_archived=True)) == 2
+    with pytest.raises(EvaluationFailure, match='已归档'):
+        store.queue(original['job_id'])
+    archive_job(store, original['job_id'], False)
+    store.queue(original['job_id'])
+    with pytest.raises(EvaluationFailure, match='运行中的任务'):
+        archive_job(store, original['job_id'], True)
+    with TestClient(app) as client:
+        exported = client.get(f"/api/v1/evaluations/plans/{plan['id']}/export")
+        assert exported.status_code == 200 and exported.json()['sha256'] == plan['sha256']
+        assert client.get('/api/v1/evaluations/plans').json()['items'][0]['id'] == plan['id']
+
+
+def cli_fixture(monkeypatch):
+    from src.evaluation.experiment_config import Splits, atomic_json
+    from src.evaluation.experiment_data import prepare_data
+    from src.evaluation.experiment import execute as execute_cli
+    root = Path(os.environ['MAQA_EXPERIMENTS_DIR']); root.mkdir()
+    records = questions(6)
+    for record in records: record['_id'] = record.pop('id')
+    atomic_json(root / 'data.json', records)
+    config = ExperimentConfig(dataset=str(root / 'data.json'), split_directory=str(root / 'splits'),
+        output=str(root / 'historical-study'), purpose='evaluation', splits=Splits(development=2, evaluation=2, smoke=1),
+        methods=['single_rag', 'pipeline_fixed'], bootstrap_samples=100)
+    fake_graph_phases(monkeypatch)
+    prepare_data(config)
+    execute_cli(config, service_factory=RunService)
+    return Path(config.output)
+
+
+def test_cli_import_is_immutable_deduplicated_and_preserves_original_report(monkeypatch):
+    import hashlib
+    from src.evaluation.platform_archives import candidates, import_archive, get_archive
+    path = cli_fixture(monkeypatch)
+    before = {str(p.relative_to(path)): hashlib.sha256(p.read_bytes()).hexdigest() for p in path.rglob('*') if p.is_file()}
+    store = EvaluationStore()
+    assert candidates()[0]['available']
+    imported = import_archive(store, path.name)
+    assert import_archive(store, path.name)['archive_id'] == imported['archive_id']
+    assert imported['view']['readonly'] and imported['view']['progress']['completed'] == 4
+    assert get_archive(store, imported['archive_id'])['original_report'] == imported['original_report']
+    base = '/api/v1/evaluations/archives/' + imported['archive_id']
+    with TestClient(app) as client:
+        rows = client.get(base + '/results', params={'view': 'first', 'limit': 1}).json()
+        assert rows['total'] == 4 and len(rows['items']) == 1
+        row = rows['items'][0]
+        detail = client.get(base + '/runs/' + row['run_id'])
+        assert detail.status_code == 200 and detail.json()['run']['context']['experiment_id'] == path.name
+        assert client.get(base + '/runs/foreign-run').status_code == 404
+        assert len(client.get(base + '/compare', params={'sample_id': row['sample_id']}).json()['items']) == 2
+        assert client.get(base + '/export', params={'format': 'json'}).json()['archive']['fingerprint'] == imported['fingerprint']
+        assert client.post('/api/v1/evaluations/jobs/' + imported['archive_id'] + '/start', json={'allow_model_calls': True}).status_code == 404
+    assert before == {str(p.relative_to(path)): hashlib.sha256(p.read_bytes()).hexdigest() for p in path.rglob('*') if p.is_file()}
+    # Snapshotted reports/results survive loss of the original pointer; trajectory lookup refuses drift.
+    (path / 'reports/latest.json').write_text('{}')
+    with TestClient(app) as client:
+        assert client.get(base + '/results').json()['total'] == 4
+        assert client.get(base).status_code == 200
+        assert client.get(base + '/runs/' + row['run_id']).status_code in (409, 422)
+
+
+def test_cli_import_rejects_active_sources_and_path_escape(monkeypatch):
+    from src.evaluation.platform_archives import candidates, import_archive
+    path = cli_fixture(monkeypatch); store = EvaluationStore()
+    with experiment_lock(path):
+        assert not candidates()[0]['available']
+        with pytest.raises(EvaluationFailure, match='仍在运行'):
+            import_archive(store, path.name)
+    with pytest.raises(EvaluationFailure): import_archive(store, '../outside')
+    (path / 'reports/latest.json').write_text(json.dumps(dict(path='../outside.json', sha256='x')))
+    with pytest.raises(EvaluationFailure, match='路径超出'):
+        import_archive(store, path.name)
 
 
 def test_detached_worker_survives_api_client_close_with_local_stub(monkeypatch):
