@@ -4,8 +4,10 @@ import { evaluationRequest, type EvaluationJob, type EvaluationResult, type Eval
 import { runDiagnosticSummary, errorTypeLabel } from './diagnosticSummary'
 import { targetLabel } from './evaluationLabels'
 
-export default function EvaluationReview({ job, base, onOpenDetail }: {
+export default function EvaluationReview({ job, base, onOpenDetail, mode = 'all', enabled = true }: {
   job: EvaluationJob; base: string; onOpenDetail: (row: EvaluationResult) => void
+  mode?: 'all' | 'monitor' | 'results'
+  enabled?: boolean
 }) {
   const [view, setView] = useState('first')
   const [status, setStatus] = useState<string>()
@@ -30,12 +32,13 @@ export default function EvaluationReview({ job, base, onOpenDetail }: {
   if (search) params.set('search', search)
   const query = params.toString()
   useEffect(() => {
+    if (!enabled) return
     let disposed = false
     async function load() {
       try {
         const [result, live] = await Promise.all([
-          evaluationRequest<{ items: EvaluationResult[]; total: number; labels?: string[] }>(`${base}/results?${query}`),
-          job.readonly ? Promise.resolve(undefined) : evaluationRequest<EvaluationMonitor>(`${base}/monitor`).catch(() => undefined),
+          mode === 'monitor' ? Promise.resolve({ items: [] as EvaluationResult[], total: 0, labels: [] as string[] }) : evaluationRequest<{ items: EvaluationResult[]; total: number; labels?: string[] }>(`${base}/results?${query}`),
+          job.readonly || mode === 'results' ? Promise.resolve(undefined) : evaluationRequest<EvaluationMonitor>(`${base}/monitor`).catch(() => undefined),
         ])
         if (!disposed) { setRows(result.items ?? []); setTotal(result.total ?? 0); setLabels(result.labels ?? []); setMonitor(live); setError('') }
       } catch (e) { if (!disposed) setError(e instanceof Error ? e.message : String(e)) }
@@ -43,7 +46,7 @@ export default function EvaluationReview({ job, base, onOpenDetail }: {
     void load()
     const timer = job.readonly ? undefined : window.setInterval(() => void load(), 3000)
     return () => { disposed = true; if (timer !== undefined) window.clearInterval(timer) }
-  }, [base, query, job.readonly])
+  }, [base, query, job.readonly, mode, enabled])
   useEffect(() => () => { comparisonRequest.current += 1 }, [])
   useEffect(() => { comparisonRequest.current += 1; setComparing(false); setComparison(undefined); setComparisonError('') }, [view])
   function closeComparison() { comparisonRequest.current += 1; setComparing(false); setComparison(undefined); setComparisonError('') }
@@ -57,7 +60,7 @@ export default function EvaluationReview({ job, base, onOpenDetail }: {
   }
   function filter(fn: () => void) { fn(); setPage(1); setRows([]) }
   return <section aria-label="运行监控与结果审阅">
-    {!job.readonly && <>
+    {!job.readonly && mode !== 'results' && <>
       <h3>运行监控</h3>
       {monitor?.current ? <div role="status" aria-label="当前运行状态">
         <p>当前对象：{name(monitor.current.method_id)}；题目 {monitor.current.sample_id}；重复 {monitor.current.repeat + 1}；尝试 {monitor.current.attempt}</p>
@@ -77,6 +80,7 @@ export default function EvaluationReview({ job, base, onOpenDetail }: {
         ]} scroll={{ x: 650 }} />
       </> : null}
     </>}
+    {mode !== 'monitor' && <>
     {(job.report?.retry_count ?? 0) > 0 && <Collapse items={[{ key: 'retries', label: `补跑补充统计（${job.report!.retry_count} 次新尝试，不替换主成绩）`, children: <>
       <Table size="small" pagination={false} rowKey="method" dataSource={Object.entries(job.report?.latest_attempt_supplement ?? {}).map(([method, data]) => ({ method, ...data }))} columns={[
         { title: '对象', dataIndex: 'method', render: name }, { title: '最新尝试完成', render: (_, r) => r.statuses.completed },
@@ -102,13 +106,13 @@ export default function EvaluationReview({ job, base, onOpenDetail }: {
         { title: '答案', dataIndex: 'answer', ellipsis: true }, { title: '运行诊断', render: (_, r) => {
           const summary = runDiagnosticSummary(r)
           return summary.hasIssues ? <Tag color={summary.color}>{summary.labels.join('、') || summary.heading}</Tag> : '—'
-        } }, { title: '审阅', render: (_, r) => <Space wrap><Button size="small" onClick={() => void compare(r)}>同题答案对照</Button>
-          <Button size="small" onClick={() => onOpenDetail(r)}>查看诊断与轨迹</Button></Space> }]} />
+        } }, { title: '审阅', render: (_, r) => <Space wrap><Button type="link" size="small" onClick={() => void compare(r)}>同题答案对照</Button>
+          <Button type="link" size="small" onClick={() => onOpenDetail(r)}>查看诊断与轨迹</Button></Space> }]} />
     <Modal title="同题答案对照" open={comparing} onCancel={closeComparison} footer={null} width={1100}>
       {comparisonError && <Alert type="error" title={comparisonError} />}
       {!comparison && !comparisonError && <p role="status">正在加载同题结果…</p>}
       {comparison && <>
-        <p>{comparison.question}</p><p>标准答案：{typeof comparison.gold === 'object' ? JSON.stringify(comparison.gold) : String(comparison.gold ?? '未提供')}</p>
+        <p>{comparison.question}</p><p>标准答案：{comparison.gold != null && typeof comparison.gold === 'object' ? JSON.stringify(comparison.gold) : String(comparison.gold ?? '未提供')}</p>
         <Table size="small" rowKey={r => r.run_id ?? r.method_id} dataSource={comparison.items} pagination={false} scroll={{ x: 900 }} columns={[
           { title: '对象', dataIndex: 'method_id', render: name }, { title: '尝试', dataIndex: 'attempt' }, { title: '状态', dataIndex: 'status' },
           { title: '完整答案', dataIndex: 'answer', render: v => <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{v || '尚无答案'}</div> },
@@ -117,5 +121,6 @@ export default function EvaluationReview({ job, base, onOpenDetail }: {
         ]} />
       </>}
     </Modal>
+    </>}
   </section>
 }

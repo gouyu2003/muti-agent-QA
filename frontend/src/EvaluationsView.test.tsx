@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ConfigProvider } from 'antd'
 import EvaluationsView from './EvaluationsView'
@@ -25,12 +25,18 @@ beforeEach(() => {
     if (path === '/question-banks') return method === 'POST' ? bank : { items: [bank] }
     if (path === '/options') return { methods: ['single_rag', 'debate'], systems: [{ system_id: 'sys_1', version: 'v2', name: 'Custom QA' }] }
     if (path === '/jobs') return method === 'POST' ? job : { items: [job] }
+    if (path === '/preflight') return { token: 'checked-token', planned_tasks: 2, sample_count: 2, model_calls: 0,
+      data_sha256: 'data-hash', purpose: 'development', manifest: null, targets: [], request: {} }
     if (path.includes('/results')) return { items: [], total: 0 }
     if (path.endsWith('/start')) return { ...job, status: 'queued' }
     return job
   })
 })
 afterEach(() => { cleanup(); vi.clearAllMocks() })
+
+function renderEvaluation() {
+  return render(<ConfigProvider theme={{ token: { motion: false } }}><EvaluationsView /></ConfigProvider>)
+}
 
 it('explains preflight field validation errors instead of an opaque HTTP status', async () => {
   const api = await vi.importActual<typeof import('./evaluationApi')>('./evaluationApi')
@@ -49,16 +55,30 @@ function mockSelectedJob(selected: EvaluationJob) {
   })
 }
 
+async function beginExperiment() {
+  await screen.findByRole('button', { name: /Comparison/ })
+  fireEvent.click(screen.getByRole('button', { name: '新建实验' }))
+  await screen.findByRole('textbox', { name: '任务名称' })
+}
+
+async function freezeFromObjects() {
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+  fireEvent.click(screen.getByRole('button', { name: '校验方案' }))
+  const freeze = screen.getByRole('button', { name: '冻结并创建任务' })
+  await waitFor(() => expect(freeze).toBeEnabled())
+  fireEvent.click(freeze)
+}
+
 it.each([{ completed: 2, failed: 0 }, { completed: 1, failed: 1 }])(
-  'disables empty retries even after consent when first-attempt counts are %o', async counts => {
+  'disables empty retries without offering a paid action when first-attempt counts are %o', async counts => {
     mockSelectedJob({ ...job, status: 'completed',
       progress: { ...job.progress, ...counts, attempted: 2 }, retryable_count: 0 })
-    render(<EvaluationsView />)
+    renderEvaluation()
     fireEvent.click(await screen.findByRole('button', { name: /Comparison/ }))
     const retry = await screen.findByRole('button', { name: '补跑失败／状态不明项' })
     expect(retry).toBeDisabled()
-    fireEvent.click(screen.getByRole('checkbox', { name: /我确认启动会调用真实模型/ }))
-    expect(retry).toBeDisabled()
+    expect(screen.queryByRole('checkbox', { name: /我确认启动会调用真实模型/ })).not.toBeInTheDocument()
     fireEvent.mouseEnter(retry.parentElement!)
     expect(await screen.findByRole('tooltip')).toHaveTextContent('暂无可补跑项，所有任务均已完成。')
     fireEvent.click(retry)
@@ -69,36 +89,43 @@ it.each([{ completed: 2, failed: 0 }, { completed: 1, failed: 1 }])(
 it('shows the latest retry count and requires consent before retrying', async () => {
   mockSelectedJob({ ...job, status: 'completed', retryable_count: 1,
     progress: { ...job.progress, attempted: 2, completed: 1, failed: 1 } })
-  render(<EvaluationsView />)
+  renderEvaluation()
   fireEvent.click(await screen.findByRole('button', { name: /Comparison/ }))
   const retry = await screen.findByRole('button', { name: '补跑失败／状态不明项（1）' })
-  expect(retry).toBeDisabled()
-  fireEvent.focus(retry.parentElement!)
-  expect(await screen.findByRole('tooltip')).toHaveTextContent('请先确认模型调用及费用。')
-  fireEvent.blur(retry.parentElement!)
-  fireEvent.click(screen.getByRole('checkbox', { name: /我确认启动会调用真实模型/ }))
   expect(retry).toBeEnabled()
   fireEvent.click(retry)
+  expect(screen.getByRole('button', { name: '确认补跑' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('checkbox', { name: /我确认启动会调用真实模型/ }))
+  fireEvent.click(screen.getByRole('button', { name: /取\s*消/ }))
+  fireEvent.click(retry)
+  expect(screen.getByRole('button', { name: '确认补跑' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('checkbox', { name: /我确认启动会调用真实模型/ }))
+  fireEvent.click(screen.getByRole('button', { name: '确认补跑' }))
   await waitFor(() => expect(evaluationRequest).toHaveBeenCalledWith('/jobs/eval_1/start', 'POST', {
     allow_model_calls: true, retry_failed: true,
   }))
 })
 
 it('requires explicit model confirmation and starts a detached job through the API', async () => {
-  render(<EvaluationsView />)
+  renderEvaluation()
   fireEvent.click(await screen.findByRole('button', { name: /Comparison/ }))
+  fireEvent.click(await screen.findByRole('button', { name: '启动评测' }))
   const start = await screen.findByRole('button', { name: '启动后台评测' })
   expect(start).toBeDisabled()
   expect(evaluationRequest).not.toHaveBeenCalledWith('/jobs/eval_1/start', expect.anything(), expect.anything())
   fireEvent.click(screen.getByRole('checkbox', { name: /我确认启动会调用真实模型/ }))
   fireEvent.click(start)
   await waitFor(() => expect(evaluationRequest).toHaveBeenCalledWith('/jobs/eval_1/start', 'POST', { allow_model_calls: true }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  fireEvent.click(screen.getByRole('tab', { name: '冻结方案' }))
   expect(await screen.findByText(/关闭页面后任务继续/)).toBeInTheDocument()
 })
 
 it('imports a question bank as a version without starting any job', async () => {
-  render(<EvaluationsView />)
+  renderEvaluation()
   await screen.findByRole('button', { name: /Comparison/ })
+  fireEvent.click(screen.getByRole('button', { name: '题库与清单' }))
+  fireEvent.click(screen.getByRole('button', { name: '导入题库' }))
   fireEvent.change(screen.getByRole('textbox', { name: '问题库名称' }), { target: { value: 'New bank' } })
   fireEvent.change(screen.getByLabelText('问题 JSON 文件'), { target: { files: [new File(['[]'], 'questions.json')] } })
   fireEvent.click(screen.getByRole('button', { name: '导入并保存固定版本' }))
@@ -109,15 +136,11 @@ it('imports a question bank as a version without starting any job', async () => 
 })
 
 it('freezes a named system version with its own materials before execution', async () => {
-  render(<EvaluationsView />)
-  await screen.findByRole('button', { name: /Comparison/ })
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '问题库版本' }))
-  fireEvent.click(await screen.findByText('Questions · v1 · 2 题', { selector: '.ant-select-item-option-content' }))
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '评测对象' }))
-  fireEvent.click(await screen.findByText('我的系统：已发布版本', { selector: '.ant-select-item-option-content' }))
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '待比较方法' }))
-  fireEvent.click(await screen.findByText('Custom QA · v2', { selector: '.ant-select-item-option-content' }))
-  fireEvent.click(screen.getByRole('button', { name: '冻结并创建任务（不调用模型）' }))
+  renderEvaluation()
+  await beginExperiment()
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Custom QA · v2' }))
+  await freezeFromObjects()
   await waitFor(() => expect(evaluationRequest).toHaveBeenCalledWith('/jobs', 'POST', expect.objectContaining({
     bank_id: 'bank_1', bank_version: 1, context_mode: 'system_sources', model: null,
     targets: [{ kind: 'system', system_id: 'sys_1', version: 'v2' }],
@@ -136,20 +159,16 @@ it('compares versions across systems and keeps unavailable releases visible with
     ] }
     return original(path, method, body)
   })
-  render(<EvaluationsView />)
-  await screen.findByRole('button', { name: /Comparison/ })
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '问题库版本' }))
-  fireEvent.click(await screen.findByText('Questions · v1 · 2 题', { selector: '.ant-select-item-option-content' }))
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '评测对象' }))
-  fireEvent.click(await screen.findByText('我的系统：已发布版本', { selector: '.ant-select-item-option-content' }))
-  expect(screen.getByText('旧系统 · v1：绑定的知识源文件缺失。')).toBeInTheDocument()
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '待比较方法' }))
-  fireEvent.click(await screen.findByText('旧系统 · v1（暂不可用）', { selector: '.ant-select-item-option-content' }))
-  expect(screen.getByRole('button', { name: '冻结并创建任务（不调用模型）' })).toBeDisabled()
+  renderEvaluation()
+  await beginExperiment()
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+  expect(screen.getByText('绑定的知识源文件缺失。')).toBeInTheDocument()
+  expect(screen.getByRole('checkbox', { name: '旧系统 · v1' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '下一步' })).toBeDisabled()
   for (const label of ['Lead测试系统 · v2', 'Lead测试系统 · v1', '英文双专家汇总测试 · v1']) {
-    fireEvent.click(await screen.findByText(label, { selector: '.ant-select-item-option-content' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: label }))
   }
-  fireEvent.click(screen.getByRole('button', { name: '冻结并创建任务（不调用模型）' }))
+  await freezeFromObjects()
   await waitFor(() => expect(evaluationRequest).toHaveBeenCalledWith('/jobs', 'POST', expect.objectContaining({
     context_mode: 'system_sources', model: null, targets: [
       { kind: 'system', system_id: 'lead', version: 'v2' },
@@ -173,27 +192,29 @@ it('freezes a mixed formal experiment only after reviewing the current preflight
       targets: [{ method_id: 'single_rag', label: 'single_rag', models: [], limits: null, workflow: {} }] }
     return original(path, method, body)
   })
-  render(<EvaluationsView />)
-  await screen.findByRole('button', { name: /Comparison/ })
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '问题库版本' }))
-  fireEvent.click(await screen.findByText('Questions · v1 · 2 题', { selector: '.ant-select-item-option-content' }))
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '实验用途' }))
-  fireEvent.click(await screen.findByText('正式评价', { selector: '.ant-select-item-option-content' }))
+  renderEvaluation()
+  await beginExperiment()
+  fireEvent.click(screen.getByRole('radio', { name: '正式评价' }))
+  expect(screen.getByRole('button', { name: '下一步' })).toBeDisabled()
   fireEvent.mouseDown(screen.getByRole('combobox', { name: '固定题目清单' }))
   fireEvent.click(await screen.findByText('冻结评价清单 · 2 题', { selector: '.ant-select-item-option-content' }))
   expect(screen.getByRole('spinbutton', { name: '评测题数' })).toBeDisabled()
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '评测对象' }))
-  fireEvent.click(await screen.findByText('混合比较：基线＋我的系统', { selector: '.ant-select-item-option-content' }))
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '待比较方法' }))
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
   for (const label of ['单智能体 RAG', 'Debate', 'Custom QA · v2']) {
-    fireEvent.click(await screen.findByText(label, { selector: '.ant-select-item-option-content' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: label }))
   }
-  const freeze = screen.getByRole('button', { name: '冻结并创建任务（不调用模型）' })
-  const check = screen.getByRole('button', { name: '启动前校验与方案预览（不调用模型）' })
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+  let freeze = screen.getByRole('button', { name: '冻结并创建任务' })
+  let check = screen.getByRole('button', { name: '校验方案' })
   expect(freeze).toBeDisabled()
   fireEvent.click(check)
   await waitFor(() => expect(freeze).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: '上一步' }))
   fireEvent.change(screen.getByRole('textbox', { name: '评测模型' }), { target: { value: 'changed-model' } })
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+  freeze = screen.getByRole('button', { name: '冻结并创建任务' })
+  check = screen.getByRole('button', { name: '校验方案' })
   expect(freeze).toBeDisabled()
   fireEvent.click(check)
   await waitFor(() => expect(freeze).toBeEnabled())
@@ -218,6 +239,7 @@ it('imports a fixed manifest and registers past development exposure through the
   })
   render(<EvaluationDataPlan bank={bank} purpose="evaluation" onPurpose={vi.fn()} onManifest={changed} />)
   fireEvent.click(screen.getByText('生成清单、划分数据与登记曝光'))
+  fireEvent.click(screen.getByRole('tab', { name: '导入清单' }))
   const source = { purpose: 'evaluation', dataset_sha256: bank.sha256, samples: [{ sample_id: 'q1' }] }
   const file = new File([JSON.stringify(source)], 'manifest.json', { type: 'application/json' })
   Object.defineProperty(file, 'text', { value: async () => JSON.stringify(source) })
@@ -225,6 +247,7 @@ it('imports a fixed manifest and registers past development exposure through the
   fireEvent.click(screen.getByRole('button', { name: '校验并导入固定清单' }))
   await waitFor(() => expect(changed).toHaveBeenCalledWith(fixedManifest))
   expect(evaluationRequest).toHaveBeenCalledWith('/manifests', 'POST', expect.objectContaining({ source_manifest: source }))
+  fireEvent.click(screen.getByRole('tab', { name: '曝光登记' }))
   fireEvent.change(screen.getByRole('textbox', { name: '已曝光题目 ID' }), { target: { value: 'q2' } })
   fireEvent.click(screen.getByRole('button', { name: '登记并从正式评价中排除' }))
   await waitFor(() => expect(evaluationRequest).toHaveBeenCalledWith('/exposures', 'POST', expect.objectContaining({ sample_ids: ['q2'] })))
@@ -283,13 +306,13 @@ it('loads a saved plan as a new draft and saves configurations without starting 
     return {}
   })
   render(<EvaluationPlans request={stored.request} disabled={false} jobId="eval_1" onLoad={loaded} />)
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '已保存实验方案' }))
-  fireEvent.click(await screen.findByText(/Stored plan/, { selector: '.ant-select-item-option-content' }))
-  fireEvent.click(screen.getByRole('button', { name: '载入为新实验' }))
+  fireEvent.click(await screen.findByRole('button', { name: '载入为新实验' }))
   await waitFor(() => expect(loaded).toHaveBeenCalledWith(expect.objectContaining({ name: 'Original conditions 副本' }), 'plan_1'))
+  fireEvent.click(screen.getByText('保存或导入方案'))
   fireEvent.click(screen.getByRole('button', { name: '保存当前配置为方案' }))
   await waitFor(() => expect(evaluationRequest).toHaveBeenCalledWith('/plans', 'POST', expect.objectContaining({ request: stored.request })))
-  expect(await screen.findByRole('link', { name: '导出方案 JSON' })).toHaveAttribute('href', '/api/v1/evaluations/plans/plan_2/export')
+  const savedRow = await screen.findByRole('row', { name: /Saved conditions/ })
+  expect(within(savedRow).getByRole('link', { name: '导出方案 JSON' })).toHaveAttribute('href', '/api/v1/evaluations/plans/plan_2/export')
   expect(vi.mocked(evaluationRequest).mock.calls.some(([path]) => path.endsWith('/start'))).toBe(false)
 })
 
@@ -309,7 +332,8 @@ it('imports CLI snapshots into a read-only workspace with no execution controls'
   fireEvent.click(await screen.findByText('Historical study', { selector: '.ant-select-item-option-content' }))
   fireEvent.click(screen.getByRole('button', { name: '导入只读快照' }))
   expect(await screen.findByRole('heading', { name: 'CLI · Historical study · 只读' })).toBeInTheDocument()
-  fireEvent.click(await screen.findByRole('button', { name: '查看诊断与轨迹' }))
+  fireEvent.click(screen.getByRole('tab', { name: '逐题结果' }))
+  fireEvent.click(await screen.findByText('查看诊断与轨迹', { selector: 'button span' }))
   expect(open).toHaveBeenCalledWith(row, '/archives/archive_1')
   expect(screen.queryByRole('button', { name: /启动后台评测|补跑失败|暂停/ })).not.toBeInTheDocument()
   expect(vi.mocked(evaluationRequest).mock.calls.filter(([, method]) => method === 'POST').map(([path]) => path)).toEqual(['/archives'])
@@ -325,14 +349,17 @@ it('copies a task into new editable conditions while restoring its fixed evaluat
       copied_from_job_id: 'eval_1', preflight_token: null } }
     return original(path, method, body)
   })
-  render(<EvaluationsView />)
+  renderEvaluation()
   fireEvent.click(await screen.findByRole('button', { name: /Comparison/ }))
   fireEvent.click(await screen.findByRole('button', { name: '复制为新实验配置' }))
   await waitFor(() => expect(screen.getByRole('textbox', { name: '任务名称' })).toHaveValue('Copied experiment'))
-  expect(screen.getByRole('textbox', { name: '评测模型' })).toHaveValue('restored-model')
   expect(screen.getByRole('spinbutton', { name: '评测题数' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: '冻结并创建任务（不调用模型）' })).toBeDisabled()
   expect(screen.getByText('冻结评价清单 · 2 题')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+  expect(screen.getByRole('textbox', { name: '评测模型' })).toHaveValue('restored-model')
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+  expect(screen.getByRole('button', { name: '冻结并创建任务' })).toBeDisabled()
   expect(screen.queryByRole('checkbox', { name: /我确认启动会调用真实模型/ })).not.toBeInTheDocument()
   expect(vi.mocked(evaluationRequest).mock.calls.some(([path]) => path.endsWith('/start'))).toBe(false)
 })
@@ -347,11 +374,17 @@ it('opens recorded diagnostics using only GET requests and keeps the creation dr
     if (path === '/jobs/eval_1/runs/run_1') return detail
     return original(path, method, body)
   })
-  render(<EvaluationsView />)
+  renderEvaluation()
+  await beginExperiment()
   fireEvent.change(screen.getByRole('textbox', { name: '任务名称' }), { target: { value: 'Unsaved comparison' } })
+  fireEvent.click(screen.getByRole('button', { name: /取\s*消/ }))
   fireEvent.click(await screen.findByRole('button', { name: /Comparison/ }))
-  fireEvent.click(await screen.findByRole('button', { name: '查看诊断与轨迹' }))
+  fireEvent.click(screen.getByRole('tab', { name: '逐题结果' }))
+  fireEvent.click(await screen.findByText('查看诊断与轨迹', { selector: 'button span' }))
   expect(await screen.findByText('request-blocked-001')).toBeInTheDocument()
+  fireEvent.click(screen.getByLabelText(/^close$/i, { selector: 'button' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  fireEvent.click(screen.getByRole('button', { name: '新建实验' }))
   expect(screen.getByRole('textbox', { name: '任务名称' })).toHaveValue('Unsaved comparison')
   expect(vi.mocked(evaluationRequest).mock.calls.every(([, method]) => !method || method === 'GET')).toBe(true)
 })
@@ -368,10 +401,41 @@ it('does not reopen a closed detail when its request resolves late', async () =>
   })
   render(<ConfigProvider theme={{ token: { motion: false } }}><EvaluationsView /></ConfigProvider>)
   fireEvent.click(await screen.findByRole('button', { name: /Comparison/ }))
-  fireEvent.click(await screen.findByRole('button', { name: '查看诊断与轨迹' }))
+  fireEvent.click(screen.getByRole('tab', { name: '逐题结果' }))
+  fireEvent.click(await screen.findByText('查看诊断与轨迹', { selector: 'button span' }))
   expect(screen.getByRole('status', { name: '正在加载运行详情' })).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: /close/i }))
+  fireEvent.click(screen.getByLabelText(/^close$/i, { selector: 'button' }))
   resolveDetail(diagnosticDetail())
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(screen.queryByText('request-blocked-001')).not.toBeInTheDocument()
+})
+
+it('reloads failed historical diagnostics from the selected archive', async () => {
+  const original = vi.mocked(evaluationRequest).getMockImplementation()!
+  const imported = { archive_id: 'archive_1', source_key: 'history', fingerprint: 'archive-hash',
+    view: { ...job, job_id: 'archive_1', name: 'CLI history', readonly: true }, config: {}, provenance: {} }
+  const row = { run_id: 'old_run', sample_id: 'q1', method_id: 'single_rag', repeat: 0, attempt: 1,
+    question: 'Historical question', answer: 'Historical answer', status: 'completed', scores: null, error: null }
+  let reads = 0
+  vi.mocked(evaluationRequest).mockImplementation(async (path, method, body) => {
+    if (path === '/archives') return { items: [{ ...imported, name: 'CLI history', imported_at: '2026-11-04', complete: true }] }
+    if (path === '/archives/candidates') return { items: [] }
+    if (path === '/archives/archive_1') return imported
+    if (path.includes('/archives/archive_1/results')) return { items: [row], total: 1, labels: [] }
+    if (path === '/archives/archive_1/runs/old_run') {
+      reads += 1
+      if (reads === 1) throw new Error('Archive detail unavailable')
+      return new Promise(() => {})
+    }
+    return original(path, method, body)
+  })
+  renderEvaluation()
+  await screen.findByRole('button', { name: /Comparison/ })
+  fireEvent.click(screen.getByRole('button', { name: '历史档案' }))
+  fireEvent.click(await screen.findByRole('button', { name: '查看历史结果' }))
+  fireEvent.click(await screen.findByRole('tab', { name: '逐题结果' }))
+  fireEvent.click(await screen.findByText('查看诊断与轨迹', { selector: 'button span' }))
+  fireEvent.click(await screen.findByRole('button', { name: '重新加载详情' }))
+  await waitFor(() => expect(reads).toBe(2))
+  expect(vi.mocked(evaluationRequest).mock.calls.some(([path]) => path === '/jobs/eval_1/runs/old_run')).toBe(false)
 })

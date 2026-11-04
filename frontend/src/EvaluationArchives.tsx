@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Alert, Button, Collapse, Select, Space, Table } from 'antd'
+import { Alert, Button, Select, Space, Table, Tabs } from 'antd'
 import { evaluationRequest, type EvaluationArchive, type EvaluationResult } from './evaluationApi'
 import EvaluationResearch from './EvaluationResearch'
 import EvaluationReview from './EvaluationReview'
+import EvaluationSummary from './EvaluationSummary'
 
 interface ArchiveSummary { archive_id: string; name: string; imported_at: string; purpose: string; complete: boolean; fingerprint: string }
 interface Candidate { key: string; name: string; available: boolean; reason: string | null; purpose: string | null; complete: boolean | null }
@@ -26,7 +27,7 @@ export default function EvaluationArchives({ onOpenDetail }: { onOpenDetail: (ro
     try { await fn() } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
   }
   return <section aria-label="旧 CLI 只读实验档案">
-    <Alert type="info" title="导入保存的是历史结果只读快照；不能从这里启动、补跑或改写原实验。逐题结果和报告独立保存，原轨迹需保留源目录。" />
+    <div className="evaluation-section-heading"><div><h2>旧 CLI 实验档案</h2><p>集中查阅已完成的历史实验，导入时保存报告和逐题结果的只读快照。</p></div></div>
     {error && <Alert type="error" title={error} />}
     <Space wrap>
       <Select aria-label="CLI 来源档案" value={source} placeholder="选择原实验目录中的档案" onChange={setSource}
@@ -45,24 +46,16 @@ export default function EvaluationArchives({ onOpenDetail }: { onOpenDetail: (ro
       { title: '查看', render: (_, r) => <Button disabled={busy} onClick={() => void action(async () => setArchive(await evaluationRequest<EvaluationArchive>(`/archives/${r.archive_id}`)))}>查看历史结果</Button> },
     ]} />
     {archive && <>
-      <h3>{archive.view.name} · 只读</h3>
-      <Button onClick={() => setArchive(undefined)}>关闭历史结果</Button>
-      <p>快照指纹：{archive.fingerprint}</p>
-      <p>以下保留原报告的首次尝试成绩与分母，不使用当前代码重新评分。</p>
-      <Table size="small" rowKey="method" pagination={false} scroll={{ x: 700 }}
-        dataSource={Object.entries(archive.view.report?.methods ?? {}).map(([method, data]) => ({ method, ...data }))} columns={[
-          { title: '对象', dataIndex: 'method' }, { title: '完成／失败', render: (_, r) => `${r.statuses.completed} / ${r.statuses.failed}` },
-          { title: 'EM', render: (_, r) => r.scores.em?.value == null ? '未知' : `${(r.scores.em.value * 100).toFixed(1)}%` },
-          { title: 'F1', render: (_, r) => r.scores.f1?.value == null ? '未知' : `${(r.scores.f1.value * 100).toFixed(1)}%` },
-          { title: '已知 Token', render: (_, r) => r.usage.total_tokens?.reported_total ?? '未知' },
-          { title: '模型调用', render: (_, r) => r.usage.llm_call_count?.reported_total ?? '未知' },
-        ]} />
-      <Collapse items={[{ key: 'provenance', label: '原实验配置与来源记录', children: <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{JSON.stringify({ config: archive.config, provenance: archive.provenance }, null, 2)}</pre> }]} />
-      <EvaluationResearch key={archive.archive_id} job={archive.view} />
+      <div className="evaluation-section-heading"><h3>{archive.view.name} · 只读</h3><Button onClick={() => setArchive(undefined)}>关闭历史结果</Button></div>
+      <p className="evaluation-hint">历史视图保留原报告的首次尝试成绩与分母，查看原轨迹需要保留源目录。</p>
       <Space wrap><a href={`/api/v1/evaluations/archives/${archive.archive_id}/export?format=json`}>导出历史报告与结果 JSON</a>
         <a href={`/api/v1/evaluations/archives/${archive.archive_id}/export?format=csv`}>导出历史逐题 CSV</a></Space>
-      <EvaluationReview key={archive.archive_id} job={archive.view} base={`/archives/${archive.archive_id}`}
-        onOpenDetail={row => onOpenDetail(row, `/archives/${archive.archive_id}`)} />
+      <Tabs key={archive.archive_id} items={[
+        { key: 'overview', label: '结果概览', children: <EvaluationSummary job={archive.view} /> },
+        { key: 'questions', label: '逐题结果', children: <EvaluationReview mode="results" job={archive.view} base={`/archives/${archive.archive_id}`} onOpenDetail={row => onOpenDetail(row, `/archives/${archive.archive_id}`)} /> },
+        { key: 'research', label: '研究统计', children: <EvaluationResearch job={archive.view} /> },
+        { key: 'source', label: '来源记录', children: <><p className="evaluation-fingerprint">快照指纹 {archive.fingerprint}</p><pre className="evaluation-json">{JSON.stringify({ config: archive.config, provenance: archive.provenance }, null, 2)}</pre></> },
+      ]} />
     </>}
   </section>
 }
