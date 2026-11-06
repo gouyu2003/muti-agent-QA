@@ -29,13 +29,13 @@ def default_nodes(
     """真实节点实现：三个 LangGraph 节点函数。"""
     return {
         PLANNER_NODE: partial(
-            planner_fn, usage_collector=usage_collector,
+            planner_fn, usage_collector=usage_collector.for_agent(PLANNER_NODE) if usage_collector is not None else None,
             agent_config=agent_configs[PLANNER_NODE] if agent_configs else None,
         ),
         RETRIEVER_NODE: partial(retriever_fn, retriever=retriever,
                                agent_config=agent_configs[RETRIEVER_NODE] if agent_configs else None),
         ANSWER_VALIDATOR_NODE: partial(
-            answer_validator_fn, usage_collector=usage_collector,
+            answer_validator_fn, usage_collector=usage_collector.for_agent(ANSWER_VALIDATOR_NODE) if usage_collector is not None else None,
             require_citations=True,
             agent_config=agent_configs[ANSWER_VALIDATOR_NODE] if agent_configs else None,
         ),

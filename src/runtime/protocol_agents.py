@@ -144,13 +144,18 @@ def debate_message(stage, agent_id, config, input_data, local, usage):
         msg = contract.model_validate(data)
         if stage.kind == 'critique':
             ids = [c.target_call_id for c in msg.critiques]
-            if not targets or set(ids) != targets or len(set(ids)) != len(ids): raise ValueError('质疑目标必须对应当前同伴观点。')
-            if any(not set(c.evidence_ids) <= evidence_ids for c in msg.critiques): raise ValueError('质疑引用了未知证据。')
+            if not targets or set(ids) != targets or len(set(ids)) != len(ids):
+                raise SchemaViolation('critique_targets_mismatch', '质疑目标必须完整且唯一地对应当前同伴观点。', 'critiques.target_call_id')
+            if any(not set(c.evidence_ids) <= evidence_ids for c in msg.critiques):
+                raise SchemaViolation('critique_unknown_evidence', '质疑引用了未提供的证据，请复制现有证据标识。', 'critiques.evidence_ids')
         else:
             ids = [r.critique_call_id for r in msg.responses]
-            if set(ids) != incoming or len(ids) != len(set(ids)): raise ValueError('修订必须回应每条针对本人的质疑消息。')
-            if msg.answer.strip() and not msg.supporting_evidence: raise ValueError('修订答案必须附可追溯引用。')
-            if any((r.sq_id, r.evidence_id) not in known for r in msg.supporting_evidence): raise ValueError('修订引用无法定位。')
+            if set(ids) != incoming or len(ids) != len(set(ids)):
+                raise SchemaViolation('revision_responses_mismatch', '修订必须回应每条针对本人的质疑，不能遗漏或重复。', 'responses.critique_call_id')
+            if msg.answer.strip() and not msg.supporting_evidence:
+                raise SchemaViolation('revision_missing_citation', '修订答案必须附可追溯引用。', 'supporting_evidence')
+            if any((r.sq_id, r.evidence_id) not in known for r in msg.supporting_evidence):
+                raise SchemaViolation('revision_unknown_citation', '修订引用无法定位，请复制已提供的子问题和证据标识。', 'supporting_evidence')
     result, diagnostics = invoke_json(answer_validator.default_llm(config), prompt,
         config.get('failure_handling', {}).get('max_retries', 2), usage, validate=validate,
         max_tokens=config['model_config']['max_tokens'])

@@ -1,3 +1,4 @@
+import { ActivityDetails } from './RunInsights'
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Collapse, Input, Modal, Select, Space, Table, Tag } from 'antd'
 import { evaluationRequest, type EvaluationJob, type EvaluationResult, type EvaluationMonitor } from './evaluationApi'
@@ -67,6 +68,9 @@ export default function EvaluationReview({ job, base, onOpenDetail, mode = 'all'
         <p>{monitor.current.question}</p>
         <p>阶段：{monitor.current.phases.map(p => [p.stage_id, p.agent_name ?? p.node].filter(Boolean).join(' · ')).join('、') ||
           (monitor.current.status === 'running' ? '初始化执行' : '终态已保存，正在汇总')}；本题已耗时 {monitor.current.elapsed_seconds.toFixed(1)} 秒</p>
+        <ActivityDetails activity={{ run_id: monitor.current.run_id, status: monitor.current.status,
+          heartbeat_at: monitor.heartbeat_at, heartbeat_stale: monitor.heartbeat_stale,
+          last_progress_at: monitor.last_event_at, activities: monitor.activities }} />
         <small>最近轨迹事件：{monitor.last_event_at ? new Date(monitor.last_event_at).toLocaleString() : '尚未记录'}；事件间隔不等同于模型进程失活。</small>
       </div> : <p>{['queued', 'running', 'stopping'].includes(job.status) ? '正在等待后台初始化、派发或汇总；尚无可显示的当前题目。' : '任务当前未运行。'}</p>}
       {monitor?.methods?.length ? <>

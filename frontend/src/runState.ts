@@ -29,6 +29,12 @@ export function runReducer(state: RunViewState, action: RunAction): RunViewState
   }
 
   const { event } = action
+  if (event.type === 'run_connection') return { ...state, connection: String(event.payload.state) }
+  if (event.type === 'run_activity') {
+    const activity = event.payload as unknown as import('./types').RunActivity
+    return { ...state, runId: event.run_id, activity, connection: 'connected',
+      status: state.status === 'idle' ? 'running' : state.status }
+  }
   if (event.type === 'run_started') {
     return { ...state, status: 'running', runId: event.run_id }
   }
@@ -107,7 +113,7 @@ export function runReducer(state: RunViewState, action: RunAction): RunViewState
   if (event.type === 'run_failed') {
     return {
       ...state,
-      status: 'failed',
+      status: event.payload.status === 'interrupted' ? 'interrupted' : 'failed',
       activeNode: undefined,
       error: String(event.payload.message ?? '多智能体流程运行失败。'),
       steps: state.steps.map(s => s.status === 'running' ? { ...s, status: 'failed' } : s),

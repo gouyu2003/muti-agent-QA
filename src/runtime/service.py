@@ -6,6 +6,8 @@ from collections.abc import Callable, Iterator
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
+from contextvars import copy_context
+import logging
 
 from src.graph import ANSWER_VALIDATOR_NODE, build_graph, default_nodes
 from src.llm_usage import LLMUsageCollector
@@ -24,6 +26,7 @@ from src.runtime.models import (
     TraceEventType,
 )
 from src.runtime.repository import RepositoryError, RunRepository
+from src.observability import RunObserver, current_observer, observe
 
 
 GraphFactory = Callable[[LLMUsageCollector], Any]
@@ -169,9 +172,27 @@ class RunService:
             retrieval_retry_count=_counter(state, "retrieval_retry_count"),
             validation_retry_count=_counter(state, "validation_retry_count"),
             agent_usage=usage_collector.agent_usage(),
+            timings=current_observer.get().timings() if current_observer.get() else {},
         )
 
-    def stream(self, context: RunContext) -> Iterator[TraceEvent]:
+    def stream(self, context: RunContext, *, prepared=False, cancellation=None) -> Iterator[TraceEvent]:
+        observer = RunObserver(context.run_id, getattr(self.repository, 'db_path', None),
+                               identifiers={'experiment_id': context.experiment_id, 'sample_id': context.sample_id})
+        execution_context = copy_context()
+        execution_context.run(current_observer.set, observer)
+        events = self._stream(context, prepared=prepared, cancellation=cancellation)
+        with observer.span('execution'):
+            try:
+                while True:
+                    try:
+                        event = execution_context.run(next, events)
+                    except StopIteration:
+                        return
+                    yield event
+            finally:
+                execution_context.run(events.close)
+
+    def _stream(self, context: RunContext, *, prepared=False, cancellation=None) -> Iterator[TraceEvent]:
         """执行一次运行；每个返回事件在交给调用方前已经写入 Repository。"""
 
         started_at = self.now()
@@ -183,6 +204,8 @@ class RunService:
         node_cycles: dict[str, int] = {}
         node_started_clocks: dict[tuple[str, int], float] = {}
         usage_collector = LLMUsageCollector()
+        if cancellation is not None:
+            usage_collector.cancelled = cancellation
         stream = None
         processed_outputs = {}
         protocol_run = context.config_snapshot.get('schema_version') == '3'
@@ -214,9 +237,13 @@ class RunService:
                                                     'agent_type': call.get('agent_type', context.config_snapshot.get('agent_types', {}).get(node))}))
             return recovered
 
-        self.repository.create_run(
-            RunRecord(context=context, status="running", started_at=started_at)
-        )
+        if prepared:
+            saved = self.repository.get_run(context.run_id)
+            if saved is None or saved.status != 'running' or saved.context != context:
+                raise RepositoryError('后台运行的固定上下文不存在或不匹配。')
+            started_at = saved.started_at
+        else:
+            self.repository.create_run(RunRecord(context=context, status="running", started_at=started_at))
 
         def make_event(
             event_type: TraceEventType,
@@ -225,6 +252,7 @@ class RunService:
             node: str | None = None,
             cycle: int | None = None,
             duration_ms: int | None = None,
+            persist: bool = True,
         ) -> TraceEvent:
             nonlocal sequence
             event = TraceEvent(
@@ -237,13 +265,23 @@ class RunService:
                 duration_ms=duration_ms,
                 payload=payload or {},
             )
-            self.repository.append_event(event)
+            if persist:
+                self.repository.append_event(event)
             sequence += 1
             return event
 
-        yield make_event("run_started", payload={"question": context.question})
+        def finish(record, event):
+            with observe('result_save'):
+                if hasattr(self.repository, 'finalize_run'):
+                    self.repository.finalize_run(record, event)
+                else:
+                    self.repository.append_event(event)
+                    self.repository.update_run(record)
+            logging.getLogger(__name__).info('run=%s terminal=%s error=%s', context.run_id,
+                record.status, record.error.error_type if record.error else None)
 
         try:
+            yield make_event("run_started", payload={"question": context.question})
             workflow = (
                 WorkflowSpec.model_validate(context.config_snapshot["workflow_spec"])
                 if "workflow_spec" in context.config_snapshot and not protocol_run else None
@@ -263,6 +301,7 @@ class RunService:
             )
 
             for part in stream:
+                usage_collector.check_cancelled()
                 part_type = part.get("type")
                 data = part.get("data", {})
 
@@ -343,10 +382,11 @@ class RunService:
             final_state = _public_mapping(state, FINAL_FIELDS)
             completed = make_event(
                 "run_completed",
+                persist=False,
                 duration_ms=metrics.duration_ms,
                 payload={"result": final_state},
             )
-            self.repository.update_run(
+            finish(
                 RunRecord(
                     context=context,
                     status="completed",
@@ -354,7 +394,7 @@ class RunService:
                     finished_at=completed.timestamp,
                     final_state=final_state,
                     metrics=metrics,
-                )
+                ), completed
             )
             terminal_persisted = True
             yield completed
@@ -370,10 +410,11 @@ class RunService:
             )
             cancelled = make_event(
                 "run_cancelled",
+                persist=False,
                 duration_ms=metrics.duration_ms,
                 payload={"reason": "consumer_disconnected"},
             )
-            self.repository.update_run(
+            finish(
                 RunRecord(
                     context=context,
                     status="cancelled",
@@ -381,7 +422,7 @@ class RunService:
                     finished_at=cancelled.timestamp,
                     final_state=_public_mapping(state, FINAL_FIELDS),
                     metrics=metrics,
-                )
+                ), cancelled
             )
             raise
         except RepositoryError:
@@ -391,6 +432,9 @@ class RunService:
             usage_collector.wait_for_nodes()
             raise
         except Exception as exc:
+            # settle() cancels sibling nodes; that cleanup must not turn a failure into user cancellation.
+            was_cancelled = cancellation is not None and cancellation.is_set() and getattr(cancellation, 'reason', 'cancelled') != 'timeout'
+            was_timed_out = cancellation is not None and getattr(cancellation, 'reason', None) == 'timeout'
             for recovered in settle():
                 yield recovered
             metrics = self._metrics(
@@ -400,29 +444,32 @@ class RunService:
                 usage_collector=usage_collector,
             )
             error = _public_error(exc)
+            if was_timed_out:
+                error = RunError(error_type='timeout', message='运行达到时间上限，已结束本地执行。')
             failed = make_event(
-                "run_failed",
+                "run_cancelled" if was_cancelled else "run_failed",
+                persist=False,
                 duration_ms=metrics.duration_ms,
                 payload={"code": error.error_type, "message": error.message,
                          "request_errors": request_errors(metrics.agent_usage)},
             )
-            self.repository.update_run(
+            finish(
                 RunRecord(
                     context=context,
-                    status="failed",
+                    status="cancelled" if was_cancelled else "failed",
                     started_at=started_at,
                     finished_at=failed.timestamp,
                     final_state=_public_mapping(state, FINAL_FIELDS),
                     metrics=metrics,
-                    error=error,
-                )
+                    error=None if was_cancelled else error,
+                ), failed
             )
             yield failed
 
-    def run(self, context: RunContext) -> RunDetail:
+    def run(self, context: RunContext, **kwargs) -> RunDetail:
         """消费完整事件流并返回已持久化的运行详情，供 CLI/批处理复用。"""
 
-        for _event in self.stream(context):
+        for _event in self.stream(context, **kwargs):
             pass
         detail = self.repository.get_run_detail(context.run_id)
         if detail is None:

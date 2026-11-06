@@ -18,6 +18,7 @@ export interface EvaluationResult {
   labels?: string[]
 }
 export interface MethodSummary {
+  timing_breakdown?: Record<string, { mean_ms: number; reported: number; attempted: number }>
   planned: number; attempted: number; complete: boolean; statuses: Record<string, number>
   scores: Record<string, { value: number | null; scored: number; observed_mean: number | null }>
   usage: Record<string, { reported_total: number | null; reported: number; attempted: number; mean_reported: number | null; median_reported?: number | null; p95_reported?: number | null }>
@@ -54,6 +55,9 @@ export interface SavedEvaluationPlan {
   id: string; name: string; request: Record<string, unknown>; sha256: string; source_job_id: string | null; created_at: string
 }
 export interface EvaluationMonitor {
+  heartbeat_at?: string | null
+  heartbeat_stale?: boolean
+  activities?: import('./types').RunActivity['activities']
   sampled_at: string; last_event_at: string | null; completed_attempt_seconds: number; estimated_remaining_seconds: number | null
   failure_labels: Record<string, number>
   methods: { method_id: string; planned: number; completed: number; failed: number; unresolved: number; unstarted: number; in_progress?: number }[]

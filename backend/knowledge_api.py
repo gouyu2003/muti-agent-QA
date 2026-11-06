@@ -5,11 +5,37 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, field_validator
 
 from src.knowledge.corpus import MAX_FILE_BYTES, MAX_FILES, ImportFailure
-from src.knowledge.store import KnowledgeStore
+from src.knowledge.store import KnowledgeStore, retriever_from_corpus_snapshot
 
 router = APIRouter(prefix="/api/v1/knowledge")
+
+
+class SearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=2000)
+    top_k: int = Field(default=5, ge=1, le=50, strict=True)
+
+    @field_validator('query')
+    @classmethod
+    def nonblank(cls, value):
+        if not value.strip():
+            raise ValueError('请输入检索问题。')
+        return value.strip()
+
+
+@router.post('/sources/{source_id}/versions/{version}/search')
+def search_source(source_id: str, version: int, body: SearchRequest, request: Request):
+    try:
+        snapshot = get_store(request).resolve(scope(), source_id, version)
+        retriever = retriever_from_corpus_snapshot(snapshot)
+        return {'query': body.query, 'source_id': source_id, 'version': version,
+                'index_version': snapshot['index_version'], 'tokenizer': snapshot['tokenizer'],
+                'items': retriever.search(body.query, top_k=body.top_k), 'top_k': body.top_k}
+    except ImportFailure as exc:
+        raise HTTPException(status_code=404 if exc.code in {'source_not_found', 'version_not_ready'} else 422,
+                            detail={'code': exc.code, 'message': str(exc)}) from exc
 
 
 def scope() -> str:

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from threading import local
+from contextlib import closing
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,7 +36,7 @@ from src.runtime.repository import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "runtime" / "runs.sqlite3"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 _CREATE_SCHEMA_META_SQL = """
@@ -62,7 +64,7 @@ CREATE TABLE IF NOT EXISTS runs (
     config_snapshot_json TEXT NOT NULL,
 
     status TEXT NOT NULL
-        CHECK (status IN ('running', 'completed', 'failed', 'cancelled')),
+        CHECK (status IN ('running', 'completed', 'failed', 'cancelled', 'interrupted')),
     started_at TEXT NOT NULL,
     finished_at TEXT,
 
@@ -204,11 +206,13 @@ def _load_json(value: str | None, field_name: str) -> Any:
 
 def _final_state_json(record: RunRecord) -> str | None:
     """Persist additive per-instance metrics without migrating legacy archives."""
-    if record.final_state is None and not record.metrics.agent_usage:
+    if record.final_state is None and not record.metrics.agent_usage and not record.metrics.timings:
         return None
     value = dict(record.final_state or {})
     if record.metrics.agent_usage:
         value['_agent_usage'] = record.metrics.agent_usage
+    if record.metrics.timings:
+        value['_timings'] = record.metrics.timings
     return _dump_json(value)
 
 
@@ -217,6 +221,7 @@ class SQLiteRunRepository:
 
     def __init__(self, db_path: Path | str | None = None):
         self.db_path = _default_db_path() if db_path is None else Path(db_path)
+        self._transactions = local()
 
     def _open_connection(self) -> sqlite3.Connection:
         connection = sqlite3.connect(str(self.db_path), timeout=5.0)
@@ -233,7 +238,12 @@ class SQLiteRunRepository:
 
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
+        active = getattr(self._transactions, 'connection', None)
+        if active is not None:
+            yield active
+            return
         connection = self._open_connection()
+        self._transactions.connection = connection
         try:
             yield connection
             connection.commit()
@@ -241,6 +251,7 @@ class SQLiteRunRepository:
             connection.rollback()
             raise
         finally:
+            del self._transactions.connection
             connection.close()
 
     def initialize(self) -> None:
@@ -261,6 +272,24 @@ class SQLiteRunRepository:
                         f"{current_version} > {SCHEMA_VERSION}"
                     )
 
+                if current_version == 1:
+                    # Upgrade only writable runtime stores. ReadOnlyArchive never initializes.
+                    backup = self.db_path.with_suffix(self.db_path.suffix + '.v1-backup')
+                    if not backup.exists():
+                        with closing(sqlite3.connect(backup)) as destination:
+                            connection.backup(destination)
+                    connection.execute('PRAGMA foreign_keys=OFF')
+                    connection.execute('BEGIN IMMEDIATE')
+                    create_runs = _CREATE_V1_SCHEMA_SQL.split('CREATE TABLE IF NOT EXISTS trace_events')[0]
+                    connection.execute(create_runs.replace('runs (', 'runs_v2 (').strip())
+                    connection.execute('INSERT INTO runs_v2 SELECT * FROM runs')
+                    connection.execute('DROP TABLE runs')
+                    connection.execute('ALTER TABLE runs_v2 RENAME TO runs')
+                    connection.execute('INSERT INTO schema_meta VALUES (?,?)', (SCHEMA_VERSION, _datetime_to_text(_utc_now())))
+                    if connection.execute('PRAGMA foreign_key_check').fetchone():
+                        raise RepositoryError('运行库迁移的外键核对失败')
+                    connection.commit()
+                    connection.execute('PRAGMA foreign_keys=ON')
                 connection.executescript(_CREATE_V1_SCHEMA_SQL)
                 if current_version is None:
                     connection.execute(
@@ -279,6 +308,7 @@ class SQLiteRunRepository:
         try:
             final_state = _load_json(row['final_state_json'], 'final_state_json')
             agent_usage = final_state.pop('_agent_usage', {}) if isinstance(final_state, dict) else {}
+            timings = final_state.pop('_timings', {}) if isinstance(final_state, dict) else {}
             snapshot = _load_json(row["config_snapshot_json"], "config_snapshot_json")
             if not isinstance(snapshot, dict):
                 raise RepositoryError('配置快照必须是 JSON 对象')
@@ -312,6 +342,7 @@ class SQLiteRunRepository:
                 retrieval_retry_count=row["retrieval_retry_count"],
                 validation_retry_count=row["validation_retry_count"],
                 agent_usage=agent_usage,
+                timings=timings,
             )
             error = None
             if row["error_type"] is not None:
@@ -618,7 +649,7 @@ class SQLiteRunRepository:
                 ).fetchall()
 
             status_counts = {
-                name: 0 for name in ("running", "completed", "failed", "cancelled")
+                name: 0 for name in ("running", "completed", "failed", "cancelled", "interrupted")
             }
             failure_types: dict[str, int] = {}
             verified_runs = 0
@@ -663,6 +694,7 @@ class SQLiteRunRepository:
                 failed_runs=status_counts["failed"],
                 cancelled_runs=status_counts["cancelled"],
                 running_runs=status_counts["running"],
+                interrupted_runs=status_counts["interrupted"],
                 verified_runs=verified_runs,
                 completion_rate=completed / total if total else 0.0,
                 verification_pass_rate=verified_runs / completed if completed else 0.0,
@@ -741,6 +773,12 @@ class SQLiteRunRepository:
         except sqlite3.Error as exc:
             raise RepositoryError("写入轨迹事件失败") from exc
 
+    def finalize_run(self, record: RunRecord, event: TraceEvent) -> None:
+        """Commit the terminal event and state together, or neither."""
+        with self._connection():
+            self.append_event(event)
+            self.update_run(record)
+
     def get_events(self, run_id: str) -> list[TraceEvent]:
         try:
             with self._connection() as connection:
@@ -764,6 +802,10 @@ class SQLiteRunRepository:
             return None
 
         try:
+            from src.observability import read_observations, summarize_timings
+            observed = summarize_timings(read_observations(self.db_path, run_id, immutable=getattr(self, 'read_only', False)))
+            if observed:
+                run.metrics.timings = observed
             return RunDetail(run=run, events=self.get_events(run_id))
         except ValidationError as exc:
             raise RepositoryError(f"无法组装运行详情：{run_id}") from exc

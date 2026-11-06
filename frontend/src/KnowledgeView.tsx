@@ -5,6 +5,7 @@ import {
   importKnowledge, deleteKnowledgeSource, KnowledgeImportError,
 } from './api'
 import type { ChunkPage, KnowledgeSource } from './types'
+import KnowledgeSearch from './KnowledgeSearch'
 
 const STATUS = { importing: '处理中', ready: '可用', failed: '导入失败' }
 
@@ -119,7 +120,7 @@ export default function KnowledgeView({ disabled, onChanged, onUse }: {
       <section className="knowledge-import">
         <span className="section-kicker">USER KNOWLEDGE</span>
         <h1>知识源</h1>
-        <p>导入英文 UTF-8 TXT/MD 文件。每份知识源可包含多个文件，用同一组材料进行问答。</p>
+        <p>导入中文、英文或混合的 UTF-8 TXT/MD 文件。每份知识源可包含多个文件，用同一组材料进行问答。</p>
         {disabled ? <Alert type="info" message="问答正在运行，完成后可导入、删除或切换知识源。" /> : null}
         <label>导入目标
           <Select aria-label="导入目标" value={targetId ?? 'new'} disabled={locked}
@@ -158,6 +159,8 @@ export default function KnowledgeView({ disabled, onChanged, onUse }: {
           <Button type="primary" disabled={locked || !selectedReady || Boolean(previewError) || chunksLoading} onClick={() => { if (version !== undefined) onUse(detail.source_id, version) }}>用于问答</Button>
           {selectedVersion?.error ? <Alert type="error" message={selectedVersion.error.code} description={selectedVersion.error.message} /> : null}
           {selectedVersion?.files ? <ul>{selectedVersion.files.map((file) => <li key={file.filename}>{file.filename} · {(file.size_bytes / 1024).toFixed(1)} KiB</li>)}</ul> : null}
+          {selectedReady && version !== undefined && <KnowledgeSearch key={`${detail.source_id}-${version}`} sourceId={detail.source_id} version={version} />}
+          <p className="diagnostic-note">索引：{selectedVersion?.index_version ?? '未记录'} · 分词：{selectedVersion?.tokenizer ?? '未记录'}。旧索引保留；如需中文支持，请导入新版本。</p>
           <h3>片段预览</h3>
           {previewError ? <Alert type="error" message={previewError} /> : chunksLoading && selectedReady ? <Skeleton active /> : chunks?.items.map((chunk) => (
             <article className="knowledge-chunk" key={chunk.chunk_id}>

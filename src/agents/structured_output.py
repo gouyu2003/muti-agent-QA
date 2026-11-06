@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from src.agents.llm_retry import response_text
 from src.llm_usage import LLMUsageCollector, extract_token_usage
+from src.observability import observe
 
 ERROR_LABELS = {
     "empty_response": "模型返回空正文",
@@ -63,7 +64,9 @@ def invoke_json(chat, prompt: str, retries: int, usage=None, *, validate: Callab
     for attempt in range(max(1, int(retries) + 1)):
         start = perf_counter()
         previous = len(usage.attempts())
-        response = usage.invoke(chat, request)
+        usage.output_attempt = attempt + 1
+        with observe('output_repair' if attempt else 'initial_output'):
+            response = usage.invoke(chat, request)
         calls.extend(usage.attempts()[previous:])
         raw = response_text(response).strip()
         metadata = getattr(response, "response_metadata", None) or {}
@@ -73,7 +76,7 @@ def invoke_json(chat, prompt: str, retries: int, usage=None, *, validate: Callab
         lc_details = (getattr(response, "usage_metadata", None) or {}).get("output_token_details") or {}
         prompt_tokens, completion_tokens, total_tokens = extract_token_usage(response)
         entry = {"attempt": len(calls) + 1, "output_attempt": attempt + 1,
-                 "duration_ms": round((perf_counter() - start) * 1000),
+                 "duration_ms": usage.last_request_duration_ms if usage.last_request_duration_ms is not None else round((perf_counter() - start) * 1000),
                  "finish_reason": finish, "output_chars": len(raw),
                  "prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens,
                  "total_tokens": total_tokens,
@@ -102,7 +105,8 @@ def invoke_json(chat, prompt: str, retries: int, usage=None, *, validate: Callab
                 try:
                     if not isinstance(data, dict):
                         raise SchemaViolation("object_required", "顶层必须是 JSON 对象。")
-                    validate(data)
+                    with observe('output_validation'):
+                        validate(data)
                 except InvalidCitation:
                     error = "invalid_citation"
                     entry["rejected_references"] = [

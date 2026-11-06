@@ -1,6 +1,5 @@
-import { Alert, Collapse, Tag, Typography } from 'antd'
-import { ModelCalls } from './ModelDiagnostics'
-import { errorTypeLabel, runDiagnosticSummary } from './diagnosticSummary'
+import { Collapse, Tag, Typography } from 'antd'
+import { TimingDetails, RunDiagnostics } from './RunInsights'
 import ProtocolCalls from './ProtocolCalls'
 import type { StoredRunDetail, StoredTraceEvent } from './types'
 
@@ -22,9 +21,7 @@ function eventNote(event: StoredTraceEvent) {
 
 export default function EvaluationRunDetail({ detail }: { detail: StoredRunDetail }) {
   const { run, events } = detail
-  const summary = runDiagnosticSummary(run)
   const calls = run.final_state?.protocol_calls
-  const agents = Object.entries(run.metrics.agent_usage ?? {})
   return <article className="evaluation-run-detail">
     <header><Tag color={run.status === 'failed' ? 'error' : run.status === 'completed' ? 'success' : 'default'}>{STATUS[run.status] ?? run.status}</Tag>
       <h3>{run.context.question}</h3>
@@ -37,25 +34,8 @@ export default function EvaluationRunDetail({ detail }: { detail: StoredRunDetai
       <div><dt>模型调用</dt><dd>{run.metrics.llm_call_count ?? '未记录'} 次</dd></div>
       <div><dt>总 Token</dt><dd>{run.metrics.total_tokens?.toLocaleString() ?? '未知'}</dd></div>
     </dl>
-    <section aria-label="运行诊断">
-      <h3>运行诊断</h3>
-      {run.error && <Alert type="error" showIcon title={errorTypeLabel(run.error.error_type)} description={run.error.message} />}
-      {run.status === 'completed' && summary.hasIssues && <Alert type="warning" showIcon title={summary.heading}
-        description="本次流程最终完成，以下保留中途发生的异常调用和重试记录。完成不代表答案正确。" />}
-      {!summary.hasIssues && <p className="diagnostic-note">未记录请求或结构化输出异常。答案质量请结合评分与证据判断。</p>}
-      {!!summary.labels.length && <p className="diagnostic-labels">{summary.labels.map(label => <Tag key={label}>{label}</Tag>)}</p>}
-      {agents.filter(([, usage]) => !!usage.calls?.length).map(([agentId, usage]) => {
-        const stages = [...new Set(Object.values(calls ?? {}).filter(call => call.agent_id === agentId).map(call => call.stage_id))]
-        const name = Object.values(calls ?? {}).find(call => call.agent_id === agentId)?.agent_name
-        return <section className="evaluation-agent-calls" key={agentId} aria-label={`${agentId} 模型调用`}>
-          <h4>{name ? `${name} · ` : ''}{agentId}</h4>
-          <p className="diagnostic-note">参与阶段：{stages.length ? stages.join('、') : '未记录'}；下列按该智能体的请求顺序展示。</p>
-          <ModelCalls calls={usage.calls} />
-        </section>
-      })}
-      {!agents.some(([, usage]) => !!usage.calls?.length) && summary.hasIssues &&
-        <p className="diagnostic-note">没有保存逐次模型调用详情。缺失的 HTTP 状态码、供应商错误码、Request ID 和重试信息无法从历史记录恢复。</p>}
-    </section>
+    <RunDiagnostics run={run} />
+    <TimingDetails timings={run.metrics.timings} />
     <section><h3>最终答案</h3><p className="evaluation-final-answer">{run.final_state?.answer || '未生成可用答案'}</p>
       {run.final_state?.verification_note && <p className="diagnostic-note">{run.final_state.verification_note}</p>}</section>
     <Collapse items={[

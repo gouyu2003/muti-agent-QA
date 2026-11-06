@@ -8,8 +8,8 @@
 
 设计约束：
     - 纯本地、确定性：不调用 LLM，不读取 .env，不依赖任何远程服务；
-    - tokenizer 固定为「小写 + 提取 [a-z0-9]+」，保证同一 query 多次
-      检索结果完全一致（不引入 stemmer/停用词等不确定性组件）；
+    - 旧英文索引沿用「小写 + 提取 [a-z0-9]+」；新中文索引使用版本化的
+      单字、双字与英文数字词项，保证相同版本查询的结果确定；
     - 索引文本 = 「段落标题 + 原句」。正文常以姓名变体/代词指代实体，
       段落标题（如 "Shirley Temple"）是关键召回信号；标题只参与排序，
       EvidenceChunk["text"] 永远保留原始句子文本；
@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Any
 
 from rank_bm25 import BM25Okapi
@@ -26,6 +27,17 @@ from rank_bm25 import BM25Okapi
 from src.state import EvidenceChunk
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
+HAN_RE = re.compile(r'[\u3400-\u4dbf\u4e00-\u9fff]+')
+
+
+def tokenize_mixed(text: str) -> list[str]:
+    """Versioned local CJK character/bigram index; normalization never changes source text."""
+    text = unicodedata.normalize('NFKC', text).lower()
+    tokens = tokenize(text)
+    for run in HAN_RE.findall(text):
+        tokens.extend('zh:' + char for char in run)
+        tokens.extend('zh:' + run[i:i+2] for i in range(len(run)-1))
+    return tokens
 
 # 相关性阈值：BM25 得分为 0 表示 query 与该句没有任何共有词，
 # 这类"命中"纯属噪声。保留阈值后检索器才可能真正返回空结果，
@@ -64,6 +76,8 @@ class BM25Retriever:
     def __init__(self, record: dict[str, Any], source_id: str | None = None):
         self.source_id = source_id
         self.is_document_corpus = False
+        self.tokenizer = tokenize_mixed if any(HAN_RE.search(str(v)) for v in record['context']) else tokenize
+        self.is_mixed = self.tokenizer is tokenize_mixed
         context = record["context"]
         self._docs = _iter_sentence_docs(context)
 
@@ -72,18 +86,20 @@ class BM25Retriever:
         # 文本很难在第二跳被召回；标题加入只影响排序打分，
         # EvidenceChunk["text"] 仍保留原始句子，不做任何改写。
         tokenized_docs = [
-            tokenize(doc["source_title"]) + tokenize(doc["text"])
+            self.tokenizer(doc["source_title"]) + self.tokenizer(doc["text"])
             for doc in self._docs
         ]
         self._bm25 = BM25Okapi(tokenized_docs)
 
     @classmethod
     def from_documents(cls, documents: list[dict[str, Any]], *,
-                       tokens: list[list[str]]) -> "BM25Retriever":
+                       tokens: list[list[str]], tokenizer=tokenize) -> "BM25Retriever":
         """Build an ordinary document index without changing fixture scoring."""
         instance = cls.__new__(cls)
         instance.source_id = None
         instance.is_document_corpus = True
+        instance.tokenizer = tokenizer
+        instance.is_mixed = tokenizer is tokenize_mixed
         instance._docs = documents
         instance._bm25 = BM25Okapi(tokens)
         # Very small user corpora can otherwise have negative IDF for every word.
@@ -103,7 +119,7 @@ class BM25Retriever:
         if top_k <= 0:
             return []
 
-        query_tokens = tokenize(query)
+        query_tokens = self.tokenizer(query)
         if not query_tokens:
             return []
 
@@ -113,14 +129,19 @@ class BM25Retriever:
             key=lambda index: scores[index], reverse=True,
         )
         if entity_hints:
-            anchors = [' '.join(tokenize(entity)) for entity in entity_hints if tokenize(entity)]
+            anchors = [' '.join(self.tokenizer(entity)) for entity in entity_hints if self.tokenizer(entity)]
             def anchored(text: str) -> bool:
-                padded = ' ' + ' '.join(tokenize(text)) + ' '
+                if self.is_mixed:
+                    normalized = unicodedata.normalize('NFKC', text).casefold()
+                    return any(unicodedata.normalize('NFKC', entity).casefold() in normalized for entity in entity_hints)
+                padded = ' ' + ' '.join(self.tokenizer(text)) + ' '
                 return any(' ' + entity + ' ' in padded for entity in anchors)
             title_hits = {i for i in ranked if anchored(self._docs[i]['source_title'])}
             # Prefer the resolved entity's own passage. Ordinary document corpora
             # have filenames as titles, so fall back to entity-bearing original text.
-            hits = title_hits or {i for i in ranked if anchored(self._docs[i]['text'])}
+            heading_hits = {i for i in ranked if any(anchored(h) for h in self._docs[i].get('heading_path', []))} if self.is_mixed else set()
+            subject_hits = {i for i in ranked if any(self._docs[i]['text'].lstrip().startswith(entity) for entity in entity_hints)} if self.is_mixed else set()
+            hits = title_hits or heading_hits or subject_hits or {i for i in ranked if anchored(self._docs[i]['text'])}
             ranked.sort(key=lambda i: i not in hits)
         ranked = ranked[:top_k]
 
@@ -136,6 +157,15 @@ class BM25Retriever:
     def search_anchored(self, query: str, entity_hints: list[str], top_k: int = 3) -> list[EvidenceChunk]:
         """Resolve second-hop query drift without adding an LLM or changing top_k."""
         return self.search(query, top_k=top_k, entity_hints=entity_hints)
+
+    def extract_entities(self, text: str, limit=3) -> list[str]:
+        candidates = re.findall(r'[“「《"]([^”」》"\n]{2,30})[”」》"]', text)
+        for doc in self._docs:
+            for heading in doc.get('heading_path', []):
+                if 2 <= len(heading) <= 30 and heading in text:
+                    candidates.append(heading)
+        candidates.extend(re.findall(r'[\u4e00-\u9fff]{2,12}(?:大学|学院|研究院|研究所|公司|中心|委员会|医院|市|县)', text))
+        return list(dict.fromkeys(c for c in candidates if HAN_RE.search(c)))[:limit]
 
 
 def build_retriever(fixture_path: str | None = None) -> BM25Retriever:

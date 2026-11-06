@@ -39,7 +39,7 @@ import {
   Typography,
 } from 'antd'
 import type { ReactNode } from 'react'
-import { getSystemInfo, getSystemOptions, streamQuestion } from './api'
+import { getSystemInfo, getSystemOptions, streamQuestion, getPendingRun, resumeBackgroundRun, cancelBackgroundRun, getRunDetail } from './api'
 import HistoryView from './HistoryView'
 import KnowledgeView from './KnowledgeView'
 import SystemsView from './SystemsView'
@@ -49,9 +49,12 @@ import ProtocolCalls from './ProtocolCalls'
 import EvidenceLocation from './EvidenceLocation'
 import AgentResults from './AgentResults'
 import ModelDiagnostics from './ModelDiagnostics'
+import { ActivityDetails, RunDiagnostics, TimingDetails, groupDiagnosticCalls } from './RunInsights'
 import { initialRunState, runReducer } from './runState'
 import type {
   ManagedSelection,
+  SavedSystemSnapshot,
+  StreamEvent,
   AgentInfo,
   EvidenceGroup,
   NodeId,
@@ -112,6 +115,7 @@ function statusCopy(status: RunStatus) {
     completed: '执行完成',
     failed: '执行失败',
     cancelled: '已停止',
+    interrupted: '执行中断',
   }
   return copies[status]
 }
@@ -363,7 +367,7 @@ function EvidenceLedger({ groups, source }: { groups: EvidenceGroup[]; source?: 
                   <span>{chunk.source_title}</span>
                   {!chunk.filename ? <code>sentence #{chunk.source_paragraph}</code> : null}
                   <Tooltip title="BM25 相对相关性得分">
-                    <Tag variant="filled">score {chunk.relevance_score.toFixed(2)}</Tag>
+                    <Tag variant="filled">score {chunk.relevance_score > 0 && chunk.relevance_score < .01 ? chunk.relevance_score.toPrecision(3) : chunk.relevance_score.toFixed(2)}</Tag>
                   </Tooltip>
                 </div>
                 <EvidenceLocation evidence={chunk} source={source} />
@@ -448,6 +452,30 @@ export default function App() {
   const [question, setQuestion] = useState('')
   const [run, dispatch] = useReducer(runReducer, initialRunState)
   const abortRef = useRef<AbortController | undefined>(undefined)
+  const restoredSubmission = useRef(getPendingRun())
+
+  useEffect(() => {
+    const pending = restoredSubmission.current
+    if (!pending) return
+    const controller = new AbortController()
+    abortRef.current = controller
+    setQuestion(pending.question)
+    setSubmittedSelection({ workflowId: pending.selection?.workflowId ?? '', sourceId: pending.selection?.sourceId ?? '', sourceVersion: pending.selection?.sourceVersion })
+    dispatch({ type: 'reset' })
+    if (pending.runId) void getRunDetail(pending.runId).then(detail => {
+      if (controller.signal.aborted) return
+      const source = detail.run.context.config_snapshot.source as Partial<SourceOption> | undefined
+      if (source?.source_id) setSubmittedSource({ record_id: null, question_type: null, level: null, context_count: null, supporting_fact_count: null, example_question: null, is_demo: false, ...source } as SourceOption)
+      if (pending.selection?.systemId) setManagedSelection({ ...pending.selection, name: '恢复的系统运行', systemId: pending.selection!.systemId!, document: {
+        name: '恢复的系统运行', description: '', workflow_id: null, source_id: null, source_version: null,
+        snapshot: detail.run.context.config_snapshot as unknown as SavedSystemSnapshot,
+      } })
+    }).catch(() => {})
+    void resumeBackgroundRun(pending, event => dispatch({ type: 'stream_event', event }), controller.signal).catch(error => {
+      if (!controller.signal.aborted) dispatch({ type: 'client_error', message: error instanceof Error ? error.message : '恢复运行失败，请查看运行历史。' })
+    })
+    return () => controller.abort()
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -459,9 +487,10 @@ export default function App() {
         }
         setSystem(info)
         setOptions(choices)
-        setWorkflowId(choices.default_workflow_id)
-        setSourceId(choices.default_source_id)
-        setSourceVersion(choices.sources.find((item) => item.source_id === choices.default_source_id)?.version ?? undefined)
+        const pending = restoredSubmission.current?.selection
+        setWorkflowId(pending?.workflowId ?? choices.default_workflow_id)
+        setSourceId(pending?.sourceId ?? choices.default_source_id)
+        setSourceVersion(pending?.sourceVersion ?? choices.sources.find((item) => item.source_id === choices.default_source_id)?.version ?? undefined)
         setSystemError('')
       })
       .catch((error: unknown) => {
@@ -500,7 +529,7 @@ export default function App() {
     ? managedSelection ? currentWorkflow : options?.workflows.find((item) => item.workflow_id === submittedSelection.workflowId)
     : currentWorkflow
   const shownSource = submittedSelection && run.status !== 'idle'
-    ? submittedSource
+    ? submittedSource ?? currentSource
     : currentSource
 
   function selectWorkflow(value: string) {
@@ -576,9 +605,15 @@ export default function App() {
     }
   }
 
-  function handleStop() {
-    abortRef.current?.abort()
-    dispatch({ type: 'cancel' })
+  async function handleStop() {
+    if (!run.runId) return
+    try {
+      const activity = await cancelBackgroundRun(run.runId)
+      dispatch({ type: 'stream_event', event: { type: 'run_activity', run_id: run.runId,
+        timestamp: new Date().toISOString(), payload: activity as unknown as StreamEvent['payload'] } })
+    } catch (error) {
+      setSystemError(error instanceof Error ? error.message : '停止请求失败，请稍后重试。')
+    }
   }
 
   const isRunning = run.status === 'running'
@@ -661,7 +696,7 @@ export default function App() {
               {shownSource?.is_demo ? <Tag color="orange">演示材料</Tag> : null}
               <p>
                 {shownSource?.source_type === 'document_corpus'
-                  ? `版本 ${shownSource.version} · ${shownSource.file_count} 个文件 · ${shownSource.chunk_count} 个片段`
+                  ? `版本 ${shownSource.version ?? '未记录'} · ${shownSource.file_count ?? '未记录'} 个文件 · ${shownSource.chunk_count ?? '未记录'} 个片段`
                   : shownSource
                   ? `${shownSource.level} · ${shownSource.question_type} · ${shownSource.context_count} 个上下文 · ${shownSource.supporting_fact_count} 条支撑事实`
                   : managedSelection ? `${Object.keys(frozen?.sources ?? {}).length} 个实例已绑定材料` : '正在加载本地知识源'}
@@ -732,10 +767,10 @@ export default function App() {
                   placeholder="选择知识源"
                 />
               </label>
-              {currentSource?.source_type === 'document_corpus' ? <label>
+              {(shownSource ?? currentSource)?.source_type === 'document_corpus' ? <label>
                 <span>知识源版本</span>
                 <Select aria-label="知识源版本" value={sourceVersion}
-                  options={currentSource.versions?.map((version) => ({ value: version, label: `版本 ${version}` }))}
+                  options={currentSource?.versions?.map((version) => ({ value: version, label: `版本 ${version}` }))}
                   disabled={isRunning || Boolean(managedSelection)}
                   onChange={(version) => { setSourceVersion(version); setSubmittedSelection(undefined); dispatch({ type: 'clear' }) }} />
               </label> : null}
@@ -754,7 +789,7 @@ export default function App() {
                 <RobotOutlined />
                 <strong>输入复杂多跳问题</strong>
               </div>
-              <Text type="secondary">当前知识源使用英文问题与本地英文语料</Text>
+              <Text type="secondary">{(shownSource ?? currentSource)?.source_type === 'document_corpus' ? '支持中文、英文或混合问题；检索以所选材料固定版本为准。' : '当前 HotpotQA 示例使用英文问题与语料。'}</Text>
             </div>
             <TextArea
               value={question}
@@ -771,8 +806,8 @@ export default function App() {
                 disabled={isRunning || !currentSource?.example_question}
               >填入示例问题</Button>
               {isRunning ? (
-                <Button icon={<StopOutlined />} onClick={handleStop} danger>
-                  停止运行
+                <Button icon={<StopOutlined />} onClick={handleStop} danger disabled={!run.runId || run.activity?.status === 'cancelling'}>
+                  {run.activity?.status === 'cancelling' ? '正在停止' : '停止运行'}
                 </Button>
               ) : (
                 <Button
@@ -791,6 +826,11 @@ export default function App() {
             <p className="run-selection">本次运行：{shownWorkflow?.name ?? submittedSelection.workflowId} · {shownSource?.name ?? (managedSelection ? '按实例绑定材料' : submittedSelection.sourceId)}{submittedSelection.sourceVersion ? ` · 版本 ${submittedSelection.sourceVersion}` : ''}</p>
           ) : null}
 
+          <ActivityDetails activity={run.activity} connection={run.connection} />
+          {run.activity && <>
+            <RunDiagnostics run={{ status: run.status, metrics: { agent_usage: groupDiagnosticCalls(run.activity.diagnostic_calls) } }} />
+            <TimingDetails timings={run.activity.timings} />
+          </>}
           {run.error ? <Alert type="error" showIcon message="运行未完成" description={run.error} /> : null}
           {run.status === 'cancelled' ? (
             <Alert type="info" showIcon icon={<PauseCircleOutlined />} message="本次运行已停止，可修改问题后重新开始。" />

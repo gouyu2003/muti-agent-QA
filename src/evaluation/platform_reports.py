@@ -105,6 +105,13 @@ def markdown_report(job):
             if data:
                 low, high = data['ci95_sample_bootstrap']
                 lines.append(f"| {label[pair['left']]} | {label[pair['right']]} | {metric} | {data['delta']:.6f} | [{low:.6f}, {high:.6f}] |")
+    timing_rows = [(method, phase, item) for method, data in report['methods'].items()
+                   for phase, item in data.get('timing_breakdown', {}).items()]
+    if timing_rows:
+        lines += ['', '## 耗时拆分', '', '| 方法 | 环节 | 平均经过/秒 | 已记录/尝试 |', '|---|---|---:|---:|']
+        for method, phase, item in timing_rows:
+            lines.append(f"| {label[method]} | {phase} | {item['mean_ms']/1000:.3f} | {item['reported']}/{item['attempted']} |")
+        lines += ['', '缺失拆分不补零；环节可能嵌套，不可相加。']
     lines += ['', '## 统计说明', '', *research['notes'], '',
               '完整的题型/重复分层、开销分布、所有尝试开销和补跑补充见报告 JSON。',
               '未知用量不是零；Token 统计不等同于供应商实际账单。']

@@ -1,4 +1,5 @@
 import { Collapse, Empty, Table, Tag } from 'antd'
+import { ACTIVITY } from './RunInsights'
 import type { EvaluationJob, MethodSummary } from './evaluationApi'
 import { targetLabel } from './evaluationLabels'
 
@@ -31,6 +32,14 @@ export default function EvaluationSummary({ job }: { job: EvaluationJob }) {
       { title: '模型调用', align: 'right', render: (_, row) => row.usage.llm_call_count?.reported_total ?? '未知' },
       { title: '完成 / 失败', align: 'right', render: (_, row) => `${row.statuses.completed ?? 0} / ${row.statuses.failed ?? 0}` },
     ]} />
+    {rows.some(row => Object.keys(row.timing_breakdown ?? {}).length) && <Collapse items={[{ key: 'timing', label: '各方法耗时拆分', children: <>
+      <Table size="small" pagination={false} rowKey="key" dataSource={rows.flatMap(row => Object.entries(row.timing_breakdown ?? {}).map(([phase, data]) => ({ key: `${row.method}-${phase}`, method: row.method, phase, ...data })))} columns={[
+        { title: '对象', dataIndex: 'method', render: method => targetLabel(job, method) },
+        { title: '环节', dataIndex: 'phase', render: phase => ACTIVITY[phase] ?? phase }, { title: '平均经过 / 秒', dataIndex: 'mean_ms', render: value => (value/1000).toFixed(3) },
+        { title: '记录数 / 尝试数', render: (_, row) => `${row.reported} / ${row.attempted}` },
+      ]} />
+      <p className="evaluation-hint">只统计已记录的环节，缺失不补零；不同环节可能嵌套，不能相加。</p>
+    </> }]} />}
     <Collapse ghost items={[{ key: 'costs', label: '查看开销分布与评分说明', children: <>
       <Table size="small" pagination={false} rowKey="method" dataSource={rows} scroll={{ x: 620 }} columns={[
         { title: '对比对象', dataIndex: 'method', render: method => targetLabel(job, method) },

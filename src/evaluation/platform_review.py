@@ -3,6 +3,7 @@ from contextlib import closing, contextmanager
 from datetime import datetime, timezone
 import json
 import sqlite3
+from src.observability import activity_snapshot, read_observations
 
 from src.evaluation.platform_store import EvaluationFailure
 
@@ -91,6 +92,13 @@ def monitor(catalog, job_id):
     path = catalog.job_directory(job_id) / 'tasks.sqlite3'
     empty = dict(current=None, methods=[], last_event_at=None, completed_attempt_seconds=0,
                  estimated_remaining_seconds=None, failure_labels={}, sampled_at=datetime.now(timezone.utc).isoformat())
+    heartbeat = catalog.job_directory(job_id) / 'heartbeat.json'
+    if heartbeat.exists():
+        try:
+            data = json.loads(heartbeat.read_text(encoding='utf-8'))
+            empty.update(heartbeat_at=data['timestamp'], heartbeat_stale=seconds_since(data['timestamp']) > 15)
+        except (ValueError, KeyError, OSError):
+            empty.update(heartbeat_at=None, heartbeat_stale=True)
     if not path.is_file():
         return empty
     with readonly(path) as db:
@@ -135,4 +143,5 @@ def monitor(catalog, job_id):
                             'status': run['status'] if run else 'running', 'phases': list(active.values()) if run and run['status'] == 'running' else [],
                             'elapsed_seconds': seconds_since(current['started_at'])}
         empty['last_event_at'] = events[-1]['timestamp'] if events else current['started_at']
+        empty['activities'] = activity_snapshot(read_observations(runtime, current['run_id'])) if run and run['status'] == 'running' else []
     return empty

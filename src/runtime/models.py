@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-RunStatus = Literal["running", "completed", "failed", "cancelled"]
+RunStatus = Literal["running", "completed", "failed", "cancelled", "interrupted"]
 RunEntryPoint = Literal["api", "cli", "batch"]
 TraceEventType = Literal[
     "run_started",
@@ -23,7 +23,7 @@ TraceEventType = Literal[
     "run_cancelled",
 ]
 
-TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
+TERMINAL_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
 
 
 class RuntimeModel(BaseModel):
@@ -68,6 +68,7 @@ class RunMetrics(RuntimeModel):
     """单次运行的系统开销指标；暂时拿不到的用量字段保持为 None。"""
 
     duration_ms: int | None = Field(default=None, ge=0)
+    timings: dict[str, Any] = Field(default_factory=dict)
     node_call_count: int = Field(default=0, ge=0)
     llm_call_count: int | None = Field(default=None, ge=0)
     prompt_tokens: int | None = Field(default=None, ge=0)
@@ -112,7 +113,7 @@ class RunRecord(RuntimeModel):
             raise ValueError("运行中记录不能提供 finished_at")
         if self.status == "failed" and self.error is None:
             raise ValueError("失败运行必须提供 error")
-        if self.status != "failed" and self.error is not None:
+        if self.status not in ("failed", "interrupted") and self.error is not None:
             raise ValueError("只有失败运行可以提供 error")
         if self.finished_at is not None and self.finished_at < self.started_at:
             raise ValueError("finished_at 不能早于 started_at")
@@ -144,6 +145,7 @@ class RunStatsSummary(RuntimeModel):
     failed_runs: int = Field(ge=0)
     cancelled_runs: int = Field(ge=0)
     running_runs: int = Field(ge=0)
+    interrupted_runs: int = Field(default=0, ge=0)
     verified_runs: int = Field(ge=0)
     completion_rate: float = Field(
         ge=0, le=1, description="已完成运行数 / 全部运行数"

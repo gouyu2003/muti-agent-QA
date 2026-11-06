@@ -74,6 +74,8 @@ def score_detail(detail, record):
     if coverage is not None and coverage < 1: labels.append('gold_support_not_fully_retrieved')
     if coverage == 1 and not scores['em']: labels.append('support_covered_answer_mismatch')
     if no_new: labels.append('retrieval_without_new_evidence')
+    from src.observability import diagnostic_codes
+    labels.extend(diagnostic_codes(run.metrics.agent_usage))
     error = run.error.model_dump() if run.error else None
     model_errors = request_errors(run.metrics.agent_usage)
     if model_errors:

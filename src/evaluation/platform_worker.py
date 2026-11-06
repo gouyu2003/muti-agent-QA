@@ -9,11 +9,16 @@ from datetime import datetime, timezone
 import io
 import json
 import os
+import sqlite3
 from pathlib import Path
 import subprocess
 import sys
 from types import SimpleNamespace
 from uuid import uuid4
+from threading import Event, Thread
+from time import monotonic
+from src.runtime.interactive import settle_run
+from src.observability import activity_snapshot, read_observations
 
 from dotenv import load_dotenv
 
@@ -31,6 +36,7 @@ from src.runtime.service import RunService
 from src.runtime.sqlite_repository import SQLiteRunRepository
 from src.runtime.version import code_version
 from src.model_errors import request_errors
+from src.observability import diagnostic_codes
 
 
 def ledger_config(frozen):
@@ -52,6 +58,7 @@ def result_for(detail, record, contextual):
     if state.get('failure_type') == 'output_error':
         labels.append('structured_output_error')
     labels.extend('provider_' + e['category'] for e in request_errors(detail.run.metrics.agent_usage))
+    labels.extend(diagnostic_codes(detail.run.metrics.agent_usage))
     return dict(sample_id=record['_id'], question=record['question'], gold=record['answer'], type=record['type'],
                 run_id=detail.run.context.run_id, method_id=detail.run.context.method_id, status=detail.run.status,
                 answer=answer, supporting_evidence=state.get('supporting_evidence', []), scores=scores,
@@ -61,14 +68,39 @@ def result_for(detail, record, contextual):
 
 def reconcile(store, job_id):
     """A released OS lock proves the old writer is gone; unknown requests are never replayed here."""
-    row, _ = store.frozen(job_id)
+    row, frozen = store.frozen(job_id)
     if row['status'] not in ('queued', 'running', 'stopping'):
         return
     if row['status'] == 'queued' and (datetime.now(timezone.utc) - datetime.fromisoformat(row['updated_at'])).total_seconds() < 30:
         return
     try:
         with experiment_lock(store.job_directory(job_id)):
-            store.state(job_id, 'interrupted', '执行进程已退出。恢复时将核对已保存终态，不自动重发状态不明的请求。')
+            directory = store.job_directory(job_id)
+            if not (directory / 'tasks.sqlite3').is_file():
+                store.state(job_id, 'interrupted', '执行进程在初始化完成前退出，请核对后继续。')
+                return
+            if not (directory / 'runs.sqlite3').is_file():
+                store.state(job_id, 'error', '运行库缺失，已停止恢复；不会重构账本或自动重发。')
+                return
+            try:
+                ledger = Ledger(directory, existing=True)
+                try:
+                    ledger.validate(frozen['records'], ledger_config(frozen))
+                    repository = SQLiteRunRepository(directory / 'runs.sqlite3')
+                    with repository._connection() as db:
+                        version = db.execute('SELECT MAX(version) FROM schema_meta').fetchone()[0]
+                    if version >= 2:
+                        for attempt in ledger.attempts():
+                            if attempt['status'] == 'running':
+                                settle_run(repository, attempt['run_id'], 'interrupted', 'execution_interrupted', '执行进程已退出，请求结果未确认；不会自动重发。')
+                    collect(store, job_id, frozen, ledger, repository, settle=True)
+                    summary = report(store, job_id, frozen, ledger, repository)
+                    store.state(job_id, 'completed' if summary['complete'] else 'interrupted',
+                                None if summary['complete'] else '执行进程已退出；已保存结果已核对，未确认请求不会自动重发。')
+                finally:
+                    ledger.close()
+            except (ValueError, sqlite3.Error, EvaluationFailure):
+                store.state(job_id, 'error', '运行账本无法完整核对，请保留数据并检查；不会自动重发。')
     except ValueError:
         pass  # The worker is still holding the lock.
 
@@ -163,6 +195,12 @@ def aggregate(rows, planned, labelled_planned):
         result['usage'][name] = dict(reported_total=sum(known) if known else None, reported=len(known), attempted=len(rows),
                                    mean_reported=sum(known) / len(known) if known else None,
                                    median_reported=percentile(known, .5), p95_reported=percentile(known, .95))
+    categories = sorted({name for r in rows for name in r.get('metrics', {}).get('timings', {}).get('categories', {})})
+    result['timing_breakdown'] = {}
+    for name in categories:
+        values = [r['metrics']['timings']['categories'][name]['wall_ms'] for r in rows
+                  if name in r.get('metrics', {}).get('timings', {}).get('categories', {})]
+        result['timing_breakdown'][name] = dict(mean_ms=sum(values)/len(values), reported=len(values), attempted=len(rows))
     return result
 
 
@@ -187,10 +225,12 @@ def report(store, job_id, frozen, ledger, repository):
     return summary
 
 
-def execute(store, job_id, *, retry_failed=False, service_factory=None):
+def _execute(store, job_id, *, retry_failed=False, service_factory=None, heartbeat_start=None):
     """service_factory is only an offline-test seam, never exposed to HTTP or the worker CLI."""
     directory = store.job_directory(job_id)
     with experiment_lock(directory):
+        if heartbeat_start:
+            heartbeat_start()
         row, frozen = store.frozen(job_id)
         if identity() != frozen['identity']:
             raise EvaluationFailure('执行环境与冻结任务不一致，请新建评测。')
@@ -252,7 +292,17 @@ def execute(store, job_id, *, retry_failed=False, service_factory=None):
                         method_id=task['method_id'], model_name=model, code_version=code_version(), config_snapshot=snapshot,
                         experiment_id=job_id, sample_id=record['_id'])
                 ledger.start(task, run_id)
-                detail = service.run(context)
+                if service_factory is not None:
+                    detail = service.run(context)
+                else:
+                    cancellation, finished = Event(), Event()
+                    watch = Thread(target=watch_attempt, args=(repository, context, cancellation, finished), daemon=True)
+                    watch.start()
+                    try:
+                        detail = service.run(context, cancellation=cancellation)
+                    finally:
+                        finished.set()
+                        watch.join(timeout=3)
                 atomic_json(directory / 'runs' / f'{run_id}.json', detail.model_dump(mode='json'))
                 ledger.finish(run_id, detail.run.status, result_for(detail, record, frozen['request']['context_mode'] == 'question_context'))
             else:
@@ -263,6 +313,43 @@ def execute(store, job_id, *, retry_failed=False, service_factory=None):
                     report(store, job_id, frozen, ledger, repository)
             finally:
                 ledger.close()
+
+
+def watch_attempt(repository, context, cancellation, finished, *, hard_exit=os._exit):
+    """A provider that ignores timeouts cannot hold the batch worker indefinitely."""
+    start = monotonic()
+    limits = context.config_snapshot.get('protocol_document', {}).get('spec', {}).get('limits', {})
+    while not finished.wait(.5):
+        active = activity_snapshot(read_observations(repository.db_path, context.run_id))
+        expired = monotonic()-start >= limits.get('timeout_seconds', 600) or any(
+            r['name'] in ('model_request', 'node') and
+            (datetime.now(timezone.utc)-datetime.fromisoformat(r['timestamp'])).total_seconds() >= limits.get('node_timeout_seconds', 120)
+            for r in active)
+        if expired:
+            cancellation.reason = 'timeout'
+            cancellation.set()
+            if not finished.wait(5):
+                try:
+                    settle_run(repository, context.run_id, 'failed', 'timeout', '运行达到时间上限，已结束本地执行。')
+                finally:
+                    hard_exit(0)
+            return
+
+
+def execute(store, job_id, *, retry_failed=False, service_factory=None):
+    stop = Event()
+    def heartbeat():
+        while not stop.is_set():
+            atomic_json(store.job_directory(job_id) / 'heartbeat.json',
+                        {'timestamp': datetime.now(timezone.utc).isoformat()})
+            stop.wait(2)
+    worker = Thread(target=heartbeat, daemon=True)
+    try:
+        return _execute(store, job_id, retry_failed=retry_failed, service_factory=service_factory, heartbeat_start=worker.start)
+    finally:
+        stop.set()
+        if worker.ident is not None:
+            worker.join(timeout=3)
 
 
 def exported_csv(rows):

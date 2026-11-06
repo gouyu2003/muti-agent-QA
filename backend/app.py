@@ -5,6 +5,8 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import datetime
 import os
+from uuid import uuid4
+from threading import Thread
 from typing import Callable
 
 from dotenv import load_dotenv
@@ -18,6 +20,7 @@ from backend.schemas import (
     FlowEdge,
     HealthResponse,
     QuestionRequest,
+    BackgroundQuestionRequest,
     RunListResponse,
     SystemInfoResponse,
     SystemOptionsResponse,
@@ -49,6 +52,8 @@ from src.runtime.sqlite_repository import SQLiteRunRepository
 from src.runtime.system import DEFAULT_CATALOG_PATH, resolve_system
 from src.runtime.history import HistoryReader, ExperimentOption, summarize_history
 from src.runtime.repository import RepositoryError
+from src.runtime.interactive import InteractiveRuns, ExecutionFailure, request_fingerprint
+from src.observability import RunObserver, current_observer, diagnostic_codes
 
 
 RunServiceFactory = Callable[[], RunService]
@@ -84,6 +89,15 @@ async def lifespan(app: FastAPI):
     # 应用入口负责加载本地环境变量，不输出其中的值。
     load_dotenv()
     app.state.run_service = app.state.run_service_factory()
+    service = app.state.run_service
+    def offline_launcher(manager, context):
+        from src.runtime.interactive_worker import execute
+        Thread(target=execute, args=(manager.repository, context.run_id, manager.row(context.run_id)['token']),
+               kwargs={'service': service, 'hard_exit': lambda _code: None}, daemon=True).start()
+    # An injected service factory is the in-process test seam, including patched role models.
+    app.state.interactive = InteractiveRuns(service.repository,
+        launcher=offline_launcher if getattr(app.state, 'interactive_in_process', False) or app.state.run_service_factory is not build_default_run_service else None)
+    app.state.interactive.reconcile_all()
     app.state.system_store = SystemStore()
     app.state.knowledge_store = KnowledgeStore()
     app.state.knowledge_store.recover_interrupted()
@@ -133,6 +147,11 @@ async def system_failure_handler(_request: Request, exc: SystemFailure):
 
 @app.exception_handler(EvaluationFailure)
 async def evaluation_failure_handler(_request: Request, exc: EvaluationFailure):
+    return JSONResponse(status_code=exc.status, content={"detail": str(exc)})
+
+
+@app.exception_handler(ExecutionFailure)
+async def execution_failure_handler(_request: Request, exc: ExecutionFailure):
     return JSONResponse(status_code=exc.status, content={"detail": str(exc)})
 
 
@@ -298,26 +317,52 @@ def system_options() -> SystemOptionsResponse:
 
 @app.post("/api/v1/qa/stream")
 def stream_question(body: QuestionRequest, request: Request) -> StreamingResponse:
-    run_service: RunService = request.app.state.run_service
+    submitted = submit_question(BackgroundQuestionRequest(**body.model_dump()), request)
+    return StreamingResponse(request.app.state.interactive.subscribe(submitted['run_id'], legacy=True),
+        media_type='text/event-stream', headers={'Cache-Control': 'no-cache, no-transform', 'X-Accel-Buffering': 'no'})
+
+
+@app.post('/api/v1/qa/runs', status_code=202)
+def submit_question(body: BackgroundQuestionRequest, request: Request):
+    manager = request.app.state.interactive
+    fingerprint = request_fingerprint(body.model_dump(exclude={'client_request_id'}))
+    key = body.client_request_id or uuid4().hex
+    existing = manager.existing(key, fingerprint)
+    if existing:
+        return existing
+    run_id = uuid4().hex
+    observer = RunObserver(run_id, manager.repository.db_path)
+    token = current_observer.set(observer)
     try:
-        context = build_api_run_context(
-            body.question, workflow_id=body.workflow_id, source_id=body.source_id,
-            **({"system_id": body.system_id, "system_version": body.system_version, "draft_revision": body.draft_revision} if body.system_id else {}),
-            **({"source_version": body.source_version} if body.source_version is not None else {}),
-        )
+        with observer.span('configuration_load'):
+            context = build_api_run_context(
+                body.question, run_id=run_id, workflow_id=body.workflow_id, source_id=body.source_id,
+                **({'system_id': body.system_id, 'system_version': body.system_version, 'draft_revision': body.draft_revision} if body.system_id else {}),
+                **({'source_version': body.source_version} if body.source_version is not None else {}))
     except SystemFailure as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return StreamingResponse(
-        stream_qa_events(context, run_service),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    finally:
+        current_observer.reset(token)
+    return manager.submit(context, key, fingerprint)
+
+
+@app.get('/api/v1/runs/{run_id}/status')
+def execution_status(run_id: str, request: Request):
+    return request.app.state.interactive.status(run_id)
+
+
+@app.post('/api/v1/runs/{run_id}/cancel')
+def cancel_run(run_id: str, request: Request):
+    return request.app.state.interactive.cancel(run_id)
+
+
+@app.get('/api/v1/runs/{run_id}/events/stream')
+def subscribe_run(run_id: str, request: Request, after_sequence: int = Query(-1, ge=-1)):
+    request.app.state.interactive.row(run_id)
+    return StreamingResponse(request.app.state.interactive.subscribe(run_id, after_sequence),
+        media_type='text/event-stream', headers={'Cache-Control': 'no-cache, no-transform', 'X-Accel-Buffering': 'no'})
 
 
 @app.get("/api/v1/runs", response_model=RunListResponse)
@@ -326,12 +371,14 @@ def list_runs(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     status: RunStatus | None = None,
+    diagnostic: str | None = None,
     entrypoint: RunEntryPoint | None = None,
     method_id: str | None = Query(default=None, min_length=1),
     started_from: datetime | None = Depends(aware_started_from),
     experiment_id: str | None = Query(default=None, min_length=1),
     system_id: str | None = Query(default=None, min_length=1),
 ) -> RunListResponse:
+    request.app.state.interactive.reconcile_all()
     reader = history_reader(request)
     filters = {
         "status": status,
@@ -342,6 +389,8 @@ def list_runs(
         "system_id": system_id,
     }
     records = reader.records(**filters)
+    if diagnostic:
+        records = [r for r in records if diagnostic in diagnostic_codes(r.metrics.agent_usage) or r.error and r.error.error_type == diagnostic]
     return RunListResponse(
         items=records[offset:offset + limit],
         total=len(records),
@@ -353,6 +402,7 @@ def list_runs(
 @app.get("/api/v1/runs/{run_id}", response_model=RunDetail)
 def get_run_detail(run_id: str, request: Request,
                    experiment_id: str | None = Query(default=None, min_length=1)) -> RunDetail:
+    request.app.state.interactive.reconcile_all()
     detail = history_reader(request).detail(run_id, experiment_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="运行记录不存在")
@@ -362,6 +412,7 @@ def get_run_detail(run_id: str, request: Request,
 @app.get("/api/v1/runs/{run_id}/events", response_model=list[TraceEvent])
 def get_run_events(run_id: str, request: Request,
                    experiment_id: str | None = Query(default=None, min_length=1)) -> list[TraceEvent]:
+    request.app.state.interactive.reconcile_all()
     detail = history_reader(request).detail(run_id, experiment_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="运行记录不存在")
@@ -372,17 +423,21 @@ def get_run_events(run_id: str, request: Request,
 def get_stats_summary(
     request: Request,
     status: RunStatus | None = None,
+    diagnostic: str | None = None,
     entrypoint: RunEntryPoint | None = None,
     method_id: str | None = Query(default=None, min_length=1),
     started_from: datetime | None = Depends(aware_started_from),
     experiment_id: str | None = Query(default=None, min_length=1),
     system_id: str | None = Query(default=None, min_length=1),
 ) -> RunStatsSummary:
-    return summarize_history(history_reader(request).records(
+    records = history_reader(request).records(
         status=status, entrypoint=entrypoint, method_id=method_id,
         started_from=started_from,
         experiment_id=experiment_id, system_id=system_id,
-    ))
+    )
+    if diagnostic:
+        records = [r for r in records if diagnostic in diagnostic_codes(r.metrics.agent_usage) or r.error and r.error.error_type == diagnostic]
+    return summarize_history(records)
 
 
 @app.get(
@@ -398,6 +453,7 @@ def get_stats_summary(
 def export_runs_jsonl(
     request: Request,
     status: RunStatus | None = None,
+    diagnostic: str | None = None,
     entrypoint: RunEntryPoint | None = None,
     method_id: str | None = Query(default=None, min_length=1),
     started_from: datetime | None = Depends(aware_started_from),
@@ -409,6 +465,9 @@ def export_runs_jsonl(
         started_from=started_from,
         experiment_id=experiment_id, system_id=system_id,
     )
+    if diagnostic:
+        lines = iter([line for line in lines if diagnostic in diagnostic_codes(RunDetail.model_validate_json(line).run.metrics.agent_usage)
+                      or (RunDetail.model_validate_json(line).run.error and RunDetail.model_validate_json(line).run.error.error_type == diagnostic)])
     return StreamingResponse(
         lines,
         media_type="application/x-ndjson; charset=utf-8",

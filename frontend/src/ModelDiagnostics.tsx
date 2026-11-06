@@ -23,6 +23,11 @@ export function ModelCalls({ calls }: { calls?: ModelCall[] }) {
     {' · '}结束原因：{call.finish_reason ?? '未提供'}
     {' · '}输出 Token：{call.completion_tokens ?? '未知'}
     {call.reasoning_tokens != null ? ` · 思考 Token：${call.reasoning_tokens}` : ''}</div>
+    {(call.stage_id || call.call_id || call.request_call_id) && <p className="diagnostic-note">
+      {call.stage_id ? `阶段：${call.stage_id} · ` : ''}
+      {call.call_id && <Typography.Text copyable={{ text: call.call_id }}>协作调用：{call.call_id}</Typography.Text>}
+      {call.request_call_id && <Typography.Text copyable={{ text: call.request_call_id }}> 本地请求：{call.request_call_id}</Typography.Text>}
+    </p>}
     {call.outcome === 'request_error' && <>
       <RequestErrorDetails error={call.request_error} />
       <p className="diagnostic-note">{call.will_retry === true

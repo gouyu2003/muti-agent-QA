@@ -20,6 +20,7 @@ from src.runtime.protocols import parse_protocol, compile_protocol
 from src.runtime.system import retriever_from_snapshot
 from src.state import merge_expert_results
 from src.model_errors import ModelRequestError
+from src.observability import observe
 
 
 class ProtocolExecutionError(RuntimeError):
@@ -202,6 +203,7 @@ def build_protocol_graph(context, usage):
                     for k, c in snapshot['agents'].items() if c['role'] == 'expert']
             writer(dict(event_type='node_started', node=agent_id, cycle=round_no, payload={**metadata, 'input': input_data}))
             child = usage.for_agent(agent_id).for_agent(call_id)
+            child.identifiers = {k: metadata[k] for k in ('call_id', 'agent_id', 'stage_id', 'round', 'task_id')}
             start = monotonic()
             def remaining():
                 left = spec.limits.node_timeout_seconds - (monotonic() - start)
@@ -213,7 +215,7 @@ def build_protocol_graph(context, usage):
             child.before_invoke = reserve
             child.after_invoke = remaining
             child.invoke_adapter = lambda chat, prompt: chat.invoke(prompt, timeout=remaining())
-            with usage.running_node():
+            with usage.running_node(), observe('node', **{k: v for k, v in metadata.items() if k != 'kind'}):
                 try:
                     result = execute_phase(stage, agent_id, config, snapshot.get('sources', {}).get(agent_id), input_data, child)
                     if v2 and stage.kind in ('plan', 'retrieve', 'review'): result.update(counters)
@@ -242,6 +244,7 @@ def build_protocol_graph(context, usage):
                 for future in as_completed(futures, timeout=guard.remaining()):
                     call = future.result(); outputs[call['call_id']] = call
             except FuturesTimeout as exc:
+                usage.cancelled.reason = 'timeout'
                 usage.cancelled.set()
                 raise ProtocolExecutionError('协议任务超过时间上限。') from exc
             except BaseException:

@@ -169,6 +169,26 @@ def test_unknown_request_is_not_automatically_replayed(monkeypatch):
     assert store.job(job['job_id'])['progress']['interrupted'] == 1
 
 
+@pytest.mark.parametrize('damage', ['incomplete', 'corrupt'])
+def test_reconcile_refuses_damaged_ledger_without_reconstructing(monkeypatch, damage):
+    import sqlite3
+    store = EvaluationStore(); job = new_job(store)
+    fake_graph_phases(monkeypatch)
+    store.queue(job['job_id']); execute(store, job['job_id'], service_factory=RunService)
+    path = store.job_directory(job['job_id']) / 'tasks.sqlite3'
+    if damage == 'incomplete':
+        with sqlite3.connect(path) as db:
+            db.execute('DROP TABLE sessions')
+        db.close()
+    else:
+        path.write_bytes(b'not a sqlite database')
+    before = path.read_bytes()
+    store.state(job['job_id'], 'running')
+    reconcile(store, job['job_id'])
+    assert store.frozen(job['job_id'])[0]['status'] == 'error'
+    assert path.read_bytes() == before
+
+
 def test_worker_lock_single_job_and_explicit_launch(monkeypatch):
     store = EvaluationStore(); first = new_job(store); second = new_job(store)
     with pytest.raises(EvaluationFailure, match='明确确认'):
@@ -780,6 +800,7 @@ def test_detached_worker_survives_api_client_close_with_local_stub(monkeypatch):
     threading.Thread(target=server.serve_forever, daemon=True).start()
     monkeypatch.setenv('DEEPSEEK_API_KEY', 'offline-not-a-provider-key')
     monkeypatch.setenv('DEEPSEEK_BASE_URL', f'http://127.0.0.1:{server.server_port}/v1')
+    monkeypatch.setenv('MAQA_OFFLINE_HTTP_STUB', f'http://127.0.0.1:{server.server_port}/v1')
     monkeypatch.setenv('NO_PROXY', '127.0.0.1,localhost')
     monkeypatch.setenv('LANGSMITH_TRACING', 'false')
     monkeypatch.setenv('LANGCHAIN_TRACING_V2', 'false')

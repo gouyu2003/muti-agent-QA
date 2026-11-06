@@ -1,5 +1,6 @@
 import type {
   RunFilters,
+  RunActivity,
   RunListResponse,
   RunStatsSummary,
   StoredRunDetail,
@@ -36,6 +37,7 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
 function historyQuery(filters: RunFilters): URLSearchParams {
   const query = new URLSearchParams()
   if (filters.status) query.set('status', filters.status)
+  if (filters.diagnostic) query.set('diagnostic', filters.diagnostic)
   if (filters.entrypoint) query.set('entrypoint', filters.entrypoint)
   if (filters.methodId) query.set('method_id', filters.methodId)
   if (filters.startedFrom) query.set('started_from', filters.startedFrom)
@@ -90,6 +92,7 @@ export async function getSystemOptions(signal?: AbortSignal): Promise<SystemOpti
 }
 
 export class KnowledgeImportError extends Error {
+  httpStatus?: number
   sourceId?: string
   version?: number
   constructor(message: string, sourceId?: string, version?: number) {
@@ -104,10 +107,12 @@ async function knowledgeJson<T>(url: string, init?: RequestInit): Promise<T> {
   const data = await response.json()
   if (!response.ok) {
     const detail = data.detail
-    throw new KnowledgeImportError(
+    const error = new KnowledgeImportError(
       typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map(item => `${item.loc?.join(' / ')}：${item.msg}`).join('；') : typeof detail === 'object' && detail?.message ? detail.message : `请求失败（HTTP ${response.status}）`,
       detail?.source_id, detail?.version,
     )
+    error.httpStatus = response.status
+    throw error
   }
   return data as T
 }
@@ -176,10 +181,11 @@ export function parseSseBlock(block: string): StreamEvent | null {
 
   if (!eventType || dataLines.length === 0) return null
   const envelope = JSON.parse(dataLines.join('\n')) as Omit<StreamEvent, 'type'>
-  return { type: eventType as StreamEvent['type'], ...envelope }
+  const id = block.split('\n').find(line => line.startsWith('id:'))?.slice(3).trim()
+  return { type: eventType as StreamEvent['type'], ...envelope, ...(id ? { sequence: Number(id) } : {}) }
 }
 
-export async function streamQuestion(
+export async function streamLegacyQuestion(
   question: string,
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal,
@@ -228,4 +234,114 @@ export async function streamQuestion(
     const event = parseSseBlock(tail)
     if (event) onEvent(event)
   }
+}
+
+
+const PENDING_RUN = 'maqa.pending-run'
+export interface PendingRun { question: string; selection?: RunSelection; clientRequestId: string; runId?: string }
+export function getPendingRun(): PendingRun | undefined {
+  try {
+    const value = JSON.parse(localStorage.getItem(PENDING_RUN) || 'null')
+    return value && typeof value.question === 'string' && typeof value.clientRequestId === 'string'
+      && (!value.runId || typeof value.runId === 'string') ? value : undefined
+  } catch { return undefined }
+}
+function savePending(run?: PendingRun) {
+  if (run) localStorage.setItem(PENDING_RUN, JSON.stringify(run))
+  else localStorage.removeItem(PENDING_RUN)
+}
+export function cancelBackgroundRun(id: string): Promise<RunActivity> {
+  return knowledgeJson(`${API_PREFIX}/runs/${encodeURIComponent(id)}/cancel`, { method: 'POST' })
+}
+export function getBackgroundStatus(id: string, signal?: AbortSignal): Promise<RunActivity> {
+  return knowledgeJson(`${API_PREFIX}/runs/${encodeURIComponent(id)}/status`, { signal })
+}
+function abortableDelay(signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return }
+    const done = () => { signal?.removeEventListener('abort', stop); resolve() }
+    const timer = setTimeout(done, 2000)
+    const stop = () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')) }
+    signal?.addEventListener('abort', stop, { once: true })
+  })
+}
+export async function followBackgroundRun(id: string, onEvent: (event: StreamEvent) => void, signal?: AbortSignal) {
+  let after = -1
+  let terminal = false
+  while (!signal?.aborted && !terminal) {
+    try {
+      const response = await fetch(`${API_PREFIX}/runs/${encodeURIComponent(id)}/events/stream?after_sequence=${after}`, { signal })
+      if (!response.ok) {
+        if ([404, 422].includes(response.status)) throw new KnowledgeImportError('后台运行记录不存在，请在运行历史中核对。')
+        throw new Error('连接暂时不可用')
+      }
+      if (!response.body) throw new Error('未收到事件流')
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      try {
+        while (!signal?.aborted) {
+          const { value, done } = await reader.read()
+          buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, '\n')
+          let boundary = buffer.indexOf('\n\n')
+          while (boundary >= 0) {
+            const event = parseSseBlock(buffer.slice(0, boundary))
+            buffer = buffer.slice(boundary+2)
+            if (event) {
+              if (event.sequence !== undefined) after = Math.max(after, event.sequence)
+              terminal ||= ['run_completed', 'run_failed', 'run_cancelled'].includes(event.type)
+              onEvent(event)
+            }
+            boundary = buffer.indexOf('\n\n')
+          }
+          if (done) break
+        }
+      } finally { reader.releaseLock() }
+      if (!terminal) throw new Error('连接结束，正在核对运行状态')
+    } catch (error) {
+      if (signal?.aborted || error instanceof DOMException && error.name === 'AbortError') throw error
+      if (error instanceof KnowledgeImportError) throw error
+      if (terminal) break
+      onEvent({ type: 'run_connection', run_id: id, timestamp: new Date().toISOString(), payload: { state: 'reconnecting' } })
+      await abortableDelay(signal)
+    }
+  }
+  if (terminal && getPendingRun()?.runId === id) savePending()
+}
+export async function resumeBackgroundRun(pending: PendingRun, onEvent: (event: StreamEvent) => void, signal?: AbortSignal) {
+  while (!pending.runId) {
+    const selection = pending.selection
+    try {
+      const response = await knowledgeJson<RunActivity>(`${API_PREFIX}/qa/runs`, {
+        method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: pending.question, client_request_id: pending.clientRequestId,
+          workflow_id: selection?.workflowId, source_id: selection?.sourceId, source_version: selection?.sourceVersion,
+          system_id: selection?.systemId, system_version: selection?.systemVersion, draft_revision: selection?.draftRevision }),
+      })
+      pending = { ...pending, runId: response.run_id }
+      savePending(pending)
+      onEvent({ type: 'run_activity', run_id: response.run_id, timestamp: new Date().toISOString(), payload: response as unknown as Record<string, unknown> })
+    } catch (error) {
+      if (signal?.aborted) throw error
+      if (error instanceof KnowledgeImportError && error.httpStatus && error.httpStatus < 500) {
+        if (getPendingRun()?.clientRequestId === pending.clientRequestId) savePending()
+        throw error
+      }
+      onEvent({ type: 'run_connection', run_id: '', timestamp: new Date().toISOString(), payload: { state: 'reconnecting' } })
+      await abortableDelay(signal)
+    }
+  }
+  await followBackgroundRun(pending.runId!, onEvent, signal)
+}
+export async function streamQuestion(question: string, onEvent: (event: StreamEvent) => void, signal?: AbortSignal, selection?: RunSelection) {
+  const pending: PendingRun = { question, selection, clientRequestId: crypto.randomUUID() }
+  savePending(pending)
+  await resumeBackgroundRun(pending, onEvent, signal)
+}
+export interface SearchResults { query: string; source_id: string; version: number; index_version: string; tokenizer: string; top_k: number;
+  items: { chunk_id?: string; text: string; filename?: string; source_title: string; line_start?: number; line_end?: number; relevance_score: number }[] }
+export function searchKnowledge(sourceId: string, version: number, query: string, topK: number, signal?: AbortSignal): Promise<SearchResults> {
+  return knowledgeJson(`${API_PREFIX}/knowledge/sources/${encodeURIComponent(sourceId)}/versions/${version}/search`, {
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query, top_k: topK }),
+  })
 }

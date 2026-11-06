@@ -10,6 +10,8 @@ frontend/coverage/
 data/runtime/*.sqlite3
 data/runtime/*.sqlite3-shm
 data/runtime/*.sqlite3-wal
+data/runtime/*.v1-backup
+data/runtime/*-interactive/
 
 # pytest 临时目录
 .pytest-tmp*/

@@ -4,13 +4,21 @@ export const CALL_OUTCOMES: Record<string, string> = {
   ok: '结构化输出有效', empty_response: '空正文', truncated_response: '输出被截断',
   invalid_json: 'JSON 格式错误', invalid_schema: '字段格式错误', request_error: '请求失败',
   invalid_citation: '引用标识无效',
+  request_unconfirmed: '请求结果未确认',
 }
 
-const REQUEST_CATEGORIES: Record<string, string> = {
+export const REQUEST_CATEGORIES: Record<string, string> = {
   content_filter: '供应商内容审核拦截', billing_or_quota: '账户费用或额度问题',
   rate_limit_or_quota: '请求限流或额度限制', authentication_or_permission: '认证或权限问题',
   timeout: '请求超时', connection_error: '连接错误', provider_service_error: '供应商服务异常',
   bad_request_details_required: '请求被拒绝，需核对错误详情', client_or_transport_error: '客户端或传输异常',
+}
+
+export const BUSINESS_ERRORS: Record<string, string> = {
+  critique_targets_mismatch: '质疑目标缺失或重复', critique_unknown_evidence: '质疑引用未知证据',
+  revision_responses_mismatch: '修订回应缺失或重复', revision_missing_citation: '修订答案缺少引用',
+  revision_unknown_citation: '修订引用无法定位', execution_interrupted: '执行进程已退出',
+  worker_start_failed: '后台进程启动失败',
 }
 
 export function requestCategoryLabel(category?: string | null): string {
@@ -18,6 +26,7 @@ export function requestCategoryLabel(category?: string | null): string {
 }
 
 export function errorTypeLabel(type: string): string {
+  if (BUSINESS_ERRORS[type]) return BUSINESS_ERRORS[type]
   if (type.startsWith('provider_')) return requestCategoryLabel(type.slice('provider_'.length))
   return ({ model_request_error: '模型请求失败', output_error: '模型输出错误',
     structured_output_error: '模型输出错误', execution_error: '运行异常', answer_mismatch: '答案与标准不一致',
@@ -38,6 +47,7 @@ export function runDiagnosticSummary(run: DiagnosticRun) {
   const labels = new Set(issues.map(call => call.outcome === 'request_error'
     ? call.request_error?.category ? requestCategoryLabel(call.request_error.category) : '请求失败（详情未记录）'
     : CALL_OUTCOMES[call.outcome] ?? call.outcome))
+  for (const issue of issues.flatMap(call => call.validation_errors ?? [])) labels.add(errorTypeLabel(issue.code))
   if (!labels.size && run.error) labels.add(errorTypeLabel(run.error.error_type))
   if (!labels.size && run.labels?.includes('structured_output_error')) labels.add('模型输出错误')
   const hasIssues = issues.length > 0 || !!run.error || labels.size > 0 || ['failed', 'interrupted', 'cancelled'].includes(run.status)

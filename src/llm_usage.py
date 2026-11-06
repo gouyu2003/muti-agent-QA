@@ -9,6 +9,9 @@ from contextlib import contextmanager
 import os
 import hashlib
 from time import perf_counter
+from uuid import uuid4
+from urllib.parse import urlparse
+from src.observability import current_observer, observe
 
 from src.model_errors import ModelRequestError, REQUEST_RETRY_POLICY, error_diagnostic, is_model_request_error
 
@@ -109,9 +112,18 @@ class LLMUsageCollector:
         self.before_invoke = None
         self.after_invoke = None
         self.invoke_adapter = None
+        self.identifiers = {}
+        self.last_request_id = None
+        self.last_request_duration_ms = None
+        self.output_attempt = None
 
     def invoke(self, chat: Any, prompt: str) -> Any:
         """Account for each wire attempt; retry transient errors once, visibly."""
+        if os.getenv('MAQA_DISABLE_MODEL_CALLS') == '1' and type(chat).__module__.startswith(('langchain_openai', 'openai')):
+            base = str(getattr(chat, 'openai_api_base', '') or '').rstrip('/')
+            stub = os.getenv('MAQA_OFFLINE_HTTP_STUB', '').rstrip('/')
+            if not stub or base != stub or urlparse(base).hostname not in ('127.0.0.1', '::1', 'localhost'):
+                raise RuntimeError('当前进程禁止真实模型调用。')
         for request_attempt in range(1, REQUEST_RETRY_POLICY['max_retries'] + 2):
             self.check_cancelled()
             # Guard rejections are local failures, never provider retry candidates.
@@ -120,8 +132,11 @@ class LLMUsageCollector:
             with self._lock:
                 self.call_count += 1
             started = perf_counter()
+            self.last_request_id = uuid4().hex
+            self.last_request_duration_ms = None
             try:
-                response = self.invoke_adapter(chat, prompt) if self.invoke_adapter is not None else chat.invoke(prompt)
+                with observe('model_request', request_call_id=self.last_request_id, **self.identifiers):
+                    response = self.invoke_adapter(chat, prompt) if self.invoke_adapter is not None else chat.invoke(prompt)
             except Exception as exc:
                 with self._lock:
                     self._mark_missing()
@@ -140,7 +155,8 @@ class LLMUsageCollector:
                     entry['request_error'] = diagnostic
                 self.record_attempt(entry)
                 if retry:
-                    self.cancelled.wait(REQUEST_RETRY_POLICY['backoff_seconds'])
+                    with observe('retry_wait', request_call_id=self.last_request_id, **self.identifiers):
+                        self.cancelled.wait(REQUEST_RETRY_POLICY['backoff_seconds'])
                     self.check_cancelled()
                     continue
                 if recognized:
@@ -148,6 +164,7 @@ class LLMUsageCollector:
                 raise
             break
 
+        self.last_request_duration_ms = round((perf_counter()-started)*1000)
         prompt_tokens, completion_tokens, total_tokens = extract_token_usage(response)
         with self._lock:
             self._add_usage(prompt_tokens, completion_tokens, total_tokens)
@@ -164,6 +181,7 @@ class LLMUsageCollector:
             if agent_id not in self._children:
                 child = LLMUsageCollector()
                 child.cancelled = self.cancelled
+                child.identifiers = {**self.identifiers, 'agent_id': self.identifiers.get('agent_id', agent_id)}
                 self._children[agent_id] = child
             return self._children[agent_id]
 
@@ -183,9 +201,9 @@ class LLMUsageCollector:
                 self._active_nodes -= 1
                 self._idle.notify_all()
 
-    def wait_for_nodes(self):
+    def wait_for_nodes(self, timeout=5):
         with self._idle:
-            self._idle.wait_for(lambda: self._active_nodes == 0)
+            return self._idle.wait_for(lambda: self._active_nodes == 0, timeout=timeout)
 
     def completed_outputs(self):
         with self._lock:
@@ -198,8 +216,16 @@ class LLMUsageCollector:
                     for key, child in self._children.items()}
 
     def record_attempt(self, entry: dict) -> None:
+        for key, value in self.identifiers.items():
+            entry.setdefault(key, value)
+        entry.setdefault('request_call_id', self.last_request_id)
+        if self.output_attempt is not None:
+            entry.setdefault('output_attempt', self.output_attempt)
         with self._lock:
             self._attempts.append(dict(entry))
+        observer = current_observer.get()
+        if observer:
+            observer.emit('model_call', **entry)
 
     def attempts(self) -> list[dict]:
         with self._lock:

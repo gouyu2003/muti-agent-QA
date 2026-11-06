@@ -1924,3 +1924,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
   .protocol-template-grid { grid-template-columns: 1fr; }
   .agent-editor-lede { flex-direction: column; gap: 8px; }
 }
+
+.run-activity, .knowledge-search { margin-block: 20px; min-width: 0; overflow-wrap: anywhere; }
+.knowledge-search form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-block: 12px; }
+.knowledge-search form > .ant-input { flex: 1 1 220px; min-width: 0; }
+.knowledge-search form > .ant-select { min-width: 105px; }
+.diagnostic-note .ant-typography { overflow-wrap: anywhere; }

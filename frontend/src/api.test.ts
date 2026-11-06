@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { getRuns, getRunsExportUrl, getRunStats, getRunDetail, parseSseBlock, streamQuestion, importKnowledge } from './api'
+import { getRuns, getRunsExportUrl, getRunStats, getRunDetail, parseSseBlock, streamLegacyQuestion as streamQuestion, importKnowledge } from './api'
 
 describe('parseSseBlock', () => {
   it('parses an event and preserves Chinese payload text', () => {

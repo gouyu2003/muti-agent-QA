@@ -25,6 +25,10 @@ class QuestionRequest(RuntimeRequest):
         return normalized
 
 
+class BackgroundQuestionRequest(QuestionRequest):
+    client_request_id: str | None = Field(default=None, min_length=1, max_length=100)
+
+
 class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
     system_version: str

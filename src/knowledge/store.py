@@ -10,6 +10,8 @@ from pathlib import Path
 import sqlite3
 from typing import Any, Iterator
 from uuid import uuid4
+from src.observability import observe, current_observer
+from contextvars import ContextVar
 
 from src.knowledge.corpus import (
     ImportFailure, digest, json_bytes, load_corpus, prepare_corpus,
@@ -17,6 +19,7 @@ from src.knowledge.corpus import (
 )
 
 DEFAULT_ROOT = Path(__file__).resolve().parents[2] / "data" / "knowledge"
+_cache_loaded = ContextVar('knowledge_cache_loaded', default=False)
 
 
 def now() -> str:
@@ -26,6 +29,7 @@ def now() -> str:
 @lru_cache(maxsize=8)
 def _cached_retriever(corpus_path: str, index_path: str, corpus_hash: str,
                       index_hash: str, source_id: str, version: int):
+    _cache_loaded.set(True)
     record = load_corpus(Path(corpus_path))
     record["index"] = load_corpus(Path(index_path))
     record["source_version"] = version
@@ -219,6 +223,15 @@ def verify_snapshot(source: dict[str, Any]) -> None:
 
 
 def retriever_from_corpus_snapshot(source: dict[str, Any]):
-    verify_snapshot(source)
-    return _cached_retriever(source["resolved_path"], source["index_path"], source["sha256"],
-                             source["index_sha256"], source["source_id"], source["version"])
+    token = _cache_loaded.set(False)
+    try:
+        with observe('knowledge_load', source_id=source['source_id']):
+            verify_snapshot(source)
+            result = _cached_retriever(source["resolved_path"], source["index_path"], source["sha256"],
+                                       source["index_sha256"], source["source_id"], source["version"])
+            observer = current_observer.get()
+            if observer:
+                observer.emit('cache_lookup', source_id=source['source_id'], cache_hit=not _cache_loaded.get())
+            return result
+    finally:
+        _cache_loaded.reset(token)

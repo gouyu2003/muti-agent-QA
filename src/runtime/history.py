@@ -34,6 +34,8 @@ class ArchiveSpec(ExperimentOption):
 
 
 class ReadOnlyArchive(SQLiteRunRepository):
+    read_only = True
+
     def initialize(self) -> None:
         raise RepositoryError('实验档案仅支持读取')
 
@@ -153,7 +155,7 @@ def summarize_history(records: list[RunRecord]) -> RunStatsSummary:
         if kind and kind != 'none':
             failures[kind] += 1
     return RunStatsSummary(total_runs=len(records), completed_runs=statuses['completed'],
-        failed_runs=statuses['failed'], cancelled_runs=statuses['cancelled'], running_runs=statuses['running'],
+        failed_runs=statuses['failed'], cancelled_runs=statuses['cancelled'], running_runs=statuses['running'], interrupted_runs=statuses['interrupted'],
         verified_runs=verified, completion_rate=statuses['completed'] / len(records) if records else 0.0,
         verification_pass_rate=verified / statuses['completed'] if statuses['completed'] else 0.0,
         average_duration_ms=sum(durations) / len(durations) if durations else None,

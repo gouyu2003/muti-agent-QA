@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from src.knowledge.bm25_retriever import BM25Retriever, tokenize
+from src.knowledge.bm25_retriever import BM25Retriever, tokenize, tokenize_mixed, HAN_RE
 
 PARSER_VERSION = "text-v1"
 INDEX_VERSION = "bm25-en-v1"
@@ -122,13 +122,16 @@ def prepare_corpus(files: list[tuple[str, bytes]]) -> tuple[dict[str, Any], dict
     chunks = [chunk for doc in documents for chunk in doc["chunks"]]
     if len(chunks) > MAX_CHUNKS:
         raise ImportFailure("too_many_chunks", "片段数不能超过 20,000。")
-    tokens = [tokenize(c["filename"] + " " + " ".join(c["heading_path"]) + " " + c["text"]) for c in chunks]
-    if not any(tokenize(c["text"]) for c in chunks):
-        raise ImportFailure("no_english_tokens", "材料没有可索引的英文单词或数字。")
+    mixed = any(HAN_RE.search(c['text']) for c in chunks)
+    tokenizer = tokenize_mixed if mixed else tokenize
+    tokens = [tokenizer(c["filename"] + " " + " ".join(c["heading_path"]) + " " + c["text"]) for c in chunks]
+    if not any(tokenizer(c["text"]) for c in chunks):
+        raise ImportFailure("no_english_tokens", "材料没有可索引的中文、英文或数字。")
     corpus = {"parser_version": PARSER_VERSION, "max_chars": MAX_CHARS,
               "documents": [{k: v for k, v in doc.items() if k != "chunks"} for doc in documents],
               "chunks": chunks}
-    index = {"index_version": INDEX_VERSION, "tokenizer": "lowercase-ascii-alphanumeric",
+    index = {"index_version": 'bm25-zh-mixed-v1' if mixed else INDEX_VERSION,
+             "tokenizer": 'cjk-character-bigram-v1' if mixed else "lowercase-ascii-alphanumeric",
              "corpus_sha256": digest(json_bytes(corpus)), "tokens": tokens}
     # Validate index construction before publishing any version.
     BM25Retriever.from_documents(chunks, tokens=tokens)
@@ -142,4 +145,8 @@ def load_corpus(path: Path) -> dict[str, Any]:
 def corpus_retriever(record: dict[str, Any], source_id: str) -> BM25Retriever:
     chunks = [{**chunk, "source_id": source_id, "source_version": record["source_version"]}
               for chunk in record["chunks"]]
-    return BM25Retriever.from_documents(chunks, tokens=record["index"]["tokens"])
+    version = record['index']['index_version']
+    if version not in (INDEX_VERSION, 'bm25-zh-mixed-v1'):
+        raise ImportFailure('unsupported_index', '不支持此索引版本，请使用匹配的运行版本。')
+    return BM25Retriever.from_documents(chunks, tokens=record["index"]["tokens"],
+                                       tokenizer=tokenize_mixed if version == 'bm25-zh-mixed-v1' else tokenize)

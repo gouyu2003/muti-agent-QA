@@ -17,6 +17,7 @@ from typing import Any, Optional, Protocol
 from src.knowledge.bm25_retriever import build_retriever
 from src.config_loader import load_agent_configs
 from src.state import AgentState, EvidenceChunk, EvidenceGroup, SubQuestion
+from src.observability import observe, current_observer
 
 AGENT_ID = "retriever_v0"
 TOP_K = 3
@@ -94,7 +95,8 @@ def build_evidence_groups(
             if prior is not None:
                 # 只取第一跳证据中的专名作为实体提示：
                 # 实测 source_title 会让第二跳退回第一跳段落，故不使用。
-                for entity in extract_entities(prior["text"]):
+                entities = retriever.extract_entities(prior['text']) if getattr(retriever, 'is_mixed', False) else extract_entities(prior['text'])
+                for entity in entities:
                     predecessor = questions_by_id.get(dep, {})
                     previous_query = ' '.join([predecessor.get('question', ''), *predecessor.get('keywords', [])]).lower()
                     if entity.lower() in previous_query:
@@ -110,6 +112,10 @@ def build_evidence_groups(
         anchored_search = getattr(retriever, 'search_anchored', None)
         chunks = (anchored_search(query, hints, top_k=top_k)
                   if hints and callable(anchored_search) else retriever.search(query, top_k=top_k))
+        observer = current_observer.get()
+        if observer:
+            observer.emit('retrieval', name='retrieval', sq_id=sq['id'], query=query,
+                          entity_hints=hints, matched_chunks=[c.get('chunk_id', c.get('source_title')) for c in chunks])
 
         if chunks:
             resolved[sq["id"]] = chunks[0]
@@ -136,9 +142,9 @@ def retriever_fn(
     supplement = state.get("retrieval_supplement_request")
     config = agent_config if agent_config is not None else load_agent_configs()[AGENT_ID]
 
-    groups = build_evidence_groups(
-        list(state.get("sub_questions", [])), local, supplement, top_k=configured_top_k(config)
-    )
+    with observe('retrieval'):
+        groups = build_evidence_groups(
+            list(state.get("sub_questions", [])), local, supplement, top_k=configured_top_k(config))
     # Empty validator responses can have no supplement object. They still
     # consume a retrieval retry, otherwise the protocol limit is never reached.
     retry_count = int(state.get("retrieval_retry_count", 0)) + (

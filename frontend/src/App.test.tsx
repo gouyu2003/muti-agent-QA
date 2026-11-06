@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { BrowserRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { getAgentTemplates, protocolRequest, getKnowledgeChunks, getKnowledgeSources, getManagedSystems, getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats, getSystemInfo, getSystemOptions, streamQuestion } from './api'
+import { getAgentTemplates, protocolRequest, getKnowledgeChunks, getKnowledgeSources, getManagedSystems, getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats, getSystemInfo, getSystemOptions, streamQuestion, getPendingRun, resumeBackgroundRun } from './api'
 import catalog from './protocolCatalog.fixture.json'
 import type { KnowledgeSource, ManagedSystem, RunStatsSummary, StoredRunDetail, StoredRunRecord, SystemInfo, SystemOptions } from './types'
 
@@ -16,6 +16,9 @@ vi.mock('./api', () => ({
   getSystemInfo: vi.fn(),
   getSystemOptions: vi.fn(),
   streamQuestion: vi.fn(),
+  getPendingRun: vi.fn(() => undefined),
+  resumeBackgroundRun: vi.fn(),
+  cancelBackgroundRun: vi.fn(),
   getRuns: vi.fn(),
   getRunStats: vi.fn(),
   getRunDetail: vi.fn(),
@@ -145,6 +148,8 @@ describe('App', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(getPendingRun).mockReturnValue(undefined)
+    vi.mocked(resumeBackgroundRun).mockResolvedValue()
     vi.mocked(protocolRequest).mockImplementation(async path => (path === '/templates' ? catalog : { items: [] }) as never)
     vi.mocked(getAgentTemplates).mockResolvedValue({ items: [] })
     vi.mocked(getManagedSystems).mockResolvedValue({ items: [] })
@@ -587,5 +592,25 @@ describe('App', () => {
       { workflowId: 'multi_hop_qa_v0', sourceId: 'user_notes', sourceVersion: 1 })
     expect(await screen.findByTitle('知识源 ID：user_notes')).toHaveTextContent('User notes')
     expect(screen.getByText(/第 1–2 行/)).toHaveTextContent('版本 1 · notes.md')
+  })
+  it('restores a fixed source even when completion clears storage before options finish loading', async () => {
+    let resolveOptions!: (options: SystemOptions) => void
+    vi.mocked(getSystemOptions).mockReturnValue(new Promise(resolve => { resolveOptions = resolve }))
+    vi.mocked(getPendingRun).mockReturnValueOnce({ question: '中文恢复问题', runId: 'restored-run', clientRequestId: 'key',
+      selection: { sourceId: 'demo_fixture_002', sourceVersion: 1, workflowId: 'multi_hop_qa_fixed' } })
+    vi.mocked(getRunDetail).mockResolvedValue({ ...archivedDetail, run: { ...archivedRun, context: { ...archivedRun.context,
+      config_snapshot: { source: { source_id: 'demo_fixture_002', source_type: 'document_corpus', name: '固定中文源', version: 1 } } } } })
+    vi.mocked(resumeBackgroundRun).mockImplementation(async (_pending, emit) => {
+      vi.mocked(getPendingRun).mockReturnValue(undefined)
+      emit({ type: 'run_started', run_id: 'restored-run', timestamp: 'now', payload: {} })
+      emit({ type: 'run_completed', run_id: 'restored-run', timestamp: 'now', payload: { result: { answer: '恢复答案' } } })
+    })
+    renderApp()
+    await waitFor(() => expect(resumeBackgroundRun).toHaveBeenCalled())
+    await act(async () => { resolveOptions(systemOptions) })
+    expect(await screen.findByText(/本次运行：.*固定中文源/)).toBeInTheDocument()
+    expect(screen.getByText(/支持中文、英文或混合问题/)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '多跳问答问题' })).toHaveValue('中文恢复问题')
+    expect(streamQuestion).not.toHaveBeenCalled()
   })
 })

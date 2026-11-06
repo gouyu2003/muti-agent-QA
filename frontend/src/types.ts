@@ -18,7 +18,7 @@ export interface AgentTemplate {
   editable_fields: string[]
   defaults: AgentInstance
 }
-export type RunStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type RunStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
 
 export interface AgentInfo {
   agent_id: NodeId
@@ -90,6 +90,7 @@ export interface KnowledgeChunk {
 }
 
 export interface KnowledgeVersion {
+  tokenizer?: string
   version: number
   status: 'importing' | 'ready' | 'failed'
   created_at: string
@@ -181,6 +182,10 @@ export interface ModelRequestDiagnostic {
 }
 
 export interface ModelCall {
+  request_call_id?: string
+  call_id?: string
+  agent_id?: string
+  stage_id?: string
   attempt?: number
   output_attempt?: number
   request_attempt?: number
@@ -237,6 +242,9 @@ export interface StreamEvent {
     | 'run_completed'
     | 'run_failed'
     | 'run_cancelled'
+    | 'run_activity'
+    | 'run_connection'
+  sequence?: number
   run_id: string
   timestamp: string
   payload: Record<string, unknown>
@@ -257,6 +265,8 @@ export interface TraceStep {
 }
 
 export interface RunViewState {
+  activity?: RunActivity
+  connection?: string
   routes?: Record<string, unknown>[]
   status: RunStatus
   runId?: string
@@ -271,6 +281,7 @@ export type StoredRunStatus = Exclude<RunStatus, 'idle'>
 export type RunEntryPoint = 'api' | 'cli' | 'batch'
 
 export interface RunFilters {
+  diagnostic?: string
   status?: StoredRunStatus
   entrypoint?: RunEntryPoint
   methodId?: string
@@ -363,6 +374,7 @@ export interface StoredRunRecord {
   finished_at: string | null
   final_state: RunResult | null
   metrics: {
+    timings?: RunTimings
     agent_usage?: Record<string, { call_count: number; total_tokens: number | null; calls?: ModelCall[] }>
     duration_ms: number | null
     node_call_count: number
@@ -387,6 +399,26 @@ export interface StoredTraceEvent {
   cycle: number | null
   duration_ms: number | null
   payload: Record<string, unknown>
+}
+
+export interface RunTimings {
+  cache?: { source_id: string; cache_hit: boolean }[]
+  task_total_wall_ms?: number | null
+  categories: Record<string, { wall_ms: number; cumulative_ms: number; count: number }>
+  spans?: { name: string; offset_ms: number; duration_ms: number; stage_id?: string; agent_id?: string; call_id?: string; request_call_id?: string }[]
+  note?: string
+}
+
+export interface RunActivity {
+  run_id: string
+  status: string
+  cancel_requested?: boolean
+  heartbeat_at?: string | null
+  heartbeat_stale?: boolean
+  last_progress_at?: string | null
+  activities?: { span_id: string; name: string; timestamp: string; agent_id?: string; stage_id?: string }[]
+  timings?: RunTimings
+  diagnostic_calls?: ModelCall[]
 }
 
 export interface StoredRunDetail {

@@ -11,9 +11,11 @@ import {
 import { Alert, Button, Empty, Input, Pagination, Select, Skeleton, Tag, Tooltip } from 'antd'
 import { getManagedSystems, getExperiments, getRunDetail, getRuns, getRunsExportUrl, getRunStats } from './api'
 import EvidenceLocation from './EvidenceLocation'
+import { RunDiagnostics, TimingDetails } from './RunInsights'
+import { BUSINESS_ERRORS, CALL_OUTCOMES, REQUEST_CATEGORIES } from './diagnosticSummary'
 import AgentResults from './AgentResults'
 import ProtocolCalls from './ProtocolCalls'
-import ModelDiagnostics, { ModelCalls } from './ModelDiagnostics'
+import ModelDiagnostics from './ModelDiagnostics'
 import type {
   RunEntryPoint,
   RunFilters,
@@ -37,6 +39,7 @@ const STATUS_LABELS: Record<StoredRunStatus, string> = {
   completed: '已完成',
   failed: '失败',
   cancelled: '已取消',
+  interrupted: '执行中断',
 }
 
 const NODE_LABELS: Record<string, string> = {
@@ -261,7 +264,6 @@ function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDetail; e
             {s.source_id ? <p>材料：{String(s.name)} · 版本 {String(s.version ?? '固定内容')} · SHA-256 <code>{String(s.sha256)}</code></p> : null}
             {model.system_prompt ? <p className="system-prompt">{String(model.system_prompt)}</p> : null}
             {usage ? <p>LLM 调用 {usage.call_count} · Token {usage.total_tokens ?? '未知'}</p> : null}
-            <ModelCalls calls={usage?.calls} />
           </details>
         })}
       </section> : null}
@@ -295,6 +297,8 @@ function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDetail; e
           <p className="history-failure-type">失败类型：{result.failure_type}</p>
         ) : null}
       </section>
+      <RunDiagnostics run={run} />
+      <TimingDetails timings={run.metrics.timings} />
       <RunTimeline events={events} />
       <AgentResults results={result?.expert_results} />
       <ProtocolCalls calls={result?.protocol_calls} />
@@ -309,6 +313,7 @@ export default function HistoryView() {
   const [systems, setSystems] = useState<ManagedSystem[]>([])
   const [systemError, setSystemError] = useState('')
   const [status, setStatus] = useState<StoredRunStatus | undefined>()
+  const [diagnostic, setDiagnostic] = useState<string>()
   const [entrypoint, setEntrypoint] = useState<RunEntryPoint | undefined>()
   const [experiments, setExperiments] = useState<ExperimentOption[]>([])
   const [experimentId, setExperimentId] = useState<string>()
@@ -339,8 +344,8 @@ export default function HistoryView() {
     return timeRange === 'all' ? undefined : new Date(Date.now() - hours[timeRange] * 3600000).toISOString()
   }, [timeRange, refresh])
   const filters = useMemo<RunFilters>(
-    () => ({ status, entrypoint, methodId: methodId || undefined, startedFrom, experimentId, systemId }),
-    [status, entrypoint, methodId, startedFrom, experimentId, systemId],
+    () => ({ status, diagnostic, entrypoint, methodId: methodId || undefined, startedFrom, experimentId, systemId }),
+    [status, diagnostic, entrypoint, methodId, startedFrom, experimentId, systemId],
   )
 
   useEffect(() => {
@@ -443,6 +448,9 @@ export default function HistoryView() {
           <FileSearchOutlined />
           <strong>筛选档案</strong>
         </div>
+        <Select aria-label="诊断筛选" allowClear placeholder="全部诊断类别" value={diagnostic}
+          onChange={value => { setDiagnostic(value); setPage(1) }}
+          options={Object.entries({ ...CALL_OUTCOMES, ...BUSINESS_ERRORS, ...Object.fromEntries(Object.entries(REQUEST_CATEGORIES).map(([code, label]) => [`provider_${code}`, label])) }).filter(([key]) => key !== 'ok').map(([value, label]) => ({ value, label }))} />
         <Select
           aria-label="状态筛选" value={status ?? 'all'}
           onChange={(value) => {
