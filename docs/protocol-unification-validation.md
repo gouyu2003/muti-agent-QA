@@ -41,7 +41,7 @@ V1 保留原校验与归一化，不加入 V2 字段，不改变编译版本、�
 复现命令（不启动开发服务，不调用真实模型）：
 
 ```powershell
-venv/Scripts/python.exe -m pytest -p no:cacheprovider --basetemp .pytest-tmp-stage43-unified-final
+venv/Scripts/python.exe -m pytest -p no:cacheprovider --basetemp .pytest-tmp
 ```
 
 在 `frontend/` 中运行：

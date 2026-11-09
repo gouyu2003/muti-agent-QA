@@ -43,7 +43,7 @@ npm run build
 在项目根目录显式执行真实模型验收（需要本机 `.env`，会调用外部模型）：
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_integration_deepseek.py -m integration -k document --basetemp .pytest-live-stage3 -v
+.\venv\Scripts\python.exe -m pytest tests/test_integration_deepseek.py -m integration -k document --basetemp .pytest-live -v
 ```
 
 本次命令结果为 1 passed、1 deselected；选中的测试包含上表三题。

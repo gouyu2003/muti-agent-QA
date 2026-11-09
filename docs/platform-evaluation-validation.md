@@ -18,8 +18,8 @@
 全后端离线回归：**406 passed，3 deselected**；随后新增的独立进程/本地 HTTP 模拟验收：**1 passed**。三项真实模型 integration 测试按项目默认配置排除。
 
 ```powershell
-.\venv\Scripts\python.exe -B -m pytest -p no:cacheprovider --basetemp .pytest-tmp-eplast
-.\venv\Scripts\python.exe -B -m pytest tests/test_platform_evaluation.py::test_detached_worker_survives_api_client_close_with_local_stub -p no:cacheprovider --basetemp .pytest-tmp-pchild
+.\venv\Scripts\python.exe -B -m pytest -p no:cacheprovider --basetemp .pytest-tmp
+.\venv\Scripts\python.exe -B -m pytest tests/test_platform_evaluation.py::test_detached_worker_survives_api_client_close_with_local_stub -p no:cacheprovider --basetemp .pytest-tmp
 ```
 
 前端新增三项行为测试覆盖问题库导入、固定系统版本/材料策略，以及启动费用确认。既有协议刷新测试补齐“等待按钮加载态结束、确认请求已发出”的等待条件，协议生产逻辑不变。

@@ -73,7 +73,7 @@ Expert 仅读取原问题、计划和自己的材料，不读取其他专家观�
 本机 Windows Store Python 3.12 在沙箱内无法启动，在获准的外部执行环境可以正常运行；使用现有虚拟环境完成测试，没有更换项目依赖版本。前端 fork 测试进程出现启动超时，使用线程池完成回归。
 
 ```powershell
-venv/Scripts/python.exe -m pytest -p no:cacheprovider --basetemp .pytest-tmp-stage42-release
+venv/Scripts/python.exe -m pytest -p no:cacheprovider --basetemp .pytest-tmp
 npm --prefix frontend test -- --pool threads --maxWorkers 1 --testTimeout 15000
 npm --prefix frontend run build
 ```

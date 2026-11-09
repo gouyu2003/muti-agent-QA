@@ -21,7 +21,7 @@
 全后端离线回归：**355 passed，3 deselected**，264.57 秒。
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest -p no:cacheprovider --basetemp .pytest-tmp-stage56-full
+.\venv\Scripts\python.exe -m pytest -p no:cacheprovider --basetemp .pytest-tmp
 ```
 
 3 项真实模型 integration 测试由项目默认配置排除。新实验测试另有网络连接及真实模型构造拦截；所有实验库位于 pytest 临时目录。
@@ -29,7 +29,7 @@
 全量回归后仅补齐实验配置部分覆盖时的 40 次调用默认值、非 DeepSeek 模型请求策略元数据及对应断言，随后运行受影响的实验/旧评测专项回归：**38 passed**，89.87 秒。最终源码的受影响范围复验通过。
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_experiment.py tests/test_evaluation.py -p no:cacheprovider --basetemp .pytest-tmp-stage56-final
+.\venv\Scripts\python.exe -m pytest tests/test_experiment.py tests/test_evaluation.py -p no:cacheprovider --basetemp .pytest-tmp
 .\venv\Scripts\python.exe -m src.evaluation.experiment --help
 ```
 

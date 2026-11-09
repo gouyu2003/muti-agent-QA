@@ -72,7 +72,7 @@ Lead 的候选专家来自系统内注册实例，非法专家目标或重复任
 原阶段 4.3 前端回归：**7 个文件、49 项测试全部通过**（本轮整合结果见独立验收文档），覆盖旧入口、版本绑定、原始/修订输出分别展示，以及同一实例并发调用的事件匹配。配套记录见 `stage43-test-results.json`。TypeScript 检查和生产构建通过；保留大于 500 kB 的分包提示。jsdom 对伪元素 getComputedStyle 的提示未导致测试失败，不能据此声称浏览器布局已验收。
 
 ```powershell
-venv/Scripts/python.exe -m pytest -p no:cacheprovider --basetemp .pytest-tmp-stage43-release
+venv/Scripts/python.exe -m pytest -p no:cacheprovider --basetemp .pytest-tmp
 ```
 
 在 `frontend/` 目录运行：

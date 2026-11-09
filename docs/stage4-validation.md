@@ -33,13 +33,13 @@
 以下命令从项目根目录执行。真实模型需要已有 `.env` 或对应环境变量。每次 `--output` 必须使用新目录；程序拒绝覆盖已有实验。
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest --basetemp .pytest-tmp-stage4
+.\venv\Scripts\python.exe -m pytest --basetemp .pytest-tmp
 Set-Location frontend
 npm test
 npm run build
 Set-Location ..
 
-.\venv\Scripts\python.exe -m pytest tests/test_integration_deepseek.py tests/test_stage4_live.py -m integration --basetemp .pytest-live-stage4-check -v
+.\venv\Scripts\python.exe -m pytest tests/test_integration_deepseek.py tests/test_stage4_live.py -m integration --basetemp .pytest-live -v
 
 # 数据集放到 data/experiments/stage4/hotpot_dev_distractor_v1.json 后：
 .\venv\Scripts\python.exe -m src.evaluation.batch run --dataset data/experiments/stage4/hotpot_dev_distractor_v1.json --manifest docs/stage4-smoke-10.json --output data/experiments/stage4/smoke-v1-new

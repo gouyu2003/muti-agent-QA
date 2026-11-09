@@ -29,3 +29,6 @@ data/evaluations/
 # Workspace system drafts and immutable releases
 data/systems/
 data/protocols/
+
+# 本地工作区数据与 Agent 记忆
+.workbuddy/

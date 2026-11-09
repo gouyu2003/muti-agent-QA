@@ -135,7 +135,7 @@ report 不调用模型。不要在该实验正在运行时生成报告（单写�
 ## 8. 离线验证边界
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_experiment.py tests/test_evaluation.py -p no:cacheprovider --basetemp .pytest-tmp-stage56-user
+.\venv\Scripts\python.exe -m pytest tests/test_experiment.py tests/test_evaluation.py -p no:cacheprovider --basetemp .pytest-tmp
 ```
 
 使用合成题目与模型替身，验证工程逻辑；不下载数据，不提供论文成绩。最终真实模型兼容性、六种方法的实际回答质量与成本，都需要由你运行后核验。

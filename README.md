@@ -207,6 +207,8 @@ HTTP 接口：
 
 常规测试默认排除 `integration` 标记的真实模型测试。Windows 下若遇到 pytest 临时目录权限问题，可增加 `--basetemp .pytest-tmp`。
 
+全项目只用两个 basetemp 名：离线回归 `.pytest-tmp`，真实模型测试 `.pytest-live`。`--basetemp` 每次运行会清空目标目录，固定复用即可，不必每次另起 `.pytest-tmp-xxx` 之类的新名字——那样只会堆积残留目录（曾累积 19 个、约 300 MB）。需要留证据时，把结果 JSON 归档到 `docs/` 下（既有 `*-results.json` 即此做法），不要依赖 basetemp 目录长期保存。
+
 前端：
 
 ```powershell
@@ -232,7 +234,7 @@ npm run build
 只运行用户文档真实模型验收时，在项目根目录执行：
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_integration_deepseek.py -m integration -k document --basetemp .pytest-live-stage3 -v
+.\venv\Scripts\python.exe -m pytest tests/test_integration_deepseek.py -m integration -k document --basetemp .pytest-live -v
 ```
 
 阶段 3 的已记录验收结果和人工证据核对见 [阶段 3 验收记录](docs/stage3-validation.md)，实际模型输出见 [验收结果 JSON](docs/stage3-live-results.json)。该记录注明执行日期与验收限制，不代表每次复验都会产生相同模型输出。

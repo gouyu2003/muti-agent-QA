@@ -64,7 +64,7 @@ venv/Scripts/python.exe main.py "In what year was the Orion project launched?" -
 新增覆盖：两套系统持久化与共享固定材料版本、材料升级后的旧版本运行、模板冻结、发布幂等、并发修订冲突、不完整草稿、缺失/篡改材料、未知版本、迁移备份/幂等/事务回滚、CLI 参数互斥、SSE，以及完成/失败/取消记录的系统关联。列表、统计、详情和导出的一致性及旧实验读取一并回归。
 
 ```powershell
-venv/Scripts/python.exe -m pytest --basetemp=.pytest-tmp-stage41-final
+venv/Scripts/python.exe -m pytest --basetemp=.pytest-tmp
 New-Item -ItemType Directory -Force .pytest-tmp-stage41-vitest | Out-Null
 $env:TEMP = (Resolve-Path .pytest-tmp-stage41-vitest).Path
 $env:TMP = $env:TEMP
