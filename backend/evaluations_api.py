@@ -41,6 +41,48 @@ class ImportCLIRequest(BaseModel):
     key: str = Field(min_length=1, max_length=120)
 
 
+class GSMCreateRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    name: str = Field(min_length=1, max_length=100)
+    methods: list[str] = Field(min_length=1, max_length=4)
+    selection: str = Field(pattern='^(debug|calibration|custom|formal)$')
+    count: int = Field(ge=1, le=100, strict=True)
+    records: list[dict[str, str]] | None = None
+    fake: bool = Field(default=False, strict=True)
+
+
+@router.get('/gsm8k/jobs')
+def gsm_jobs():
+    from src.evaluation.gsm8k_platform import list_jobs
+    return {'items': list_jobs()}
+
+
+@router.post('/gsm8k/jobs', status_code=201)
+def gsm_create(body: GSMCreateRequest):
+    from src.evaluation.gsm8k_platform import create_job
+    return create_job(body.name, body.methods, body.selection, body.count, body.records, body.fake)
+
+
+@router.get('/gsm8k/jobs/{job_id}')
+def gsm_job(job_id: str):
+    from src.evaluation.gsm8k_platform import view_job
+    return view_job(job_id, include_calls=True)
+
+
+@router.post('/gsm8k/jobs/{job_id}/start')
+def gsm_start(job_id: str, body: StartRequest):
+    from src.evaluation.gsm8k_platform import start_job
+    if body.retry_failed:
+        raise EvaluationFailure('复现任务不自动重跑失败或状态不明的请求。', 409)
+    return start_job(job_id, body.allow_model_calls)
+
+
+@router.post('/gsm8k/jobs/{job_id}/stop')
+def gsm_stop(job_id: str):
+    from src.evaluation.gsm8k_platform import stop_job
+    return stop_job(job_id)
+
+
 @router.get('/plans')
 def plans():
     catalog = store()

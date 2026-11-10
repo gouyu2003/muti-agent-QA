@@ -173,3 +173,13 @@
 @media (prefers-reduced-motion: reduce) {
   .evaluation-console .evaluation-job-list button { transition: none; }
 }
+.gsm8k-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; margin: 24px 0; }
+.gsm8k-grid > .evaluation-fields { align-content: start; }
+.gsm8k-workspace fieldset { border: 0; padding: 0; margin: 0; }
+.gsm8k-workspace legend { margin-bottom: 8px; }
+.gsm8k-results { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin: 12px 0 24px; }
+.gsm8k-results button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px; border: 1px solid #d9dce3; border-radius: 8px; background: white; text-align: left; cursor: pointer; }
+.gsm8k-results button[aria-pressed='true'] { border-color: #1677ff; background: #f0f6ff; }
+.gsm8k-summary { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid #d9dce3; border-radius: 8px; }
+.gsm8k-workspace pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; }
+@media (max-width: 760px) { .gsm8k-grid { grid-template-columns: 1fr; } }

@@ -11,11 +11,12 @@ import { Plus, ChevronRight } from 'lucide-react'
 import { ReloadOutlined, SearchOutlined } from './Icons'
 import EvaluationLibrary from './EvaluationLibrary'
 import EvaluationJobWorkspace, { EVALUATION_PURPOSE, EVALUATION_STATUS as STATUS } from './EvaluationJobWorkspace'
+import GSM8KEvaluation from './GSM8KEvaluation'
 import './evaluations.css'
 
 const message = (error: unknown) => error instanceof Error ? error.message : '操作失败'
 
-type Workspace = 'tasks' | 'data' | 'plans' | 'archives' | 'create'
+type Workspace = 'tasks' | 'data' | 'plans' | 'archives' | 'create' | 'gsm8k'
 
 export default function EvaluationsView() {
   const [view, setView] = useState<Workspace>('tasks')
@@ -217,7 +218,7 @@ export default function EvaluationsView() {
       <nav className="evaluation-workspace-tabs" aria-label="批量评测功能">
         {[
           { key: 'tasks', label: <span>实验任务 <span className="evaluation-tab-count">{jobs.length}</span></span> },
-          { key: 'data', label: '题库与清单' }, { key: 'plans', label: '实验方案' }, { key: 'archives', label: '历史档案' },
+          { key: 'data', label: '题库与清单' }, { key: 'plans', label: '实验方案' }, { key: 'archives', label: '历史档案' }, { key: 'gsm8k', label: 'GSM8K 论文复现' },
         ].map(item => <Button type="text" key={item.key} aria-current={item.key === (view === 'create' ? 'tasks' : view) ? 'page' : undefined} onClick={() => navigate(item.key as Workspace)}>{item.label}</Button>)}
       </nav>
       {view === 'tasks' && <div className="evaluation-task-layout">
@@ -248,6 +249,7 @@ export default function EvaluationsView() {
         onImported={async bank => { await refresh(); selectBank(`${bank.bank_id}:${bank.version}`) }} onUse={bank => { selectBank(`${bank.bank_id}:${bank.version}`); setStep(0); navigate('create') }} />}
       {view === 'plans' && <section className="evaluation-panel"><EvaluationPlans request={payload} disabled={invalidPlan} jobId={job?.job_id} onLoad={loadPlan} /></section>}
       {view === 'archives' && <section className="evaluation-panel"><EvaluationArchives onOpenDetail={(row, base) => void openDetail(row, base)} /></section>}
+      {view === 'gsm8k' && <GSM8KEvaluation />}
       {view === 'create' && <section className="evaluation-editor" aria-label="新建实验配置">
         <div className="evaluation-breadcrumb"><Button type="link" onClick={() => navigate('tasks')}>实验任务</Button><ChevronRight size={14} aria-hidden="true" /><span>新建实验</span></div>
         <h2>{copiedFromJobId ? '从既有方案创建新实验' : '配置对比实验'}</h2>
