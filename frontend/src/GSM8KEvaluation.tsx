@@ -12,6 +12,7 @@ type Call = { task_key: string; agent: number; round: number; attempt: number; s
 type Job = { job_id: string; name: string; state: string; error: string | null; fake: boolean; model: string;
   methods: Method[]; selection: string; samples: number; planned_calls: number; actual_calls: number;
   counts: Record<string, number>; results: Result[]; calls?: Call[]; profile_sha256: string; budget_cny: string;
+  frontend_observations?: { event: string; sha256: string | null; observed_at: string }[];
   pricing: { input_per_million_cny: string; output_per_million_cny: string; verified_at: string; source: string };
   report: { usage: Record<string, number | null>; unknown_requests: number } | null }
 
@@ -129,7 +130,7 @@ export default function GSM8KEvaluation() {
         {!job && <p className="gsm8k-empty">尚无实验。先在「配置新实验」中创建，或从上方选择一个已有实验。</p>}
         {job && <>
           <div className="gsm8k-stats">
-            <div className="gsm8k-stat"><strong>{job.counts.completed}/{job.samples}</strong><span>完成题数</span></div>
+            <div className="gsm8k-stat"><strong>{job.counts.completed}/{job.samples * job.methods.length}</strong><span>完成任务</span></div>
             <div className="gsm8k-stat" data-tone={job.counts.failed ? 'warn' : undefined}><strong>{job.counts.failed}</strong><span>失败</span></div>
             <div className="gsm8k-stat" data-tone={job.counts.interrupted ? 'warn' : undefined}><strong>{job.counts.interrupted}</strong><span>中断</span></div>
             <div className="gsm8k-stat"><strong>{job.counts.pending}</strong><span>待执行</span></div>
@@ -159,7 +160,12 @@ export default function GSM8KEvaluation() {
                 <div><dt>代码与题目指纹</dt><dd className="gsm8k-fingerprint">{job.profile_sha256}</dd></div>
                 <div><dt>实验标识</dt><dd>{job.job_id}</dd></div>
                 <div><dt>题目来源</dt><dd>{selectionLabels[job.selection] ?? job.selection}</dd></div>
+                {job.frontend_observations?.map((item, index) => <div key={`${item.event}-${item.observed_at}-${index}`}>
+                  <dt>{item.event === 'created' ? '创建时前端' : item.event === 'started' ? '启动时前端' : '前端记录'}</dt>
+                  <dd className="gsm8k-fingerprint">{item.sha256 ?? '未能读取'} · {item.observed_at}</dd>
+                </div>)}
               </dl>
+              <p className="gsm8k-hint">前端指纹记录的是后端本机源码，不代表浏览器实际加载的资源版本。</p>
             </details>
           </div>
         </>}

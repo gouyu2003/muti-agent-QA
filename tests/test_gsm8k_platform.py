@@ -111,12 +111,51 @@ def test_formal_lock_rejects_config_and_code_drift(core, monkeypatch, tmp_path):
     monkeypatch.setenv('GSM_REPRO_CONDITIONS', str(path))
     cfg = {**config, 'conditions_sha256': hashlib.sha256(raw).hexdigest()}
     gsm.verify_formal_lock(core, cfg)
+    monkeypatch.setattr(gsm, 'frontend_fingerprint', lambda: 'changed-on-disk')
+    gsm.verify_formal_lock(core, cfg)
     with pytest.raises(EvaluationFailure, match='模型配置'):
         gsm.verify_formal_lock(core, {**cfg, 'temperature': 0})
     lock['frontend_sha256'] = 'changed'
     raw = json.dumps(lock, sort_keys=True).encode(); path.write_bytes(raw)
+    changed_frontend_cfg = {**config, 'conditions_sha256': hashlib.sha256(raw).hexdigest()}
+    gsm.verify_formal_lock(core, changed_frontend_cfg)
+    with pytest.raises(EvaluationFailure, match='指纹不匹配'):
+        gsm.verify_formal_lock(core, cfg)
+    original_core = lock['core_identity']
+    lock['core_identity'] = {'changed': True}
+    raw = json.dumps(lock, sort_keys=True).encode(); path.write_bytes(raw)
     with pytest.raises(EvaluationFailure, match='代码或依赖'):
-        gsm.verify_formal_lock(core, {**cfg, 'conditions_sha256': hashlib.sha256(raw).hexdigest()})
+        gsm.verify_formal_lock(core, {**config, 'conditions_sha256': hashlib.sha256(raw).hexdigest()})
+    lock['core_identity'] = original_core
+    lock['platform_identity'] = {'changed': True}
+    raw = json.dumps(lock, sort_keys=True).encode(); path.write_bytes(raw)
+    with pytest.raises(EvaluationFailure, match='代码或依赖'):
+        gsm.verify_formal_lock(core, {**config, 'conditions_sha256': hashlib.sha256(raw).hexdigest()})
+
+
+def test_frontend_version_is_recorded_at_creation_and_start(core, monkeypatch):
+    current = {'sha': 'a' * 64}
+    monkeypatch.setattr(gsm, 'frontend_fingerprint', lambda: current['sha'])
+    job = gsm.create_job('frontend audit', ['single'], 'debug', 1, None, fake=True)
+    assert [x['sha256'] for x in job['frontend_observations']] == ['a' * 64]
+    current['sha'] = 'b' * 64
+    gsm.start_job(job['job_id'], allow_model_calls=False)
+    result = wait_job(job['job_id'])
+    assert result['state'] == 'completed'
+    assert [(x['event'], x['sha256']) for x in result['frontend_observations']] == [
+        ('created', 'a' * 64), ('started', 'b' * 64)]
+    assert all(x['observed_at'] for x in result['frontend_observations'])
+
+
+def test_unreadable_frontend_is_recorded_without_blocking(core, monkeypatch):
+    def unavailable():
+        raise OSError('offline unavailable')
+    monkeypatch.setattr(gsm, 'frontend_fingerprint', unavailable)
+    job = gsm.create_job('missing frontend', ['single'], 'debug', 1, None, fake=True)
+    gsm.start_job(job['job_id'], allow_model_calls=False)
+    result = wait_job(job['job_id'])
+    assert result['state'] == 'completed'
+    assert [x['sha256'] for x in result['frontend_observations']] == [None, None]
 
 
 def test_changed_platform_adapter_refuses_to_start(core):

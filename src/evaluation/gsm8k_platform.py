@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from copy import deepcopy
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -48,7 +49,7 @@ def python_path(root):
 
 def config_path(root, formal=False):
     if formal:
-        value = Path(os.environ.get('GSM_REPRO_FORMAL_CONFIG', ROOT / 'experiments' / 'gsm8k-formal-v1-20261110.json'))
+        value = Path(os.environ.get('GSM_REPRO_FORMAL_CONFIG', ROOT / 'experiments' / 'gsm8k-formal-v2-20261111.json'))
         if not value.is_file():
             raise EvaluationFailure('正式测试须先完成第六步并配置 GSM_REPRO_FORMAL_CONFIG。', 409)
         return value
@@ -113,6 +114,15 @@ def frontend_fingerprint():
     return hasher.hexdigest()
 
 
+def frontend_observation(event):
+    """Record backend-visible source for audit; frontend availability never blocks a run."""
+    try:
+        fingerprint = frontend_fingerprint()
+    except OSError:
+        fingerprint = None
+    return dict(event=event, sha256=fingerprint, observed_at=datetime.now(timezone.utc).isoformat())
+
+
 def core_identity(root):
     command = [str(python_path(root)), '-B', '-c',
                'import json;from gsm_repro.engine import identity;print(json.dumps(identity("."),ensure_ascii=True,sort_keys=True))']
@@ -130,7 +140,7 @@ def core_identity(root):
 
 
 def verify_formal_lock(root, config):
-    conditions = Path(os.environ.get('GSM_REPRO_CONDITIONS', ROOT / 'docs' / '复现正式条件-v1-20261110.lock.json'))
+    conditions = Path(os.environ.get('GSM_REPRO_CONDITIONS', ROOT / 'docs' / '复现正式条件-v2-20261111.lock.json'))
     try:
         raw = conditions.read_bytes()
         document = json.loads(raw.decode('utf-8'))
@@ -144,8 +154,7 @@ def verify_formal_lock(root, config):
         raise EvaluationFailure('正式模型配置与冻结条件不一致。', 409)
     from src.evaluation.experiment import identity as platform_identity
     if (document.get('core_identity') != core_identity(root) or
-            document.get('platform_identity') != platform_identity() or
-            document.get('frontend_sha256') != frontend_fingerprint()):
+            document.get('platform_identity') != platform_identity()):
         raise EvaluationFailure('代码或依赖与正式冻结版本不一致，请重新冻结后创建实验。', 409)
     if document.get('test_manifest_sha256') != FIXED_HASHES['formal']:
         raise EvaluationFailure('正式测试清单与冻结条件不一致。', 409)
@@ -230,7 +239,8 @@ def create_job(name, methods, selection, count, records, fake=False):
     atomic_json(directory / 'input-manifest.json', manifest)
     atomic_json(directory / 'input-config.json', config)
     atomic_json(directory / 'platform.json', dict(name=name.strip(), selection=selection, fake=fake, state='draft', error=None,
-                                                   adapter_sha256=ADAPTER_SHA256))
+                                                   adapter_sha256=ADAPTER_SHA256,
+                                                   frontend_observations=[frontend_observation('created')]))
     plan_args = ['plan', '--config', directory / 'input-config.json', '--manifest', directory / 'input-manifest.json',
                  '--run-dir', directory / 'core']
     if not formal:
@@ -271,9 +281,11 @@ def _metadata(directory):
     return json.loads((directory / 'platform.json').read_text(encoding='utf-8'))
 
 
-def _state(directory, state, error=None):
+def _state(directory, state, error=None, *, frontend=None):
     doc = _metadata(directory)
     doc.update(state=state, error=error)
+    if frontend is not None:
+        doc.setdefault('frontend_observations', []).append(frontend)
     atomic_json(directory / 'platform.json', doc)
 
 
@@ -312,7 +324,8 @@ def view_job(job_id, *, include_calls=False):
                 selection=meta['selection'], methods=profile['config']['methods'], model=profile['config']['model'],
                 samples=len(profile['selection']), planned_calls=len(profile['seed_plan']), counts=counts,
                 pricing=profile['config']['pricing'], budget_cny=profile['config']['budget_cny'],
-                actual_calls=len(calls), results=results, report=report, profile_sha256=profile['profile_sha256'])
+                actual_calls=len(calls), results=results, report=report, profile_sha256=profile['profile_sha256'],
+                frontend_observations=meta.get('frontend_observations', []))
     if include_calls:
         data['calls'] = [{**{k: c[k] for k in ('task_key', 'agent', 'round', 'attempt', 'status', 'duration_ms')},
                           'request': json.loads(c['request_json']),
@@ -392,7 +405,7 @@ def start_job(job_id, allow_model_calls):
                 any(call['status'] in ('started', 'unknown') for call in calls)):
             raise EvaluationFailure('存在失败或未确认的请求，请先核对记录和费用，不会自动继续。', 409)
         (directory / 'stop.requested').unlink(missing_ok=True)
-        _state(directory, 'running')
+        _state(directory, 'running', frontend=frontend_observation('started'))
         thread = Thread(target=_worker, args=(job_id, root, directory, env, guard), daemon=True)
         _threads[job_id] = thread
         thread.start()

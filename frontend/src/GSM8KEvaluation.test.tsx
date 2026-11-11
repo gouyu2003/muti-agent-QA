@@ -35,3 +35,26 @@ it('creates a fake experiment and shows the core scores and agent rounds', async
   expect(screen.getByText('How much?')).toBeInTheDocument()
   expect(screen.getByText(/第 1 轮 · 智能体 1/)).toBeInTheDocument()
 })
+
+it('shows completed method tasks against all planned method tasks', async () => {
+  const job = { job_id: 'gsm_progress', name: 'GSM8K formal v1', state: 'paused', error: null, fake: false,
+    model: 'deepseek-v4.1-flash-1017', methods: ['single', 'reflection', 'majority', 'debate'],
+    selection: 'formal', samples: 100, planned_calls: 1500, actual_calls: 750,
+    counts: { pending: 200, running: 0, completed: 200, failed: 0, interrupted: 0 },
+    results: [], calls: [], report: null, profile_sha256: 'hash', budget_cny: '20',
+    frontend_observations: [{ event: 'created', sha256: 'frontend-hash', observed_at: '2026-11-11T00:00:00Z' }],
+    pricing: { input_per_million_cny: '2', output_per_million_cny: '8', verified_at: '', source: '' } }
+  vi.mocked(evaluationRequest).mockImplementation(async (path, method) => {
+    if (path === '/gsm8k/jobs' && method === 'POST') return job as never
+    if (path === '/gsm8k/jobs') return { items: [job] } as never
+    if (path === '/gsm8k/jobs/gsm_progress') return job as never
+    throw new Error(`unexpected ${path}`)
+  })
+  render(<ConfigProvider theme={{ token: { motion: false } }}><GSM8KEvaluation /></ConfigProvider>)
+  fireEvent.click(screen.getByRole('button', { name: '创建实验' }))
+  expect(await screen.findByText('200/400')).toBeInTheDocument()
+  expect(screen.getByText('完成任务')).toBeInTheDocument()
+  expect(screen.queryByText('200/100')).not.toBeInTheDocument()
+  expect(screen.getByText('创建时前端')).toBeInTheDocument()
+  expect(screen.getByText(/frontend-hash/)).toBeInTheDocument()
+})
