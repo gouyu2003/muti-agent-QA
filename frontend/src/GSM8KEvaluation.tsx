@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Button, Checkbox, Collapse, Input, InputNumber, Modal, Select, Tag } from 'antd'
+import { Alert, Button, Checkbox, Collapse, Input, InputNumber, Modal, Pagination, Select, Tag } from 'antd'
 import { evaluationRequest } from './evaluationApi'
 import { ReloadOutlined } from './Icons'
 
@@ -22,6 +22,120 @@ const states: Record<string, string> = { draft: '待启动', running: '运行中
 const stateColors: Record<string, string> = { draft: 'default', running: 'processing', stopping: 'warning', paused: 'default', completed: 'success', interrupted: 'error' }
 const selectionLabels: Record<string, string> = { debug: '固定训练调试集', calibration: '固定训练校准集', custom: '导入题目', formal: '正式测试集' }
 
+type QuestionRow = Pick<Result, 'qid' | 'repeat' | 'gold'> & { results: Partial<Record<Method, Result>> }
+const resultFilters = { all: '全部题目', incorrect: '有方法答错', disagreement: '方法间答案不同' } as const
+const resultStates: Record<string, string> = { pending: '待执行', running: '运行中', failed: '执行失败', interrupted: '已中断' }
+const resultsPageSize = 20
+
+function GSM8KResults({ job }: { job: Job }) {
+  const [filter, setFilter] = useState<keyof typeof resultFilters>('all')
+  const [page, setPage] = useState(1)
+  const [selected, setSelected] = useState<string>()
+  const chosen = job.results.find(result => `${result.method}:${result.repeat}:${result.qid}` === selected)
+  const chosenCalls = chosen ? job.calls?.filter(call => call.task_key === selected) ?? [] : []
+
+  const questions = new Map<string, QuestionRow>()
+  for (const result of job.results) {
+    const { qid, repeat, gold, method } = result
+    const key = `${repeat}:${qid}`
+    const row = questions.get(key) ?? { qid, repeat, gold, results: {} }
+    row.results[method] = result
+    questions.set(key, row)
+  }
+  const rows = [...questions.values()]
+  const showRepeat = rows.some(row => row.repeat > 0)
+  const filtered = rows.filter(row => {
+    if (filter === 'all') return true
+    const scores = Object.values(row.results).filter(result => result.status === 'completed').map(result => result.scores.fixed)
+    if (filter === 'incorrect') return scores.some(score => score?.correct === 0)
+    const predictions = scores.map(score => score?.prediction).filter(prediction => prediction != null)
+    return new Set(predictions).size > 1
+  })
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / resultsPageSize)))
+  const visibleRows = filtered.slice((currentPage - 1) * resultsPageSize, currentPage * resultsPageSize)
+
+  return <section className="gsm8k-card" aria-labelledby="gsm8k-results-title">
+    <div className="gsm8k-card-head">
+      <h3 className="gsm8k-card-title" id="gsm8k-results-title"><span className="gsm8k-step">4</span>逐题结果</h3>
+      {rows.length > 0 && <span className="gsm8k-card-note">{rows.length} {showRepeat ? '组题目结果' : '题'} · {job.results.length} 条方法记录</span>}
+    </div>
+    <div className="gsm8k-card-body">
+      {rows.length === 0 ? <p className="gsm8k-empty">启动实验后，逐题结果与轮次轨迹将显示在这里。</p> : <>
+        <div className="gsm8k-results-toolbar">
+          <div className="gsm8k-results-filters" role="group" aria-label="筛选逐题结果">
+            {(Object.keys(resultFilters) as (keyof typeof resultFilters)[]).map(value =>
+              <Button key={value} size="small" type={filter === value ? 'primary' : 'default'} aria-pressed={filter === value}
+                onClick={() => { setFilter(value); setPage(1) }}>{resultFilters[value]}</Button>)}
+          </div>
+          <span className="gsm8k-card-note" role="status">{filter !== 'all' && `符合筛选 ${filtered.length} ${showRepeat ? '组' : '题'}`}</span>
+        </div>
+        {visibleRows.length === 0 ? <p className="gsm8k-empty">没有符合当前筛选的题目。</p> : <>
+          <div className="gsm8k-results-scroll" role="region" aria-label="逐题对照表滚动区域" tabIndex={0}>
+            <table className="gsm8k-results-table" aria-labelledby="gsm8k-results-title"
+              style={{ minWidth: `${job.methods.length * 8 + (showRepeat ? 20 : 16)}rem` }}>
+              <thead><tr>
+                <th scope="col" className="gsm8k-results-qid">题号</th>
+                {showRepeat && <th scope="col" className="gsm8k-results-repeat">重复</th>}
+                <th scope="col" className="gsm8k-results-gold">标准答案</th>
+                {job.methods.map(method => <th scope="col" key={method}>{labels[method]}</th>)}
+              </tr></thead>
+              <tbody>{visibleRows.map(row => {
+                const gold = row.gold.split('####').at(-1)?.trim() || '—'
+                return <tr key={`${row.repeat}:${row.qid}`}>
+                  <th scope="row">{row.qid}</th>
+                  {showRepeat && <td>{row.repeat + 1}</td>}
+                  <td><span className="gsm8k-result-number" title={gold}>{gold}</span></td>
+                  {job.methods.map(method => {
+                    const result = row.results[method]
+                    if (!result) return <td key={method}><span className="gsm8k-result-state">待出结果</span></td>
+                    const score = result.scores.fixed
+                    const completed = result.status === 'completed'
+                    const answer = completed ? score?.prediction ?? '未解析' : undefined
+                    const status = completed
+                      ? score?.correct === 1 ? '正确' : score?.correct === 0 ? '未答对' : '未评分'
+                      : resultStates[result.status] ?? result.status
+                    const needsReview = completed ? score?.correct === 0 : ['failed', 'interrupted'].includes(result.status)
+                    return <td key={method} className="gsm8k-result-cell">
+                      <button type="button" aria-haspopup="dialog" data-review={needsReview || undefined}
+                        aria-label={[row.qid, showRepeat ? `第 ${row.repeat + 1} 次` : null, labels[method], answer, status, '查看详情'].filter(Boolean).join(' · ')}
+                        onClick={() => setSelected(`${method}:${row.repeat}:${row.qid}`)}>
+                        {answer && <span className="gsm8k-result-number" title={answer}>{answer}</span>}
+                        <span className="gsm8k-result-state">{status}</span>
+                      </button>
+                    </td>
+                  })}
+                </tr>
+              })}</tbody>
+            </table>
+          </div>
+          {filtered.length > resultsPageSize && <Pagination className="gsm8k-results-pagination" size="small" current={currentPage}
+            total={filtered.length} pageSize={resultsPageSize} showSizeChanger={false} onChange={setPage} />}
+        </>}
+      </>}
+    </div>
+    <Modal open={!!chosen} title={chosen && `题目与轮次轨迹 · ${chosen.qid} · ${labels[chosen.method]}${showRepeat ? ` · 第 ${chosen.repeat + 1} 次` : ''}`}
+      footer={null} width={880} onCancel={() => setSelected(undefined)}>
+      {chosen && <div className="gsm8k-detail">
+        <div className="gsm8k-detail-grid">
+          <div><span>题目</span><p>{chosen.question}</p></div>
+          <div><span>参考答案</span><p>{chosen.gold}</p></div>
+        </div>
+        {chosen.error && <p className="gsm8k-hint">执行错误：{chosen.error}</p>}
+        <p className="gsm8k-hint">固定评分：{JSON.stringify(chosen.scores.fixed)}；作者评分：{JSON.stringify(chosen.scores.author_faithful)}</p>
+        {chosenCalls.length > 0 ? <Collapse items={chosenCalls.map((call, index) => ({ key: String(index), label: `第 ${call.round + 1} 轮 · 智能体 ${call.agent + 1} · ${call.status}${call.response?.finish_reason === 'length' ? ' · 输出截断' : ''}`, children: <>
+          <p>结束原因：{call.response?.finish_reason ?? '未知'}；耗时：{call.duration_ms ?? '未知'} ms</p>
+          <details><summary>本次消息</summary><pre>{JSON.stringify(call.request.messages, null, 2)}</pre></details>
+          <details open><summary>模型回答</summary><pre>{call.response?.content ?? JSON.stringify(call.error)}</pre></details>
+          <details><summary>用量</summary><pre>{JSON.stringify(call.response?.usage ?? null, null, 2)}</pre></details>
+        </> }))} /> : <>
+          <p className="gsm8k-hint">暂无轮次轨迹。</p>
+          {chosen.outputs.length > 0 && <details><summary>已保存的模型输出</summary><pre>{chosen.outputs.join('\n\n')}</pre></details>}
+        </>}
+      </div>}
+    </Modal>
+  </section>
+}
+
 export default function GSM8KEvaluation() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [job, setJob] = useState<Job>()
@@ -34,7 +148,6 @@ export default function GSM8KEvaluation() {
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState('')
-  const [selected, setSelected] = useState<string>()
 
   const refreshList = useCallback(async () => {
     const data = await evaluationRequest<{ items: Job[] }>('/gsm8k/jobs')
@@ -62,7 +175,7 @@ export default function GSM8KEvaluation() {
       if (!Array.isArray(records) || records.length !== count) throw new Error('自定义题目数量需与题数一致。')
     }
     const data = await evaluationRequest<Job>('/gsm8k/jobs', 'POST', { name, methods, selection, count, records, fake })
-    await refreshList(); await refreshJob(data.job_id); setSelected(undefined)
+    await refreshList(); await refreshJob(data.job_id)
   }
   async function importFile(file: File) {
     if (file.size > 1024 * 1024) throw new Error('题目文件不能超过 1 MiB。')
@@ -76,8 +189,6 @@ export default function GSM8KEvaluation() {
     setConfirming(true)
   }
   const active = job && ['running', 'stopping'].includes(job.state)
-  const chosen = job?.results.find(item => `${item.method}:${item.repeat}:${item.qid}` === selected)
-  const chosenCalls = job?.calls?.filter(call => call.task_key === selected) ?? []
   const pendingCalls = methods.reduce((total, method) => total + callsPerMethod[method], 0) * count
 
   return <section className="gsm8k-workspace" aria-label="GSM8K 论文复现实验">
@@ -125,7 +236,7 @@ export default function GSM8KEvaluation() {
       </div>
       <div className="gsm8k-card-body">
         <div className="gsm8k-field gsm8k-job-select"><span>实验</span>
-          <Select aria-label="选择 GSM8K 实验" placeholder="选择已有实验" value={job?.job_id} onChange={id => { setSelected(undefined); void action(() => refreshJob(id)) }} options={jobs.map(item => ({ value: item.job_id, label: `${item.name} · ${states[item.state] ?? item.state}` }))} />
+          <Select aria-label="选择 GSM8K 实验" placeholder="选择已有实验" value={job?.job_id} onChange={id => void action(() => refreshJob(id))} options={jobs.map(item => ({ value: item.job_id, label: `${item.name} · ${states[item.state] ?? item.state}` }))} />
         </div>
         {!job && <p className="gsm8k-empty">尚无实验。先在「配置新实验」中创建，或从上方选择一个已有实验。</p>}
         {job && <>
@@ -196,37 +307,7 @@ export default function GSM8KEvaluation() {
       </div>
     </section>}
 
-    {job && <section className="gsm8k-card" aria-labelledby="gsm8k-results-title">
-      <div className="gsm8k-card-head">
-        <h3 className="gsm8k-card-title" id="gsm8k-results-title"><span className="gsm8k-step">4</span>逐题结果</h3>
-        {job.results.length > 0 && <span className="gsm8k-card-note">已完成 {job.results.length} 条记录</span>}
-      </div>
-      <div className="gsm8k-card-body">
-        {job.results.length === 0
-          ? <p className="gsm8k-empty">启动实验后，逐题结果与轮次轨迹将显示在这里。</p>
-          : <div className="gsm8k-results">{job.results.map(row => {
-            const key = `${row.method}:${row.repeat}:${row.qid}`
-            const score = row.scores.fixed
-            return <button type="button" key={key} aria-pressed={key === selected} onClick={() => setSelected(key)}>
-              <strong>{row.qid} · {labels[row.method]}</strong><span>{row.status} · {score?.correct === 1 ? '正确' : score?.correct === 0 ? '未答对' : '未评分'} · 答案 {score?.prediction ?? '未解析'}</span>
-            </button>
-          })}</div>}
-        {chosen && <div className="gsm8k-detail">
-          <h4>题目与轮次轨迹</h4>
-          <div className="gsm8k-detail-grid">
-            <div><span>题目</span><p>{chosen.question}</p></div>
-            <div><span>参考答案</span><p>{chosen.gold}</p></div>
-          </div>
-          <p className="gsm8k-hint">固定评分：{JSON.stringify(chosen.scores.fixed)}；作者评分：{JSON.stringify(chosen.scores.author_faithful)}</p>
-          <Collapse items={chosenCalls.map((call, index) => ({ key: String(index), label: `第 ${call.round + 1} 轮 · 智能体 ${call.agent + 1} · ${call.status}${call.response?.finish_reason === 'length' ? ' · 输出截断' : ''}`, children: <>
-            <p>结束原因：{call.response?.finish_reason ?? '未知'}；耗时：{call.duration_ms ?? '未知'} ms</p>
-            <details><summary>本次消息</summary><pre>{JSON.stringify(call.request.messages, null, 2)}</pre></details>
-            <details open><summary>模型回答</summary><pre>{call.response?.content ?? JSON.stringify(call.error)}</pre></details>
-            <details><summary>用量</summary><pre>{JSON.stringify(call.response?.usage ?? null, null, 2)}</pre></details>
-          </> }))} />
-        </div>}
-      </div>
-    </section>}
+    {job && <GSM8KResults key={job.job_id} job={job} />}
 
     <Modal open={confirming} title={job?.fake ? '启动离线模拟？' : '确认调用真实模型？'} okText="确认启动" cancelText="取消" confirmLoading={busy}
       onCancel={() => setConfirming(false)} onOk={() => { if (!job) return; setConfirming(false); void action(async () => {

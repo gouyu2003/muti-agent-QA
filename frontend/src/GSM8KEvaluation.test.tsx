@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { ConfigProvider } from 'antd'
 import { afterEach, expect, it, vi } from 'vitest'
 import GSM8KEvaluation from './GSM8KEvaluation'
@@ -57,4 +57,42 @@ it('shows completed method tasks against all planned method tasks', async () => 
   expect(screen.queryByText('200/100')).not.toBeInTheDocument()
   expect(screen.getByText('创建时前端')).toBeInTheDocument()
   expect(screen.getByText(/frontend-hash/)).toBeInTheDocument()
+})
+
+it('pairs method results by question and filters wrong answers separately from disagreements and execution failures', async () => {
+  function result(qid: string, method: string, prediction: string | null, correct: number, status = 'completed') {
+    return { qid, method, repeat: 0, status, question: `Question ${qid}`, gold: 'Explanation\n#### 16',
+      outputs: [], scores: { fixed: { prediction, correct } } }
+  }
+  const job = { job_id: 'gsm_comparison', name: 'Comparison', state: 'paused', error: null, fake: true,
+    model: 'fake', methods: ['single', 'debate'], selection: 'debug', samples: 5, planned_calls: 35,
+    actual_calls: 0, counts: { pending: 1, running: 0, completed: 8, failed: 1, interrupted: 0 },
+    results: [result('0001', 'single', '16', 1), result('0002', 'single', '18', 0), result('0003', 'single', '16', 1),
+      result('0004', 'single', null, 0, 'failed'), result('0005', 'single', null, 0),
+      result('0001', 'debate', '16', 1), result('0002', 'debate', '18', 0), result('0003', 'debate', '17', 0),
+      result('0005', 'debate', '16', 1)],
+    report: null, profile_sha256: 'hash', budget_cny: '0' }
+  vi.mocked(evaluationRequest).mockImplementation(async (path, method) => {
+    if (path === '/gsm8k/jobs' && method === 'POST') return job as never
+    if (path === '/gsm8k/jobs') return { items: [job] } as never
+    if (path === '/gsm8k/jobs/gsm_comparison') return job as never
+    throw new Error(`unexpected ${path}`)
+  })
+  render(<ConfigProvider theme={{ token: { motion: false } }}><GSM8KEvaluation /></ConfigProvider>)
+  fireEvent.click(screen.getByRole('button', { name: '创建实验' }))
+  const table = within(await screen.findByRole('table', { name: /逐题结果/ }))
+  const questionIds = () => table.getAllByRole('rowheader').map(header => header.textContent)
+  expect(table.getAllByRole('columnheader').map(header => header.textContent)).toEqual(['题号', '标准答案', 'Single', 'Debate'])
+  expect(questionIds()).toEqual(['0001', '0002', '0003', '0004', '0005'])
+  const incomplete = within(table.getByRole('row', { name: /0004/ }))
+  expect(incomplete.getByRole('button', { name: /执行失败/ })).toBeInTheDocument()
+  expect(incomplete.getByText('待出结果')).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: '有方法答错' }))
+  expect(questionIds()).toEqual(['0002', '0003', '0005'])
+  fireEvent.click(screen.getByRole('button', { name: '方法间答案不同' }))
+  expect(questionIds()).toEqual(['0003'])
+  fireEvent.click(table.getByRole('button', { name: /0003.*Debate.*17.*未答对/ }))
+  expect(screen.getByText('题目与轮次轨迹 · 0003 · Debate')).toBeInTheDocument()
+  expect(screen.getByText('Question 0003')).toBeInTheDocument()
 })
