@@ -78,7 +78,9 @@ class InteractiveRuns:
                         directory.mkdir(exist_ok=True)
                         kwargs = dict(cwd=str(ROOT), stdin=subprocess.DEVNULL, close_fds=True)
                         if os.name == 'nt':
-                            kwargs['creationflags'] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+                            # DETACHED_PROCESS overrides CREATE_NO_WINDOW and can leave
+                            # the venv launcher with no console for its child to inherit.
+                            kwargs['creationflags'] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
                         else:
                             kwargs['start_new_session'] = True
                         with (directory / 'worker.log').open('ab') as log:
