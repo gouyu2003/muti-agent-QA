@@ -137,8 +137,15 @@ class RunDetail(RuntimeModel):
         return self
 
 
+def verification_applies(result: dict | None) -> bool:
+    """Legacy QA stays eligible; explicit general replies and clarification do not."""
+    result = result or {}
+    return (result.get('verification_applicable') is not False
+            and (result.get('chat_context') or {}).get('intent') != 'clarification')
+
+
 class RunStatsSummary(RuntimeModel):
-    """运行统计。完成率以全部运行计，验证通过率以已完成运行为分母。"""
+    """完成率以全部运行计，验证通过率以已完成且需验证的运行为分母。"""
 
     total_runs: int = Field(ge=0)
     completed_runs: int = Field(ge=0)
@@ -147,11 +154,12 @@ class RunStatsSummary(RuntimeModel):
     running_runs: int = Field(ge=0)
     interrupted_runs: int = Field(default=0, ge=0)
     verified_runs: int = Field(ge=0)
+    verification_applicable_runs: int = Field(default=0, ge=0)
     completion_rate: float = Field(
         ge=0, le=1, description="已完成运行数 / 全部运行数"
     )
     verification_pass_rate: float = Field(
-        ge=0, le=1, description="verified=true 的已完成运行数 / 已完成运行数"
+        ge=0, le=1, description="已验证运行数 / 已完成且需验证的运行数"
     )
     average_duration_ms: float | None = Field(
         default=None, ge=0, description="有耗时记录的运行的平均毫秒数"

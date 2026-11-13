@@ -74,6 +74,8 @@ NODE_FIELDS: dict[str, tuple[str, ...]] = {
 
 FINAL_FIELDS = (
     "chat_context",
+    "response_parts",
+    "verification_applicable",
     "question",
     "sub_questions",
     "retrieval_strategy",
@@ -116,6 +118,9 @@ def _public_error(exc: Exception) -> RunError:
     from src.runtime.chat_context import ContextResolutionError
     if isinstance(exc, ContextResolutionError):
         return RunError(error_type='chat_context_error', message=str(exc))
+    from src.runtime.chat_response import GeneralResponseError
+    if isinstance(exc, GeneralResponseError):
+        return RunError(error_type='chat_response_error', message=str(exc))
     from src.runtime.protocol_runtime import ProtocolExecutionError
     if isinstance(exc, ProtocolExecutionError):
         return RunError(error_type='protocol_execution_error', message=str(exc))
@@ -289,8 +294,11 @@ class RunService:
             execution_context = context
             chat = context.config_snapshot.get('_chat')
             clarification = None
+            hybrid = False
+            knowledge_question = general_question = ''
             if chat:
-                from src.runtime.chat_context import resolve_context
+                from src.runtime.chat_context import POLICY_VERSION, resolve_context
+                hybrid = chat['config'].get('policy_version') == POLICY_VERSION
                 usage_collector.check_cancelled()
                 node_call_count += 1
                 yield make_event('node_started', node='chat_context', cycle=1,
@@ -302,23 +310,37 @@ class RunService:
                     resolution = resolve_context(chat, context.question, usage_collector)
                 state['chat_context'] = resolution
                 usage_collector.check_cancelled()
-                yield make_event('node_completed', node='chat_context', cycle=1,
-                                 duration_ms=max(0, round((self.clock()-context_started)*1000)),
-                                 payload={'agent_name': '上下文理解', 'output': {'chat_context': resolution}})
                 if resolution['intent'] == 'clarification':
                     clarification = resolution['clarification']
                     state.update(answer=clarification, verified=False, supporting_evidence=[],
+                                 verification_applicable=False,
                                  verification_note='需要补充信息，尚未执行事实检索与验证。')
                 else:
-                    execution_context = context.model_copy(update={'question': resolution['resolved_question']})
+                    if hybrid:
+                        knowledge_question = resolution['knowledge_question']
+                        general_question = resolution['general_question']
+                        state.update(verification_applicable=bool(knowledge_question), verified=False,
+                                     failure_type='none', supporting_evidence=[])
+                    execution_context = context.model_copy(update={'question': knowledge_question if hybrid else resolution['resolved_question']})
+                yield make_event('node_completed', node='chat_context', cycle=1,
+                                 duration_ms=max(0, round((self.clock()-context_started)*1000)),
+                                 payload={'agent_name': '上下文理解', 'output': _public_mapping(state,
+                                     ('chat_context', 'verification_applicable', 'answer', 'verified',
+                                      'failure_type', 'supporting_evidence', 'verification_note'))})
+                if hybrid:
+                    yield make_event('route_decided', node='chat_context', cycle=1, payload={
+                        'target': 'clarification' if clarification else 'knowledge' if knowledge_question else 'chat_general',
+                        'reason': 'clarification' if clarification else 'mixed' if knowledge_question and general_question else
+                                  'knowledge' if knowledge_question else 'general'})
+            execute_knowledge = clarification is None and (not hybrid or bool(knowledge_question))
             workflow = (
                 WorkflowSpec.model_validate(context.config_snapshot["workflow_spec"])
-                if "workflow_spec" in context.config_snapshot and not protocol_run else None
+                if execute_knowledge and "workflow_spec" in context.config_snapshot and not protocol_run else None
             )
             graph = (
                 self.graph_factory(usage_collector) if self.graph_factory is not None
                 else _build_default_graph(execution_context, usage_collector)
-            ) if clarification is None else None
+            ) if execute_knowledge else None
             stream = graph.stream(
                 {"question": execution_context.question},
                 config={
@@ -401,6 +423,42 @@ class RunService:
                                 "reason": decision.reason,
                             },
                         )
+
+            if hybrid and clarification is None:
+                from src.runtime.chat_response import assemble_parts, general_response, knowledge_part
+                parts = []
+                if knowledge_question:
+                    usage_collector.check_cancelled()
+                    parts.append(knowledge_part(state))
+                    state.update(response_parts=parts, answer=assemble_parts(parts))
+                    # Persist the usable knowledge portion before starting another model call.
+                    node_call_count += 1
+                    yield make_event('node_started', node='chat_answer', cycle=1,
+                                     payload={'agent_name': '知识库回复整理'})
+                    yield make_event('node_completed', node='chat_answer', cycle=1,
+                                     payload={'agent_name': '知识库回复整理', 'output': {
+                                         'response_parts': list(parts), 'answer': state['answer'],
+                                         'verification_applicable': True}})
+                if general_question:
+                    usage_collector.check_cancelled()
+                    node_call_count += 1
+                    yield make_event('node_started', node='chat_general', cycle=1,
+                                     payload={'agent_name': '通用回答', 'input': {'question': general_question}})
+                    general_started = self.clock()
+                    knowledge = ({'verified': state.get('verified') is True, 'answer': parts[0]['content'],
+                                  'failure_type': state.get('failure_type', 'none')} if parts else None)
+                    with observe('chat_general'):
+                        answer, diagnostics = general_response(chat, general_question, knowledge, usage_collector)
+                    parts.append({'kind': 'general', 'content': answer})
+                    state.update(response_parts=parts, answer=assemble_parts(parts))
+                    if not knowledge_question:
+                        state['verification_note'] = '通用回答未执行知识库证据验证。'
+                    state['chat_context']['general_diagnostics'] = diagnostics
+                    yield make_event('node_completed', node='chat_general', cycle=1,
+                                     duration_ms=max(0, round((self.clock()-general_started)*1000)),
+                                     payload={'agent_name': '通用回答', 'output': _public_mapping(state,
+                                         ('chat_context', 'answer', 'response_parts', 'verification_applicable',
+                                          'verified', 'failure_type', 'supporting_evidence', 'verification_note'))})
 
             metrics = self._metrics(
                 state,

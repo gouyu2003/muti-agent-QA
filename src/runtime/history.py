@@ -13,7 +13,7 @@ import sqlite3
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from src.runtime.models import RunDetail, RunRecord, RunStatsSummary
+from src.runtime.models import RunDetail, RunRecord, RunStatsSummary, verification_applies
 from src.runtime.repository import RepositoryError, RunRepository
 from src.runtime.sqlite_repository import SQLiteRunRepository
 
@@ -145,7 +145,8 @@ class HistoryReader:
 
 def summarize_history(records: list[RunRecord]) -> RunStatsSummary:
     statuses = Counter(run.status for run in records)
-    verified = sum(run.status == 'completed' and bool((run.final_state or {}).get('verified')) for run in records)
+    eligible = [run for run in records if run.status == 'completed' and verification_applies(run.final_state)]
+    verified = sum((run.final_state or {}).get('verified') is True for run in eligible)
     durations = [run.metrics.duration_ms for run in records if run.metrics.duration_ms is not None]
     retries = [run.metrics.plan_retry_count + run.metrics.retrieval_retry_count
                for run in records if run.status != 'running']
@@ -156,8 +157,9 @@ def summarize_history(records: list[RunRecord]) -> RunStatsSummary:
             failures[kind] += 1
     return RunStatsSummary(total_runs=len(records), completed_runs=statuses['completed'],
         failed_runs=statuses['failed'], cancelled_runs=statuses['cancelled'], running_runs=statuses['running'], interrupted_runs=statuses['interrupted'],
-        verified_runs=verified, completion_rate=statuses['completed'] / len(records) if records else 0.0,
-        verification_pass_rate=verified / statuses['completed'] if statuses['completed'] else 0.0,
+        verified_runs=verified, verification_applicable_runs=len(eligible),
+        completion_rate=statuses['completed'] / len(records) if records else 0.0,
+        verification_pass_rate=verified / len(eligible) if eligible else 0.0,
         average_duration_ms=sum(durations) / len(durations) if durations else None,
         average_retry_count=sum(retries) / len(retries) if retries else None,
         failure_types=dict(sorted(failures.items())))

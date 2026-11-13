@@ -209,6 +209,8 @@ export interface ModelDiagnostics {
 }
 
 export interface RunResult {
+  response_parts?: { kind: 'knowledge' | 'general'; content: string }[]
+  verification_applicable?: boolean
   chat_context?: {
     intent: string
     resolved_question?: string
@@ -216,6 +218,11 @@ export interface RunResult {
     context_status?: string
     used_message_ids?: string[]
     prompt_version?: string
+    policy_version?: string
+    knowledge_question?: string
+    general_question?: string
+    model_diagnostics?: ModelDiagnostics
+    general_diagnostics?: ModelDiagnostics
   }
   request_error?: ModelRequestDiagnostic
   protocol_calls?: Record<string, import('./protocolTypes').ProtocolCall>
@@ -448,6 +455,7 @@ export interface RunStatsSummary {
   cancelled_runs: number
   running_runs: number
   verified_runs: number
+  verification_applicable_runs?: number
   completion_rate: number
   verification_pass_rate: number
   average_duration_ms: number | null

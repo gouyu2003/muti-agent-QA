@@ -4,7 +4,7 @@ import json
 from uuid import uuid4
 
 from src.observability import utcnow
-from src.runtime.chat_context import bounded_history, context_config
+from src.runtime.chat_context import POLICY_VERSION, bounded_history, context_config
 from src.runtime.chat_messages import message_to_dict
 from src.runtime.interactive import ExecutionFailure, request_fingerprint
 from src.runtime.models import RunContext
@@ -68,7 +68,8 @@ class ChatStore:
         result.update(system_ref=snapshot['system_ref'], active_run_id=active['run_id'] if active else None,
                       preview=last['content'][:80] if last else '')
         if full:
-            result.update(config_snapshot=snapshot, context_config=json.loads(row['context_config_json']))
+            result.update(config_snapshot=snapshot, context_config=json.loads(row['context_config_json']),
+                          chat_policy_version=POLICY_VERSION)
         return result
 
     def create(self, selection, request_key):
@@ -140,7 +141,7 @@ class ChatStore:
                 'turn_index': max((m['turn_index'] for m in history), default=0) + 1,
                 'history': bounded_history(history),
                 'has_history': any(m['role'] == 'assistant' and m['status'] == 'completed' and m['content'] for m in history),
-                'config': conversation['context_config']}
+                'config': context_config(snapshot)}
             return current
 
         def reserved(current):

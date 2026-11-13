@@ -24,6 +24,7 @@ from src.runtime.models import (
     RunStatsSummary,
     RunStatus,
     TraceEvent,
+    verification_applies,
 )
 from src.runtime.repository import (
     InvalidRunTransitionError,
@@ -656,6 +657,7 @@ class SQLiteRunRepository:
             }
             failure_types: dict[str, int] = {}
             verified_runs = 0
+            verification_applicable_runs = 0
             durations: list[int] = []
             retry_counts: list[int] = []
             for row in rows:
@@ -664,12 +666,10 @@ class SQLiteRunRepository:
                 final_state = _load_json(row["final_state_json"], "final_state_json")
                 if final_state is not None and not isinstance(final_state, dict):
                     raise RepositoryError("数据库字段 final_state_json 必须是对象")
-                if (
-                    run_status == "completed"
-                    and final_state
-                    and final_state.get("verified") is True
-                ):
-                    verified_runs += 1
+                if run_status == 'completed' and verification_applies(final_state):
+                    verification_applicable_runs += 1
+                    if (final_state or {}).get('verified') is True:
+                        verified_runs += 1
 
                 if run_status == "failed":
                     failure_type = row["error_type"]
@@ -699,8 +699,9 @@ class SQLiteRunRepository:
                 running_runs=status_counts["running"],
                 interrupted_runs=status_counts["interrupted"],
                 verified_runs=verified_runs,
+                verification_applicable_runs=verification_applicable_runs,
                 completion_rate=completed / total if total else 0.0,
-                verification_pass_rate=verified_runs / completed if completed else 0.0,
+                verification_pass_rate=verified_runs / verification_applicable_runs if verification_applicable_runs else 0.0,
                 average_duration_ms=(
                     sum(durations) / len(durations) if durations else None
                 ),

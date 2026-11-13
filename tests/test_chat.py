@@ -31,6 +31,14 @@ def chat(tmp_path, monkeypatch):
     monkeypatch.setenv('MAQA_SYSTEMS_DIR', str(tmp_path / 'systems'))
     monkeypatch.setenv('MAQA_KNOWLEDGE_DIR', str(tmp_path / 'knowledge'))
     monkeypatch.setenv('MAQA_DISABLE_MODEL_CALLS', '1')
+    class RoutingModel:
+        def invoke(self, prompt):
+            data = json.loads(prompt.split('\n输入数据：\n', 1)[1])
+            question = data['current_question']
+            return SimpleNamespace(content=json.dumps({'intent': 'standalone', 'resolved_question': question,
+                'knowledge_question': question, 'general_question': '', 'clarification': '', 'used_message_ids': []}),
+                usage_metadata={'input_tokens': 10, 'output_tokens': 5, 'total_tokens': 15})
+    monkeypatch.setattr('src.llm.build_chat_model', lambda config: RoutingModel())
     questions = []
     repository = SQLiteRunRepository(tmp_path / 'runs.sqlite3')
     service = RunService(repository, graph_factory=lambda usage: AnswerGraph(questions))
@@ -105,6 +113,7 @@ def mock_resolution(monkeypatch, *, intent='followup', question='本科生最多
     class Model:
         def invoke(self, prompt):
             return SimpleNamespace(content=json.dumps({'intent': intent, 'resolved_question': question,
+                'knowledge_question': question if intent != 'clarification' else '', 'general_question': '',
                 'clarification': clarification, 'used_message_ids': []}), usage_metadata={'input_tokens': 10, 'output_tokens': 5, 'total_tokens': 15})
     monkeypatch.setattr('src.llm.build_chat_model', lambda config: Model())
 
@@ -167,7 +176,8 @@ def test_history_window_and_model_selection():
     assert {m['turn_index'] for m in bounded_history(messages)} == {2, 3, 4}
     for role in ('planner', 'lead', 'answer_validator', 'expert'):
         config = context_config({'agents': {'agent': {'role': role, 'model_config': {'model_name': 'test'}}}})
-        assert config['agent_id'] == 'agent' and config['model_config']['max_tokens'] == 512
+        assert config['agent_id'] == 'agent' and config['model_config']['max_tokens'] == 1024
+        assert config['general_model_config']['max_tokens'] == 2048
     result = resolve_context({'history': [], 'has_history': True, 'config': {'prompt_version': 'v1'}},
                              '那他们呢？', LLMUsageCollector())
     assert result['intent'] == 'clarification'
@@ -266,3 +276,243 @@ def test_concurrent_duplicate_reserves_only_one_run(chat):
     assert len(chat.store.messages(key)) == 2
     with chat.repository._connection() as db:
         assert db.execute('SELECT COUNT(*) FROM runs').fetchone()[0] == 1
+
+
+def hybrid_model(monkeypatch, *, knowledge='', general='', answer='你好！有什么可以帮你？',
+                 intent='standalone', clarification='', general_outputs=None):
+    """Provider stub with explicit routing decisions, not a keyword classifier."""
+    calls = []
+    outputs = iter(general_outputs) if general_outputs is not None else None
+    class Model:
+        def __init__(self, config):
+            self.general = config['model_config']['max_tokens'] == 2048
+
+        def invoke(self, prompt):
+            calls.append((self.general, prompt))
+            if self.general:
+                value = next(outputs) if outputs is not None else {'answer': answer}
+                if isinstance(value, Exception):
+                    raise value
+            else:
+                value = {'intent': intent, 'resolved_question': '' if clarification else knowledge or general,
+                         'knowledge_question': knowledge, 'general_question': general,
+                         'clarification': clarification, 'used_message_ids': []}
+            return SimpleNamespace(content=value if isinstance(value, str) else json.dumps(value),
+                usage_metadata={'input_tokens': 10, 'output_tokens': 5, 'total_tokens': 15})
+    monkeypatch.setattr('src.llm.build_chat_model', Model)
+    return calls
+
+
+@pytest.mark.parametrize('question', ['你好', '你能做什么？', '解释机器学习', '写一封感谢信', '写一个 Python 排序函数'])
+def test_general_first_turn_skips_knowledge_and_persists_metadata(chat, monkeypatch, question):
+    hybrid_model(monkeypatch, general=question, answer='**通用回复**')
+    key = create(chat)['conversation_id']
+    detail = finish(chat, chat.store.send(key, question, 'one'))
+    state = detail.run.final_state
+    assert detail.run.status == 'completed'
+    assert chat.questions == []
+    assert state['answer'] == '**通用回复**'
+    assert state['response_parts'] == [{'kind': 'general', 'content': '**通用回复**'}]
+    assert state['verification_applicable'] is False and state['verified'] is False
+    assert state['failure_type'] == 'none' and state['supporting_evidence'] == []
+    assert detail.run.metrics.llm_call_count == 2
+    assert set(detail.run.metrics.agent_usage) == {'chat_context', 'chat_general'}
+    assert chat.store.messages(key)[-1]['result'] == state
+    terminal = detail.events[-1].payload['result']
+    exported = json.loads(next(chat.repository.export_runs_jsonl()))['run']['final_state']
+    assert terminal == exported == state
+    summary = chat.repository.get_stats_summary()
+    assert summary.completed_runs == 1 and summary.verification_applicable_runs == 0
+    assert summary.verification_pass_rate == 0
+
+
+@pytest.mark.parametrize('failure', ['none', 'insufficient', 'conflict'])
+def test_mixed_keeps_verdict_and_only_shares_confirmed_knowledge(chat, monkeypatch, failure):
+    calls = hybrid_model(monkeypatch, knowledge='研究生能借几本？', general='给一些阅读建议', answer='建议定期阅读。')
+    class KnowledgeGraph:
+        def stream(self, state, **kwargs):
+            yield {'type': 'updates', 'data': {'answer_validator_v0': {
+                'answer': '30 册' if failure == 'none' else '未经证实的错误政策 999 册',
+                'verified': failure == 'none', 'failure_type': failure,
+                'verification_note': '原始验证说明', 'supporting_evidence': []}}}
+    chat.service.graph_factory = lambda usage: KnowledgeGraph()
+    key = create(chat)['conversation_id']
+    detail = finish(chat, chat.store.send(key, '借阅规则和阅读建议', 'one'))
+    state = detail.run.final_state
+    assert detail.run.status == 'completed'
+    assert [p['kind'] for p in state['response_parts']] == ['knowledge', 'general']
+    assert state['verified'] is (failure == 'none')
+    assert state['verification_applicable'] is True
+    assert state['verification_note'] == '原始验证说明'
+    assert '999' not in state['answer'] and '999' not in calls[-1][1]
+    assert '通用部分' in state['answer'] and '建议定期阅读。' in state['answer']
+    assert any(e.payload.get('output', {}).get('answer', '').startswith('未经证实')
+               for e in detail.events) is (failure != 'none')
+    if failure == 'conflict':
+        assert '冲突' in state['response_parts'][0]['content']
+    if failure == 'insufficient':
+        assert '没有找到' in state['response_parts'][0]['content']
+
+
+def test_mixed_general_failure_preserves_knowledge_and_records_failure(chat, monkeypatch):
+    hybrid_model(monkeypatch, knowledge='研究生借阅', general='阅读建议', general_outputs=['invalid', {'answer': ''}])
+    key = create(chat)['conversation_id']
+    detail = finish(chat, chat.store.send(key, '混合请求', 'one'))
+    assert detail.run.status == 'failed'
+    assert detail.run.error.error_type == 'chat_response_error'
+    assert detail.run.metrics.agent_usage['chat_general']['call_count'] == 2
+    assert detail.run.final_state['response_parts'] == [{'kind': 'knowledge', 'content': '研究生可借 30 册。'}]
+    assert chat.store.messages(key)[-1]['content'] == '研究生可借 30 册。'
+    assert chat.store.messages(key)[-1]['error']
+    assert len(chat.questions) == 1
+
+
+def test_routing_repairs_once_without_changing_to_another_path(chat, monkeypatch):
+    calls = []
+    class InvalidModel:
+        def invoke(self, prompt):
+            calls.append(prompt)
+            return SimpleNamespace(content='{}')
+    monkeypatch.setattr('src.llm.build_chat_model', lambda config: InvalidModel())
+    detail = finish(chat, chat.store.send(create(chat)['conversation_id'], '完整问题', 'one'))
+    assert detail.run.status == 'failed' and detail.run.error.error_type == 'chat_context_error'
+    assert len(calls) == 2 and chat.questions == []
+
+
+def test_general_repair_and_cancel_during_generation(chat, monkeypatch):
+    hybrid_model(monkeypatch, general='你好', general_outputs=[{'answer': ''}, {'answer': '你好！'}])
+    key = create(chat)['conversation_id']
+    detail = finish(chat, chat.store.send(key, '你好', 'one'))
+    assert detail.run.status == 'completed'
+    assert detail.run.metrics.llm_call_count == 3
+    assert detail.run.final_state['chat_context']['general_diagnostics']['retry_count'] == 1
+    from threading import Event
+    cancellation = Event()
+    def cancelled(*args):
+        cancellation.set()
+        args[-1].check_cancelled()
+    hybrid_model(monkeypatch, knowledge='研究生借阅', general='阅读建议')
+    monkeypatch.setattr('src.runtime.chat_response.general_response', cancelled)
+    submitted = chat.store.send(key, '混合请求', 'two')
+    detail = chat.service.run(chat.repository.get_run(submitted['run_id']).context,
+                            prepared=True, cancellation=cancellation)
+    assert detail.run.status == 'cancelled'
+    assert detail.run.final_state['response_parts'][0]['kind'] == 'knowledge'
+    assert chat.store.messages(key)[-1]['status'] == 'cancelled'
+
+
+def test_clarification_and_complete_question_when_history_unavailable(chat, monkeypatch):
+    config = context_config(create(chat)['config_snapshot'])
+    hybrid_model(monkeypatch, intent='clarification', clarification='请说明是哪类读者。')
+    result = resolve_context({'history': [], 'has_history': True, 'config': config}, '那他们呢？', LLMUsageCollector())
+    assert result['intent'] == 'clarification'
+    hybrid_model(monkeypatch, general='解释机器学习')
+    result = resolve_context({'history': [], 'has_history': True, 'config': config}, '解释机器学习', LLMUsageCollector())
+    assert result['general_question'] == '解释机器学习'
+    hybrid_model(monkeypatch, intent='clarification', clarification='请说明是哪类读者。')
+    detail = finish(chat, chat.store.send(create(chat, 'another')['conversation_id'], '那他们呢？', 'one'))
+    assert detail.run.status == 'completed' and detail.run.final_state['verification_applicable'] is False
+    assert chat.questions == [] and detail.run.metrics.llm_call_count == 1
+
+
+def test_legacy_queued_run_uses_frozen_policy_and_new_send_upgrades(chat, monkeypatch):
+    from src.runtime.chat_context import LEGACY_INSTRUCTIONS, POLICY_VERSION
+    key = create(chat)['conversation_id']
+    snapshot = deepcopy(chat.store.get(key)['config_snapshot'])
+    legacy = context_config(snapshot)
+    for field in ('policy_version', 'general_model_config', 'general_instructions', 'system_scope'):
+        legacy.pop(field)
+    legacy.update(instructions=LEGACY_INSTRUCTIONS, prompt_version='chat-context-v1')
+    legacy['model_config'].update(system_prompt=LEGACY_INSTRUCTIONS, max_tokens=512)
+    with chat.repository._connection() as db:
+        db.execute('UPDATE conversations SET context_config_json=? WHERE conversation_id=?', (json.dumps(legacy), key))
+    queued = chat.store.send(key, '研究生借阅', 'queued')
+    record = chat.repository.get_run(queued['run_id'])
+    record.context.config_snapshot['_chat']['config'] = legacy
+    # Simulate a Run admitted by the old release, without rewriting its system snapshot.
+    with chat.repository._connection() as db:
+        db.execute('UPDATE runs SET config_snapshot_json=? WHERE run_id=?',
+                   (json.dumps(record.context.config_snapshot), queued['run_id']))
+    monkeypatch.setattr('src.llm.build_chat_model', lambda config: pytest.fail('legacy first turn must skip the model'))
+    original = finish(chat, queued)
+    assert original.run.status == 'completed' and original.run.metrics.llm_call_count == 0
+    hybrid_model(monkeypatch, general='你好')
+    submitted = chat.store.send(key, '你好', 'new')
+    detail = finish(chat, submitted)
+    assert detail.run.context.config_snapshot['_chat']['config']['policy_version'] == POLICY_VERSION
+    assert chat.store.get(key)['config_snapshot'] == snapshot
+    assert chat.store.get(key)['context_config'] == legacy
+    assert chat.store.get(key)['chat_policy_version'] == POLICY_VERSION
+    assert chat.store.send(key, '研究生借阅', 'queued')['run_id'] == queued['run_id']
+    assert chat.repository.get_run(queued['run_id']).context == original.run.context
+
+
+def test_history_includes_general_exchange_for_followup_without_relabeling_evidence(chat, monkeypatch):
+    key = create(chat)['conversation_id']
+    finish(chat, chat.store.send(key, '研究生借阅', 'one'))
+    hybrid_model(monkeypatch, general='你好', answer='你好！')
+    finish(chat, chat.store.send(key, '你好', 'two'))
+    calls = hybrid_model(monkeypatch, knowledge='本科生最多借几册？', intent='followup')
+    finish(chat, chat.store.send(key, '那本科生呢？', 'three'))
+    assert chat.questions == ['研究生借阅', '本科生最多借几册？']
+    assert '研究生借阅' in calls[0][1] and '你好！' in calls[0][1]
+    assert chat.store.messages(key)[-3]['result']['verification_applicable'] is False
+
+
+def test_statistics_eligibility_consistent_for_legacy_general_mixed_and_clarification(chat, monkeypatch):
+    from src.runtime.history import summarize_history
+    key = create(chat)['conversation_id']
+    finish(chat, chat.store.send(key, '研究生借阅', 'knowledge'))
+    hybrid_model(monkeypatch, general='你好')
+    finish(chat, chat.store.send(key, '你好', 'general'))
+    only = chat.repository.get_stats_summary()
+    assert only.completed_runs == 2 and only.verification_applicable_runs == 1
+    assert only.verification_pass_rate == 1
+    hybrid_model(monkeypatch, intent='clarification', clarification='请补充主题。')
+    finish(chat, chat.store.send(key, '那他们呢', 'clarification'))
+    hybrid_model(monkeypatch, knowledge='研究生借阅', general='阅读建议')
+    finish(chat, chat.store.send(key, '混合请求', 'mixed'))
+    with chat.repository._connection() as db:
+        # Old clarification has no explicit applicability flag.
+        row = db.execute("SELECT run_id,final_state_json FROM runs WHERE json_extract(final_state_json,'$.chat_context.intent')='clarification'").fetchone()
+        state = json.loads(row['final_state_json'])
+        state.pop('verification_applicable')
+        db.execute('UPDATE runs SET final_state_json=? WHERE run_id=?', (json.dumps(state), row['run_id']))
+    records = chat.repository.list_runs()
+    summary = chat.repository.get_stats_summary()
+    assert summary.model_dump() == summarize_history(records).model_dump()
+    assert summary.completed_runs == 4 and summary.verification_applicable_runs == 2
+    assert summary.verified_runs == 2 and summary.verification_pass_rate == 1
+    assert summary.failure_types == {}
+
+
+def test_interrupted_mixed_run_recovers_knowledge_parts_from_events(chat, monkeypatch):
+    from src.runtime.models import TraceEvent
+    hybrid_model(monkeypatch, knowledge='研究生借阅', general='阅读建议')
+    key = create(chat)['conversation_id']
+    completed = finish(chat, chat.store.send(key, '混合请求', 'first'))
+    pending = chat.store.send(key, '混合请求', 'second')
+    for event in completed.events:
+        chat.repository.append_event(TraceEvent.model_validate({**event.model_dump(), 'run_id': pending['run_id']}))
+        if event.node == 'chat_general' and event.event_type == 'node_started':
+            break
+    chat.manager.settle(pending['run_id'], 'interrupted', 'execution_interrupted', '模拟进程中断')
+    recovered = chat.repository.get_run(pending['run_id'])
+    assert recovered.status == 'interrupted'
+    assert recovered.final_state['verification_applicable'] is True
+    assert recovered.final_state['response_parts'] == [{'kind': 'knowledge', 'content': '研究生可借 30 册。'}]
+    assert chat.store.messages(key)[-1]['content'] == '研究生可借 30 册。'
+
+
+def test_scope_uses_all_frozen_sources_without_agent_prompts_or_paths():
+    from src.runtime.chat_context import system_scope
+    snapshot = {'system_ref': {'name': '多知识源系统'}, 'agents': {
+        'planner': {'role': 'planner', 'model_config': {'model_name': 'frozen', 'system_prompt': '私人提示词'}}},
+        'sources': {'a': {'source_id': 'a', 'name': '借阅规则', 'version': 2, 'resolved_path': 'private-path',
+                         'files': [{'filename': 'policy.md', 'sha256': 'internal-hash'}]},
+                    'b': {'source_id': 'b', 'name': '技术手册', 'version': 3}}}
+    scope = system_scope(snapshot)
+    assert {s['source_id'] for s in scope['sources']} == {'a', 'b'}
+    assert scope['sources'][0]['files'] == [{'filename': 'policy.md'}]
+    assert '私人提示词' not in json.dumps(scope, ensure_ascii=False)
+    assert 'private-path' not in json.dumps(scope)

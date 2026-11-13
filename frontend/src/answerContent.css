@@ -1,0 +1,11 @@
+.answer-part + .answer-part { margin-top: 24px; }
+.answer-part-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.answer-part-heading .ant-tag { margin: 0; }
+.answer-content { overflow-wrap: anywhere; }
+.answer-content > .ant-tag { margin-bottom: 10px; }
+.answer-content pre { overflow-x: auto; padding: 16px; background: var(--surface-alt, #f6f6f8); border-radius: 10px; }
+.answer-content table { display: block; overflow-x: auto; border-collapse: collapse; max-width: 100%; }
+.answer-content td, .answer-content th { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
+.answer-references { margin-top: 12px; font-size: 12px; }
+.answer-references summary { cursor: pointer; color: var(--planner); }
+.answer-reference-item { padding: 12px 0; border-bottom: 1px solid var(--line); }

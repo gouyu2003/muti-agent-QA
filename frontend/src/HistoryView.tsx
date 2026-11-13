@@ -16,6 +16,7 @@ import { BUSINESS_ERRORS, CALL_OUTCOMES, REQUEST_CATEGORIES } from './diagnostic
 import AgentResults from './AgentResults'
 import ProtocolCalls from './ProtocolCalls'
 import ModelDiagnostics from './ModelDiagnostics'
+import AnswerContent from './AnswerContent'
 import type {
   RunEntryPoint,
   RunFilters,
@@ -118,6 +119,14 @@ function EventBody({ event }: { event: StoredTraceEvent }) {
   if (event.event_type !== 'node_completed') return null
 
   const output = asObject(payload.output) as Partial<RunResult>
+  if (event.node === 'chat_context') return <div className="history-event-note">
+    <p>{output.chat_context?.resolved_question || output.chat_context?.clarification}</p>
+    <ModelDiagnostics diagnostics={output.chat_context?.model_diagnostics} />
+  </div>
+  if (event.node === 'chat_general' || event.node === 'chat_answer') return <div className="history-event-note">
+    <AnswerContent result={output} />
+    <ModelDiagnostics diagnostics={output.chat_context?.general_diagnostics} />
+  </div>
   if (output.protocol_calls) return <ProtocolCalls calls={output.protocol_calls} />
   if (event.node === 'planner_v0' || payload.agent_type === 'planner') {
     return (
@@ -284,17 +293,15 @@ export function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDe
           <p>原始问题：{run.context.question}</p>
           <p>解析结果：{result.chat_context.resolved_question || result.chat_context.clarification}</p>
           <p>类型：{result.chat_context.intent} · 提示词版本：{result.chat_context.prompt_version}</p>
+          {result.chat_context.policy_version ? <p>聊天策略：{result.chat_context.policy_version}</p> : null}
+          {result.chat_context.knowledge_question ? <p>知识库问题：{result.chat_context.knowledge_question}</p> : null}
+          {result.chat_context.general_question ? <p>通用请求：{result.chat_context.general_question}</p> : null}
         </details> : null}
         <div className="history-section-title">
-          <span className="section-kicker">FINAL RESPONSE</span>
           <h3>最终答案</h3>
-          {run.status === 'completed' ? (
-            <Tag color={result?.chat_context?.intent === 'clarification' ? 'blue' : result?.verified ? 'success' : 'warning'}>
-              {result?.chat_context?.intent === 'clarification' ? '等待补充信息' : result?.verified ? '验证通过' : '验证未通过'}
-            </Tag>
-          ) : null}
         </div>
-        <p className="history-answer-text">{result?.answer || '未生成可用答案'}</p>
+        {result?.answer ? <AnswerContent result={result} showStatus={run.status === 'completed' || !!result.response_parts?.length} />
+          : <p className="history-answer-text">{run.error?.message || '未生成可用答案'}</p>}
         <p className="history-muted">
           {result?.verification_note || (run.status === 'running' ? '运行仍在进行中。' : '没有保存验证说明。')}
         </p>
@@ -307,7 +314,7 @@ export function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDe
       <RunTimeline events={events} />
       <AgentResults results={result?.expert_results} />
       <ProtocolCalls calls={result?.protocol_calls} />
-      <RunEvidence result={result} source={source} />
+      {result?.verification_applicable !== false ? <RunEvidence result={result} source={source} /> : null}
     </article>
   )
 }
@@ -443,7 +450,7 @@ export default function HistoryView() {
       <section className="history-stats" aria-label="运行统计">
         <div><span>运行总数</span><strong>{loading ? '—' : stats?.total_runs ?? 0}</strong><small>当前筛选范围内的运行</small></div>
         <div><span>完成率</span><strong>{loading ? '—' : formatPercent(stats?.completion_rate ?? 0)}</strong><small>已完成 / 全部运行</small></div>
-        <div><span>验证通过率</span><strong>{loading ? '—' : formatPercent(stats?.verification_pass_rate ?? 0)}</strong><small>已验证 / 已完成，非答案准确率</small></div>
+        <div><span>验证通过率</span><strong>{loading || (stats?.verification_applicable_runs ?? stats?.completed_runs ?? 0) === 0 ? '—' : formatPercent(stats?.verification_pass_rate ?? 0)}</strong><small>已验证 / 已完成且需验证，非答案准确率</small></div>
         <div><span>平均耗时</span><strong>{loading ? '—' : formatDuration(stats?.average_duration_ms ?? null)}</strong><small>有耗时记录的运行</small></div>
       </section>
 

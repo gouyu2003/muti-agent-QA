@@ -19,6 +19,7 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   revision_responses_mismatch: '修订回应缺失或重复', revision_missing_citation: '修订答案缺少引用',
   revision_unknown_citation: '修订引用无法定位', execution_interrupted: '执行进程已退出',
   worker_start_failed: '后台进程启动失败',
+  chat_context_error: '问题理解与分流失败', chat_response_error: '聊天回答生成失败',
 }
 
 export function requestCategoryLabel(category?: string | null): string {

@@ -3,11 +3,9 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { Alert, Button, Drawer, Dropdown, Input, Modal, Select, Skeleton, Tag } from 'antd'
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, MenuOutlined, MessageOutlined, PlusOutlined } from '@ant-design/icons'
 import { CornerDownLeft, Square } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import AnswerContent from './AnswerContent'
 import { cancelBackgroundRun, followBackgroundRun, getManagedSystems, getRunDetail } from './api'
 import { RunDetailPanel } from './HistoryView'
-import EvidenceLocation from './EvidenceLocation'
 import { ChatApiError, clearPendingChat, createConversation, deleteConversation, getChatMessages, getConversation, listConversations,
   readPendingChat, renameConversation, savePendingChat, sendChatMessage } from './chatApi'
 import type { ChatMessage, Conversation, PendingChat, ChatSelection } from './chatApi'
@@ -21,23 +19,18 @@ const isAbort = (error: unknown) => error instanceof Error && error.name === 'Ab
 const refLabel = (ref: Conversation['system_ref']) => `${ref.name} · ${ref.kind === 'draft' ? `草稿 r${ref.draft_revision}` : ref.system_version}`
 
 function MessageBody({ message, onDetail }: { message: ChatMessage; onDetail: (id: string) => void }) {
-  const clarification = message.context.intent === 'clarification'
   return <article className={`chat-message chat-message--${message.role}`} aria-label={`${message.role === 'user' ? '你' : '助手'}第 ${message.turn_index} 轮`}>
     <div className="chat-message-label">{message.role === 'user' ? '你' : 'Multi-Agent QA'}</div>
     <div className="chat-message-content">
       {message.role === 'user' ? <p className="chat-user-text">{message.content}</p> : <>
-        {message.content ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+        {message.content ? <AnswerContent result={message.result} content={message.content} intent={message.context.intent}
+            showStatus={message.status === 'completed' || !!message.result.response_parts?.length} showReferences />
           : <p className="chat-muted">{message.status === 'running' ? '正在处理你的问题…' : message.error || '本轮未生成回答。'}</p>}
         {message.error && message.content ? <Alert type="error" title={message.error} /> : null}
         <div className="chat-answer-actions">
-          <Tag color={message.status !== 'completed' ? 'default' : clarification ? 'blue' : message.result.verified ? 'success' : 'warning'}>
-            {message.status !== 'completed' ? statusLabel[message.status] : clarification ? '等待补充信息' : message.result.verified ? '验证通过' : '验证未通过'}
-          </Tag>
+          {message.status !== 'completed' ? <Tag>{statusLabel[message.status]}</Tag> : null}
           <Button type="text" size="small" onClick={() => onDetail(message.run_id)}>查看本轮运行</Button>
         </div>
-        {(message.result.supporting_evidence?.length ?? 0) > 0 ? <details className="chat-evidence"><summary>查看引用 · {message.result.supporting_evidence!.length} 条</summary>
-          {message.result.supporting_evidence!.map((evidence, index) => <div key={index} className="chat-evidence-item"><strong>{evidence.source_title}</strong><EvidenceLocation evidence={evidence} /><p>{evidence.text}</p></div>)}
-        </details> : null}
       </>}
     </div>
   </article>
@@ -235,10 +228,11 @@ export default function ChatView() {
       <header className="chat-header">
         <Button className="chat-mobile-menu" type="text" icon={<MenuOutlined />} aria-label="打开会话列表" onClick={() => setSidebarOpen(true)} />
         <div><h1>{conversation?.title || '连续对话'}</h1><p>{conversation ? refLabel(conversation.system_ref) : '选择一套系统，开始新的对话'}</p></div>
-        {conversation ? <Tag>配置已固定</Tag> : null}
+        {conversation ? <Tag>模型与知识源已固定</Tag> : null}
       </header>
       {conversation && snapshot ? <details className="chat-config-summary"><summary>查看本会话配置</summary>
         <p>协作协议：{snapshot.protocol?.protocol_name || snapshot.workflow_spec?.protocol_id}</p><p>知识源：{sourceNames.join('、') || '未绑定知识源'}</p>
+        <p>模型、知识源与协议使用本会话固定配置。聊天策略：{conversation.chat_policy_version || '原有策略'}，新提交按当前策略处理。</p>
       </details> : null}
       <div className="chat-messages" ref={scroller} onScroll={() => {
         const el = scroller.current; if (el) followBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 90
@@ -272,7 +266,7 @@ export default function ChatView() {
           }} /> : <Button type="text" className={`chat-composer-send${question.trim() ? ' is-ready' : ''}`} htmlType="submit" aria-label="发送消息" icon={<CornerDownLeft size={18} strokeWidth={1.7} />} loading={submitting}
             disabled={!question.trim() || !!pending || loading || !!conversationId && !conversation || !conversationId && (!selection || !!versionOptions.find(v => v.value === version)?.disabled)} />}
         </form>
-        <p className="chat-composer-hint">回答基于所选系统的知识源，请结合引用核对。每轮执行详情均会保存。</p>
+        <p className="chat-composer-hint">支持通用对话与知识库问答。知识库部分请结合引用核对，每轮执行详情均会保存。</p>
       </div>
     </section>
     <Drawer title="聊天会话" placement="left" open={sidebarOpen} onClose={() => setSidebarOpen(false)} size={290}>{sidebar}</Drawer>

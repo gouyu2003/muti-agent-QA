@@ -10,6 +10,7 @@ export interface Conversation {
   active_run_id: string | null
   system_ref: { system_id: string; name: string; kind: string; system_version?: string; draft_revision?: number }
   config_snapshot?: SavedSystemSnapshot
+  chat_policy_version?: string
 }
 export interface ChatContext {
   intent: string
