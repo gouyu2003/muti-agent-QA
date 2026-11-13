@@ -205,9 +205,9 @@ HTTP 接口：
 .\venv\Scripts\python.exe -m pytest
 ```
 
-常规测试默认排除 `integration` 标记的真实模型测试。Windows 下若遇到 pytest 临时目录权限问题，可增加 `--basetemp .pytest-tmp`。
+常规测试默认排除 `integration` 标记的真实模型测试。`pytest.ini` 已固定 `--basetemp=.pytest-tmp`，直接运行上面的命令即可，不需要再手动补 `--basetemp`。
 
-全项目只用两个 basetemp 名：离线回归 `.pytest-tmp`，真实模型测试 `.pytest-live`。`--basetemp` 每次运行会清空目标目录，固定复用即可，不必每次另起 `.pytest-tmp-xxx` 之类的新名字——那样只会堆积残留目录（曾累积 19 个、约 300 MB）。需要留证据时，把结果 JSON 归档到 `docs/` 下（既有 `*-results.json` 即此做法），不要依赖 basetemp 目录长期保存。
+全项目只用两个 basetemp 名：离线回归 `.pytest-tmp`，真实模型测试 `.pytest-live`。`--basetemp` 每次运行会清空目标目录，固定复用即可。仓库根的 `conftest.py` 会忽略其他 `.pytest-tmp-*` 名字（打印一条 UserWarning 后改用 `.pytest-tmp`），所以不要再另起新名字——那样只会堆积残留目录（曾累积 22 个、约 125 MB）。需要留证据时，把结果 JSON 归档到 `docs/` 下（既有 `*-results.json` 即此做法），不要依赖 basetemp 目录长期保存。
 
 前端：
 
