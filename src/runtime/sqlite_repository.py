@@ -527,6 +527,9 @@ class SQLiteRunRepository:
                 )
                 if cursor.rowcount != 1:
                     raise RunNotFoundError(f"运行记录不存在：{run_id}")
+                if record.status != 'running' and record.context.config_snapshot.get('_chat'):
+                    from src.runtime.chat_store import sync_chat_message
+                    sync_chat_message(connection, record)
         except RepositoryError:
             raise
         except sqlite3.Error as exc:

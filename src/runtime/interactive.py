@@ -21,9 +21,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class ExecutionFailure(ValueError):
-    def __init__(self, message, status=409):
+    def __init__(self, message, status=409, active_run_id=None):
         super().__init__(message)
         self.status = status
+        self.active_run_id = active_run_id
 
 
 def seconds_since(timestamp):
@@ -56,7 +57,7 @@ class InteractiveRuns:
                 raise ExecutionFailure('同一提交编号对应的问题或配置已改变，请重新提交。')
             return self.status(row['run_id'])
 
-    def submit(self, context, request_key, request_hash):
+    def submit(self, context, request_key, request_hash, *, prepare=None, on_reserved=None):
         try:
             with experiment_lock(self.root):
                 existing = self.existing(request_key, request_hash)
@@ -64,12 +65,17 @@ class InteractiveRuns:
                     return existing
                 self.reconcile_all()
                 with self.repository._connection() as db:
+                    db.execute('BEGIN IMMEDIATE')
                     active = db.execute("SELECT r.run_id FROM interactive_runs i JOIN runs r USING(run_id) WHERE r.status='running'").fetchone()
                     if active:
-                        raise ExecutionFailure('已有实时问答在运行，请查看运行历史或停止后再提交。')
+                        raise ExecutionFailure('已有实时问答在运行，请查看运行历史或停止后再提交。', active_run_id=active['run_id'])
+                    if prepare:
+                        context = prepare(context)
                     self.repository.create_run(RunRecord(context=context, status='running', started_at=datetime.now(timezone.utc)))
                     db.execute('INSERT INTO interactive_runs VALUES (?,?,?,?,?,?,NULL,NULL)',
                                (context.run_id, request_key, request_hash, 'queued', uuid4().hex, utcnow()))
+                    if on_reserved:
+                        on_reserved(context)
                 try:
                     if self.launcher:
                         self.launcher(self, context)

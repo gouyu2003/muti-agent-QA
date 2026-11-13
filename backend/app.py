@@ -34,6 +34,8 @@ from backend.systems_api import router as systems_router
 from backend.systems_api import templates_router
 from backend.protocols_api import router as protocols_router
 from backend.evaluations_api import router as evaluations_router
+from backend.chat_api import router as chat_router
+from src.runtime.chat_store import ChatStore
 from src.evaluation.platform_store import EvaluationFailure
 from src.runtime.system_store import SystemStore, SystemFailure
 from src.knowledge.store import KnowledgeStore
@@ -99,6 +101,8 @@ async def lifespan(app: FastAPI):
         launcher=offline_launcher if getattr(app.state, 'interactive_in_process', False) or app.state.run_service_factory is not build_default_run_service else None)
     app.state.interactive.reconcile_all()
     app.state.system_store = SystemStore()
+    app.state.chat = ChatStore(service.repository, app.state.interactive, app.state.system_store)
+    app.state.chat.initialize()
     app.state.knowledge_store = KnowledgeStore()
     app.state.knowledge_store.recover_interrupted()
     try:
@@ -120,12 +124,13 @@ app.include_router(systems_router)
 app.include_router(templates_router)
 app.include_router(protocols_router)
 app.include_router(evaluations_router)
+app.include_router(chat_router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
 )
 
@@ -152,7 +157,7 @@ async def evaluation_failure_handler(_request: Request, exc: EvaluationFailure):
 
 @app.exception_handler(ExecutionFailure)
 async def execution_failure_handler(_request: Request, exc: ExecutionFailure):
-    return JSONResponse(status_code=exc.status, content={"detail": str(exc)})
+    return JSONResponse(status_code=exc.status, content={"detail": str(exc), "active_run_id": exc.active_run_id})
 
 
 @app.exception_handler(RepositoryError)

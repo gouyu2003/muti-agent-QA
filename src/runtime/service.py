@@ -73,6 +73,7 @@ NODE_FIELDS: dict[str, tuple[str, ...]] = {
 }
 
 FINAL_FIELDS = (
+    "chat_context",
     "question",
     "sub_questions",
     "retrieval_strategy",
@@ -112,6 +113,9 @@ def _public_mapping(value: Any, allowed: tuple[str, ...]) -> dict[str, Any]:
 
 
 def _public_error(exc: Exception) -> RunError:
+    from src.runtime.chat_context import ContextResolutionError
+    if isinstance(exc, ContextResolutionError):
+        return RunError(error_type='chat_context_error', message=str(exc))
     from src.runtime.protocol_runtime import ProtocolExecutionError
     if isinstance(exc, ProtocolExecutionError):
         return RunError(error_type='protocol_execution_error', message=str(exc))
@@ -282,23 +286,48 @@ class RunService:
 
         try:
             yield make_event("run_started", payload={"question": context.question})
+            execution_context = context
+            chat = context.config_snapshot.get('_chat')
+            clarification = None
+            if chat:
+                from src.runtime.chat_context import resolve_context
+                usage_collector.check_cancelled()
+                node_call_count += 1
+                yield make_event('node_started', node='chat_context', cycle=1,
+                                 payload={'agent_name': '上下文理解', 'input': {'question': context.question}})
+                context_started = self.clock()
+                state['chat_context'] = {'intent': 'unresolved', 'context_status': 'failed',
+                                         'prompt_version': chat['config']['prompt_version']}
+                with observe('chat_context'):
+                    resolution = resolve_context(chat, context.question, usage_collector)
+                state['chat_context'] = resolution
+                usage_collector.check_cancelled()
+                yield make_event('node_completed', node='chat_context', cycle=1,
+                                 duration_ms=max(0, round((self.clock()-context_started)*1000)),
+                                 payload={'agent_name': '上下文理解', 'output': {'chat_context': resolution}})
+                if resolution['intent'] == 'clarification':
+                    clarification = resolution['clarification']
+                    state.update(answer=clarification, verified=False, supporting_evidence=[],
+                                 verification_note='需要补充信息，尚未执行事实检索与验证。')
+                else:
+                    execution_context = context.model_copy(update={'question': resolution['resolved_question']})
             workflow = (
                 WorkflowSpec.model_validate(context.config_snapshot["workflow_spec"])
                 if "workflow_spec" in context.config_snapshot and not protocol_run else None
             )
             graph = (
                 self.graph_factory(usage_collector) if self.graph_factory is not None
-                else _build_default_graph(context, usage_collector)
-            )
+                else _build_default_graph(execution_context, usage_collector)
+            ) if clarification is None else None
             stream = graph.stream(
-                {"question": context.question},
+                {"question": execution_context.question},
                 config={
                     "configurable": {"thread_id": context.run_id},
                     "recursion_limit": sum(s['max_visits'] for s in context.config_snapshot['protocol_plan']['spec']['stages']) + 2 if protocol_run else RECURSION_LIMIT,
                 },
                 stream_mode=["custom"] if protocol_run else ["tasks", "updates"],
                 version="v2",
-            )
+            ) if graph is not None else iter(())
 
             for part in stream:
                 usage_collector.check_cancelled()

@@ -211,7 +211,7 @@ function RunEvidence({ result, source }: { result: RunResult | null; source?: Pi
   )
 }
 
-function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDetail; experimentName?: string }) {
+export function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDetail; experimentName?: string }) {
   const { run, events } = detail
   const result = run.final_state
   const snapshot = asObject(run.context.config_snapshot)
@@ -280,12 +280,17 @@ function RunDetailPanel({ detail, experimentName }: { detail: StoredRunDetail; e
         <Alert type="info" showIcon message="此运行已取消，以下为取消前保存的轨迹。" />
       ) : null}
       <section className="history-answer">
+        {result?.chat_context ? <details><summary>本轮上下文解析</summary>
+          <p>原始问题：{run.context.question}</p>
+          <p>解析结果：{result.chat_context.resolved_question || result.chat_context.clarification}</p>
+          <p>类型：{result.chat_context.intent} · 提示词版本：{result.chat_context.prompt_version}</p>
+        </details> : null}
         <div className="history-section-title">
           <span className="section-kicker">FINAL RESPONSE</span>
           <h3>最终答案</h3>
           {run.status === 'completed' ? (
-            <Tag color={result?.verified ? 'success' : 'warning'}>
-              {result?.verified ? '验证通过' : '验证未通过'}
+            <Tag color={result?.chat_context?.intent === 'clarification' ? 'blue' : result?.verified ? 'success' : 'warning'}>
+              {result?.chat_context?.intent === 'clarification' ? '等待补充信息' : result?.verified ? '验证通过' : '验证未通过'}
             </Tag>
           ) : null}
         </div>

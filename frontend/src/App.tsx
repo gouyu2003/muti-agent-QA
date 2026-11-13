@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useMatch, useNavigate } from 'react-router'
 import {
   ApartmentOutlined,
@@ -41,6 +41,7 @@ import {
 import type { ReactNode } from 'react'
 import { getSystemInfo, getSystemOptions, streamQuestion, getPendingRun, resumeBackgroundRun, cancelBackgroundRun, getRunDetail } from './api'
 import HistoryView from './HistoryView'
+import { MessageOutlined } from '@ant-design/icons'
 import KnowledgeView from './KnowledgeView'
 import SystemsView from './SystemsView'
 import EvaluationsView from './EvaluationsView'
@@ -69,6 +70,7 @@ import type {
 
 const { TextArea } = Input
 const { Paragraph, Text, Title } = Typography
+const ChatView = lazy(() => import('./ChatView'))
 
 const NODE_ORDER: NodeId[] = ['planner_v0', 'retriever_v0', 'answer_validator_v0']
 
@@ -436,6 +438,7 @@ function ResultPanel({ result, durationMs, source }: { result?: RunResult; durat
 }
 
 export default function App() {
+  const chatActive = !!useMatch('/chat/*')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const navigate = useNavigate()
   const systemsActive = Boolean(useMatch('/systems'))
@@ -620,7 +623,7 @@ export default function App() {
   const completedSteps = run.steps.filter((step) => step.status === 'completed').length
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${chatActive ? ' app-shell--chat' : ''}`}>
       <aside className="app-sidebar" data-open={sidebarOpen}>
         <div className="brand-lockup">
           <div className="brand-mark">
@@ -636,6 +639,9 @@ export default function App() {
         </button>
         <nav id="workspace-navigation" className="workspace-nav" aria-label="工作区视图">
           <span className="nav-group-label">使用</span>
+          <NavLink to="/chat" onClick={() => setSidebarOpen(false)}>
+            <span className="nav-icon nav-icon-chat"><MessageOutlined /></span> 连续对话
+          </NavLink>
           <NavLink to="/run" end onClick={() => setSidebarOpen(false)}>
             <span className="nav-icon nav-icon-run"><PlayCircleFilled /></span> 实时运行
           </NavLink>
@@ -680,6 +686,7 @@ export default function App() {
         <Route path="/systems" element={null} />
         <Route path="/protocols" element={null} />
         <Route path="/history" element={<HistoryView />} />
+        <Route path="/chat/:conversationId?" element={<Suspense fallback={<Skeleton active />}><ChatView /></Suspense>} />
         <Route path="/evaluations" element={<EvaluationsView />} />
         <Route path="/knowledge" element={<KnowledgeView disabled={isRunning} onChanged={refreshOptions} onUse={useKnowledge} />} />
         <Route path="/run" element={<main className="workspace">

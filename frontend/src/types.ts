@@ -209,6 +209,14 @@ export interface ModelDiagnostics {
 }
 
 export interface RunResult {
+  chat_context?: {
+    intent: string
+    resolved_question?: string
+    clarification?: string
+    context_status?: string
+    used_message_ids?: string[]
+    prompt_version?: string
+  }
   request_error?: ModelRequestDiagnostic
   protocol_calls?: Record<string, import('./protocolTypes').ProtocolCall>
   termination_reason?: string
