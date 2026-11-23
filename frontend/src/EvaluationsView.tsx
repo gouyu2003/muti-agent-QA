@@ -13,16 +13,17 @@ import { Plus, ChevronRight } from 'lucide-react'
 import { ReloadOutlined, SearchOutlined } from './Icons'
 import EvaluationLibrary from './EvaluationLibrary'
 import EvaluationJobWorkspace, { EVALUATION_PURPOSE, EVALUATION_STATUS as STATUS } from './EvaluationJobWorkspace'
+import EvaluationJobActions from './EvaluationJobActions'
 import GSM8KEvaluation from './GSM8KEvaluation'
 import './evaluations.css'
 
 const message = (error: unknown) => error instanceof Error ? error.message : '操作失败'
 const DEFAULT_MODEL = 'deepseek-v4.1-flash-1017'
 
-type Workspace = 'tasks' | 'data' | 'plans' | 'archives' | 'create' | 'gsm8k'
+type Workspace = 'tasks' | 'data' | 'plans' | 'archives' | 'create' | 'gsm8k' | 'mmlu-pro'
 
 export default function EvaluationsView() {
-  const [view, setView] = useState<Workspace>('tasks')
+  const [view, setView] = useState<Workspace>(() => new URLSearchParams(window.location.search).get('benchmark') === 'mmlu-pro' ? 'mmlu-pro' : 'tasks')
   const [step, setStep] = useState(0)
   const [savingPlan, setSavingPlan] = useState(false)
   const [planName, setPlanName] = useState('对比实验方案')
@@ -101,6 +102,10 @@ export default function EvaluationsView() {
   function navigate(next: Workspace) {
     closeDetail()
     if (next === 'data' && !selectedBank && banks[0]) selectBank(`${banks[0].bank_id}:${banks[0].version}`)
+    const url = new URL(window.location.href)
+    if (next === 'mmlu-pro') url.searchParams.set('benchmark', 'mmlu-pro')
+    else url.searchParams.delete('benchmark')
+    if (url.href !== window.location.href) window.history.replaceState(window.history.state, '', url)
     setView(next)
   }
   function newExperiment() {
@@ -154,6 +159,23 @@ export default function EvaluationsView() {
 
   function adopt(item: EvaluationJob) {
     closeDetail(); setJob(item); setNotice(''); setView('tasks')
+  }
+
+  async function organizeJob(item: EvaluationJob, archived?: boolean) {
+    return action(async () => {
+      const path = `/jobs/${item.job_id}`
+      let updated: EvaluationJob | undefined
+      if (archived === undefined) await evaluationRequest(path, 'DELETE')
+      else updated = await evaluationRequest<EvaluationJob>(`${path}/archive`, 'POST', { archived })
+      refreshRequest.current += 1
+      const visible = updated && (!updated.archived || showArchived) ? updated : undefined
+      setJobs(previous => previous.flatMap(row => row.job_id === item.job_id ? visible ? [visible] : [] : [row]))
+      if (job?.job_id === item.job_id) {
+        closeDetail()
+        setJob(visible ?? jobs.find(row => row.job_id !== item.job_id))
+      }
+      setNotice(archived === undefined ? '实验已删除' : archived ? '实验已归档' : '已取消归档')
+    })
   }
 
   function closeDetail() {
@@ -216,7 +238,7 @@ export default function EvaluationsView() {
     <main className="evaluations-page evaluation-console">
       <header className="evaluations-heading"><div><h1>批量评测</h1><p>从固定实验方案，到可追溯的对比结果</p></div><div className="evaluation-button-row">
         <Button type="text" icon={<ReloadOutlined />} disabled={busy} onClick={() => void action(refresh)}>刷新列表</Button>
-        {view !== 'create' && <Button type="primary" icon={<Plus size={16} aria-hidden="true" />} onClick={newExperiment}>新建实验</Button>}
+        {view !== 'create' && view !== 'mmlu-pro' && <Button type="primary" icon={<Plus size={16} aria-hidden="true" />} onClick={newExperiment}>新建实验</Button>}
       </div></header>
       {error && <Alert type="error" showIcon title={error} closable onClose={() => setError('')} />}
       {notice && <Alert type="info" showIcon title={notice} closable onClose={() => setNotice('')} />}
@@ -224,6 +246,7 @@ export default function EvaluationsView() {
         {[
           { key: 'tasks', label: <span>实验任务 <span className="evaluation-tab-count">{jobs.length}</span></span> },
           { key: 'data', label: '题库与清单' }, { key: 'plans', label: '实验方案' }, { key: 'archives', label: '历史档案' }, { key: 'gsm8k', label: 'GSM8K 论文复现' },
+          { key: 'mmlu-pro', label: 'MMLU-Pro 难度预实验' },
         ].map(item => <Button type="text" key={item.key} aria-current={item.key === (view === 'create' ? 'tasks' : view) ? 'page' : undefined} onClick={() => navigate(item.key as Workspace)}>{item.label}</Button>)}
       </nav>
       {view === 'tasks' && <div className="evaluation-task-layout">
@@ -236,25 +259,31 @@ export default function EvaluationsView() {
             ]} /><Checkbox checked={showArchived} onChange={event => setShowArchived(event.target.checked)}>显示已归档任务</Checkbox>
           </div> }]} />
           {!visibleJobs.length ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有符合条件的任务" /> : <div className="evaluation-job-list">{visibleJobs.map(item =>
-            <button type="button" key={item.job_id} disabled={busy} aria-pressed={item.job_id === job?.job_id} className={item.job_id === job?.job_id ? 'selected' : ''} onClick={() => adopt(item)}>
-              <strong>{item.name}</strong><span className="evaluation-list-status">{item.archived ? '已归档 · ' : ''}{STATUS[item.status] ?? item.status}<span>{item.progress.attempted} / {item.progress.planned}</span></span>
-              <span>{EVALUATION_PURPOSE[String(item.plan?.request.purpose)] ?? '历史未标用途'} · {item.targets.length} 个对比对象</span>
-            </button>)}</div>}
+            <div className="evaluation-job-card" key={item.job_id}>
+              <button type="button" disabled={busy} aria-pressed={item.job_id === job?.job_id}
+                className={`evaluation-card-select${item.job_id === job?.job_id ? ' selected' : ''}`} onClick={() => adopt(item)}>
+                <strong>{item.name}</strong><span className="evaluation-list-status">{item.archived ? '已归档 · ' : ''}{STATUS[item.status] ?? item.status}<span>{item.progress.attempted} / {item.progress.planned}</span></span>
+                <span>{EVALUATION_PURPOSE[String(item.plan?.request.purpose)] ?? '历史未标用途'} · {item.targets.length} 个对比对象</span>
+              </button>
+              <EvaluationJobActions name={item.name} archived={item.archived} busy={busy}
+                active={['queued', 'running', 'stopping'].includes(item.status)}
+                onArchive={() => void organizeJob(item, !item.archived)} onDelete={() => organizeJob(item)} />
+            </div>)}</div>}
         </aside>
         {job ? <EvaluationJobWorkspace key={job.job_id} job={job} busy={busy} perform={action} onUpdate={updated => {
           setJob(updated); setJobs(previous => previous.map(item => item.job_id === updated.job_id ? updated : item))
         }} onCopy={() => void action(async () => {
           const source = await evaluationRequest<{ request: Record<string, unknown> }>(`/jobs/${job.job_id}/copy-plan`, 'POST')
           await loadPlan(source.request)
-        })} onArchive={() => void action(async () => {
-          setJob(await evaluationRequest<EvaluationJob>(`/jobs/${job.job_id}/archive`, 'POST', { archived: !job.archived })); await refresh()
-        })} onOpenDetail={row => void openDetail(row)} /> : <section className="evaluation-panel evaluation-empty-workspace"><Empty description="新建实验或选择已有任务，查看对比结果" /></section>}
+        })} onArchive={() => void organizeJob(job, !job.archived)}
+          onOpenDetail={row => void openDetail(row)} /> : <section className="evaluation-panel evaluation-empty-workspace"><Empty description="新建实验或选择已有任务，查看对比结果" /></section>}
       </div>}
       {view === 'data' && <EvaluationLibrary banks={banks} selected={selectedBank} onSelect={selectBank} purpose={purpose} onPurpose={setPurpose} manifest={manifest} onManifest={setManifest}
         onImported={async bank => { await refresh(); selectBank(`${bank.bank_id}:${bank.version}`) }} onUse={bank => { selectBank(`${bank.bank_id}:${bank.version}`); setStep(0); navigate('create') }} />}
       {view === 'plans' && <section className="evaluation-panel"><EvaluationPlans request={payload} disabled={invalidPlan} jobId={job?.job_id} onLoad={loadPlan} /></section>}
       {view === 'archives' && <section className="evaluation-panel"><EvaluationArchives onOpenDetail={(row, base) => void openDetail(row, base)} /></section>}
       {view === 'gsm8k' && <GSM8KEvaluation />}
+      {view === 'mmlu-pro' && <GSM8KEvaluation benchmark="mmlu-pro" />}
       {view === 'create' && <section className="evaluation-editor" aria-label="新建实验配置">
         <div className="evaluation-breadcrumb"><Button type="link" onClick={() => navigate('tasks')}>实验任务</Button><ChevronRight size={14} aria-hidden="true" /><span>新建实验</span></div>
         <h2>{copiedFromJobId ? '从既有方案创建新实验' : '配置对比实验'}</h2>

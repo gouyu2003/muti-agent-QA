@@ -480,6 +480,72 @@ def test_http_creation_gate_export_and_errors(monkeypatch):
     assert "'=evil" in exported_csv([dict(question='=evil')])
 
 
+@pytest.mark.parametrize('path', ['jobs', 'gsm8k/jobs', 'mmlu-pro/jobs'])
+def test_job_archive_and_delete_preserve_shared_data_and_respect_worker_locks(path, monkeypatch):
+    from src.evaluation import gsm8k_platform as gsm8k, mmlu_pro
+
+    catalog = EvaluationStore()
+    bank = catalog.import_bank('Retained question bank', '', questions())
+    if path == 'jobs':
+        created = new_job(catalog)
+        job_id = created['job_id']
+        directory = catalog.job_directory(job_id)
+        directory.mkdir(parents=True)
+        (directory / 'worker.log').write_text('evaluation trace', encoding='utf-8')
+        worker_lock = experiment_lock(directory)
+    elif path == 'gsm8k/jobs':
+        from sqlite3 import connect
+
+        job_id = 'gsm_' + 'a' * 32
+        directory = gsm8k.jobs_root() / job_id
+        core = directory / 'core'
+        core.mkdir(parents=True)
+        (directory / 'platform.json').write_text(json.dumps(dict(
+            name='GSM test record', state='draft', selection='debug', fake=True)), encoding='utf-8')
+        (core / 'profile.json').write_text(json.dumps(dict(
+            selection=[], seed_plan=[], profile_sha256='test',
+            config=dict(methods=['single'], model='fake', pricing={}, budget_cny='0'))), encoding='utf-8')
+        with connect(core / 'results.sqlite3') as db:
+            db.executescript('CREATE TABLE tasks (id TEXT); CREATE TABLE calls (id TEXT);')
+        db.close()
+        worker_lock = gsm8k._lock(directory / 'supervisor.lock')
+    else:
+        directory = None
+        monkeypatch.setattr(mmlu_pro, 'load_manifest', lambda _: {
+            'sample_count': 1, 'manifest_sha256': 'test', 'dataset_revision': 'test',
+            'sampling': {'seed': 42, 'quotas': {'math': 1}},
+            'records': [dict(question_id=1, category='math', question='What is 1 + 1?',
+                             options=['1', '2'], answer='B')],
+        })
+        job_id = mmlu_pro.create_job('MMLU test record', ['single'], 'smoke', True)['job_id']
+        with mmlu_pro.connection(mmlu_pro.jobs_root()) as db:
+            db.execute("INSERT INTO calls VALUES (?,1,'single',0,0,'{}','completed','{}',NULL,1)", (job_id,))
+        worker_lock = mmlu_pro._lock(mmlu_pro._lock_path(mmlu_pro.jobs_root(), job_id))
+
+    base = f'/api/v1/evaluations/{path}'
+    url = f'{base}/{job_id}'
+    with TestClient(app) as client:
+        assert client.get(url).status_code == 200
+        with worker_lock:
+            assert client.delete(url).status_code == 409
+        assert client.post(f'{url}/archive', json={'archived': True}).json()['archived']
+        assert client.get(base).json()['items'] == []
+        assert client.get(base, params={'include_archived': True}).json()['items'][0]['archived']
+        assert client.post(f'{url}/start', json={'allow_model_calls': True}).status_code == 409
+        assert not client.post(f'{url}/archive', json={'archived': False}).json()['archived']
+        assert client.get(base).json()['items'][0]['job_id'] == job_id
+        assert client.delete(url).json() == {'job_id': job_id, 'deleted': True}
+        assert client.get(url).status_code == 404
+        assert client.get(base, params={'include_archived': True}).json()['items'] == []
+    if directory is not None:
+        assert not directory.exists()
+    else:
+        with mmlu_pro.connection(mmlu_pro.jobs_root()) as db:
+            assert not db.execute('SELECT 1 FROM tasks WHERE job_id=?', (job_id,)).fetchone()
+            assert not db.execute('SELECT 1 FROM calls WHERE job_id=?', (job_id,)).fetchone()
+    assert catalog.bank(bank['bank_id'], 1)['name'] == 'Retained question bank'
+
+
 def test_platform_splits_and_explicit_exposures_are_versioned_and_disjoint():
     store = EvaluationStore()
     bank = store.import_bank('Research data', '', questions(30))

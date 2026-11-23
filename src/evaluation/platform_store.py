@@ -1,7 +1,7 @@
 """Versioned question banks and frozen platform jobs, isolated from CLI experiments."""
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from copy import deepcopy
 import json
 import hashlib
@@ -419,7 +419,7 @@ class EvaluationStore:
         ledger = directory / 'tasks.sqlite3'
         if not ledger.is_file():
             return 0
-        with sqlite3.connect(ledger.as_uri() + '?mode=ro', uri=True) as db:
+        with closing(sqlite3.connect(ledger.as_uri() + '?mode=ro', uri=True)) as db:
             try:
                 latest = db.execute('''SELECT a.run_id, a.status FROM attempts a
                     WHERE a.attempt = (SELECT MAX(b.attempt) FROM attempts b WHERE b.task_id = a.task_id)''').fetchall()
@@ -434,7 +434,7 @@ class EvaluationStore:
         runtime = directory / 'runs.sqlite3'
         if not unfinished or not runtime.is_file():
             return count + len(unfinished)
-        with sqlite3.connect(runtime.as_uri() + '?mode=ro', uri=True) as db:
+        with closing(sqlite3.connect(runtime.as_uri() + '?mode=ro', uri=True)) as db:
             for run_id in unfinished:
                 saved = db.execute('SELECT status FROM runs WHERE run_id=?', (run_id,)).fetchone()
                 if not saved or saved[0] != 'completed':
@@ -449,7 +449,7 @@ class EvaluationStore:
         progress = dict(attempted=0, planned=frozen['planned_tasks'], completed=0, failed=0, interrupted=0)
         ledger = directory / 'tasks.sqlite3'
         if ledger.exists():
-            with sqlite3.connect(ledger) as db:
+            with closing(sqlite3.connect(ledger.as_uri() + '?mode=ro', uri=True)) as db:
                 try:
                     counts = db.execute('SELECT status,COUNT(*) FROM attempts WHERE attempt=1 GROUP BY status').fetchall()
                 except sqlite3.OperationalError:
@@ -473,7 +473,14 @@ class EvaluationStore:
         with self.connection() as db:
             ids = [r[0] for r in db.execute('SELECT j.id FROM jobs j LEFT JOIN job_catalog c ON c.job_id=j.id' +
                 ('' if include_archived else ' WHERE COALESCE(c.archived,0)=0') + ' ORDER BY j.created_at DESC')]
-        return [self.job(i) for i in ids]
+        items = []
+        for job_id in ids:
+            try:
+                items.append(self.job(job_id))
+            except EvaluationFailure as exc:
+                if exc.status != 404:
+                    raise
+        return items
 
     def state(self, job_id, status, error=None):
         self.frozen(job_id)
@@ -495,8 +502,10 @@ class EvaluationStore:
             db.execute('BEGIN IMMEDIATE')
             if db.execute('SELECT 1 FROM job_catalog WHERE job_id=? AND archived=1', (job_id,)).fetchone():
                 raise EvaluationFailure('任务已归档，请先取消归档再启动。', 409)
-            current = db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
-            if current not in ('draft', 'paused', 'interrupted', 'error', 'completed'):
+            current = db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()
+            if current is None:
+                raise EvaluationFailure('评测任务不存在。', 404)
+            if current['status'] not in ('draft', 'paused', 'interrupted', 'error', 'completed'):
                 raise EvaluationFailure('该任务已在排队或运行。', 409)
             if db.execute("SELECT 1 FROM jobs WHERE status IN ('queued','running','stopping')").fetchone():
                 raise EvaluationFailure('首版同一时间执行一个评测任务，请先等待或停止当前任务。', 409)

@@ -1527,8 +1527,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .evaluation-fields .ant-select { width: 100%; }
 .evaluation-workspace { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 20px; }
 .evaluation-job-list { display: grid; gap: 10px; }
-.evaluation-job-list button { text-align: left; display: grid; gap: 6px; border: 1px solid #e4e7ec; background: white; border-radius: 10px; padding: 12px; cursor: pointer; }
-.evaluation-job-list button.selected { border-color: #1677ff; background: #f0f7ff; }
+.evaluation-job-list .evaluation-card-select { text-align: left; display: grid; gap: 6px; border: 1px solid #e4e7ec; background: white; border-radius: 10px; padding: 12px; cursor: pointer; }
+.evaluation-job-list .evaluation-card-select.selected { border-color: #1677ff; background: #f0f7ff; }
 .evaluation-job-list span { color: #667085; font-size: 12px; }
 .evaluation-bank-list { display: grid; gap: 8px; }
 .evaluation-bank-list button { display: grid; gap: 4px; padding: 12px; text-align: left; background: #f7f8fa; border: 1px solid #e4e7ec; border-radius: 10px; cursor: pointer; }

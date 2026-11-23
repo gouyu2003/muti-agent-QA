@@ -4,6 +4,7 @@ import sqlite3
 import hashlib
 import io
 import zipfile
+from typing import Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
@@ -17,6 +18,10 @@ from src.evaluation.platform_datasets import (ManifestRequest, SplitRequest, Exp
     import_manifest, create_splits, add_exposures, get_manifest, register)
 from src.evaluation.platform_review import result_rows, compare_question, monitor
 from src.evaluation.platform_workspace import PlanRequest, save_plan, get_plan, copy_job_plan, archive_job
+from src.evaluation.platform_job_actions import (benchmark_detail, benchmark_list, change_benchmark_job, delete_job,
+                                                 job_archived, start_benchmark_job, stop_benchmark_job)
+from src.evaluation import gsm8k_platform as gsm8k
+from src.evaluation import mmlu_pro
 
 router = APIRouter(prefix='/api/v1/evaluations')
 
@@ -52,35 +57,95 @@ class GSMCreateRequest(BaseModel):
 
 
 @router.get('/gsm8k/jobs')
-def gsm_jobs():
-    from src.evaluation.gsm8k_platform import list_jobs
-    return {'items': list_jobs()}
+def gsm_jobs(include_archived: bool = False):
+    return {'items': benchmark_list(store(), gsm8k.list_jobs(), include_archived)}
 
 
 @router.post('/gsm8k/jobs', status_code=201)
 def gsm_create(body: GSMCreateRequest):
-    from src.evaluation.gsm8k_platform import create_job
-    return create_job(body.name, body.methods, body.selection, body.count, body.records, body.fake)
+    return gsm8k.create_job(body.name, body.methods, body.selection, body.count, body.records, body.fake)
 
 
 @router.get('/gsm8k/jobs/{job_id}')
 def gsm_job(job_id: str):
-    from src.evaluation.gsm8k_platform import view_job
-    return view_job(job_id, include_calls=True)
+    return benchmark_detail(store(), gsm8k.view_job(job_id, include_calls=True))
 
 
 @router.post('/gsm8k/jobs/{job_id}/start')
 def gsm_start(job_id: str, body: StartRequest):
-    from src.evaluation.gsm8k_platform import start_job
     if body.retry_failed:
         raise EvaluationFailure('复现任务不自动重跑失败或状态不明的请求。', 409)
-    return start_job(job_id, body.allow_model_calls)
+    return start_benchmark_job(store(), gsm8k, job_id, body.allow_model_calls)
 
 
 @router.post('/gsm8k/jobs/{job_id}/stop')
 def gsm_stop(job_id: str):
-    from src.evaluation.gsm8k_platform import stop_job
-    return stop_job(job_id)
+    return stop_benchmark_job(store(), gsm8k, job_id)
+
+
+@router.post('/gsm8k/jobs/{job_id}/archive')
+def gsm_archive(job_id: str, body: ArchiveJobRequest):
+    return change_benchmark_job(store(), gsm8k, job_id, archived=body.archived)
+
+
+@router.delete('/gsm8k/jobs/{job_id}')
+def gsm_delete(job_id: str):
+    return change_benchmark_job(store(), gsm8k, job_id, archived=None)
+
+
+class MMLUCreateRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    name: str = Field(min_length=1, max_length=100)
+    methods: list[Literal['single', 'reflection', 'majority', 'debate']] = Field(min_length=1, max_length=4)
+    selection: Literal['smoke', 'development', 'calibration-60']
+    fake: bool = Field(default=True, strict=True)
+
+
+@router.get('/mmlu-pro/manifests')
+def mmlu_manifests():
+    return {'items': mmlu_pro.manifests()}
+
+
+@router.get('/mmlu-pro/jobs')
+def mmlu_jobs(include_archived: bool = False):
+    return {'items': benchmark_list(store(), mmlu_pro.list_jobs(), include_archived)}
+
+
+@router.post('/mmlu-pro/jobs', status_code=201)
+def mmlu_create(body: MMLUCreateRequest):
+    return mmlu_pro.create_job(body.name, body.methods, body.selection, body.fake)
+
+
+@router.get('/mmlu-pro/jobs/{job_id}')
+def mmlu_job(job_id: str):
+    return benchmark_detail(store(), mmlu_pro.view_job(job_id))
+
+
+@router.post('/mmlu-pro/jobs/{job_id}/start')
+def mmlu_start(job_id: str, body: StartRequest):
+    if body.retry_failed:
+        raise EvaluationFailure('调试任务不自动重跑失败或状态不明的请求。', 409)
+    return start_benchmark_job(store(), mmlu_pro, job_id, body.allow_model_calls)
+
+
+@router.post('/mmlu-pro/jobs/{job_id}/stop')
+def mmlu_stop(job_id: str):
+    return stop_benchmark_job(store(), mmlu_pro, job_id)
+
+
+@router.post('/mmlu-pro/jobs/{job_id}/archive')
+def mmlu_archive(job_id: str, body: ArchiveJobRequest):
+    return change_benchmark_job(store(), mmlu_pro, job_id, archived=body.archived)
+
+
+@router.delete('/mmlu-pro/jobs/{job_id}')
+def mmlu_delete(job_id: str):
+    return change_benchmark_job(store(), mmlu_pro, job_id, archived=None)
+
+
+@router.get('/mmlu-pro/jobs/{job_id}/questions/{qid}/{method}')
+def mmlu_trace(job_id: str, qid: int, method: Literal['single', 'reflection', 'majority', 'debate']):
+    return {'items': mmlu_pro.trace(job_id, qid, method)}
 
 
 @router.get('/plans')
@@ -253,7 +318,11 @@ def jobs(include_archived: bool = False):
     catalog = store()
     items = catalog.jobs(include_archived=include_archived)
     for item in items:
-        reconcile(catalog, item['job_id'])
+        try:
+            reconcile(catalog, item['job_id'])
+        except EvaluationFailure as exc:
+            if exc.status != 404:
+                raise
     return {'items': catalog.jobs(include_archived=include_archived)}
 
 
@@ -269,9 +338,17 @@ def job(job_id: str):
     return catalog.job(job_id)
 
 
+@router.delete('/jobs/{job_id}')
+def remove_job(job_id: str):
+    return delete_job(store(), job_id)
+
+
 @router.post('/jobs/{job_id}/start')
 def start(job_id: str, body: StartRequest):
-    return start_job(store(), job_id, allow_model_calls=body.allow_model_calls, retry_failed=body.retry_failed)
+    catalog = store()
+    if job_archived(catalog, job_id):
+        raise EvaluationFailure('任务已归档，请先取消归档再启动。', 409)
+    return start_job(catalog, job_id, allow_model_calls=body.allow_model_calls, retry_failed=body.retry_failed)
 
 
 @router.post('/jobs/{job_id}/stop')

@@ -6,6 +6,7 @@ __pycache__/
 frontend/node_modules/
 frontend/dist/
 frontend/coverage/
+.playwright-mcp/
 # SQLite 运行记录
 data/runtime/*.sqlite3
 data/runtime/*.sqlite3-shm

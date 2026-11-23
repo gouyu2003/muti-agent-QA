@@ -34,10 +34,12 @@
 .evaluation-console .evaluation-task-rail > .ant-collapse .ant-collapse-header { padding: 0 2px; font-size: 12px; color: var(--muted); }
 .evaluation-console .evaluation-task-rail > .ant-collapse .ant-collapse-body { padding: 12px 0 0; }
 .evaluation-console .evaluation-job-list { gap: 12px; }
-.evaluation-console .evaluation-job-list button { width: 100%; min-width: 0; border-color: var(--evaluation-border); padding: 14px; gap: 12px; color: var(--ink); border-radius: 9px; transition: background .15s, border-color .15s; }
-.evaluation-console .evaluation-job-list button:hover { border-color: #a2bfe0; }
-.evaluation-console .evaluation-job-list button.selected { border-color: #0066cc; background: var(--evaluation-blue-soft); }
-.evaluation-console .evaluation-job-list button:focus-visible { outline: 3px solid #0066cc66; outline-offset: 3px; }
+.evaluation-console .evaluation-job-list .evaluation-card-select { width: 100%; min-width: 0; border-color: var(--evaluation-border); padding: 14px 50px 14px 14px; gap: 12px; color: var(--ink); border-radius: 9px; transition: background .15s, border-color .15s; }
+.evaluation-console .evaluation-job-list .evaluation-card-select:hover { border-color: #a2bfe0; }
+.evaluation-console .evaluation-job-list .evaluation-card-select.selected { border-color: #0066cc; background: var(--evaluation-blue-soft); }
+.evaluation-console .evaluation-job-list .evaluation-card-select:focus-visible { outline: 3px solid #0066cc66; outline-offset: 3px; }
+.evaluation-job-card { position: relative; min-width: 0; }
+.evaluation-job-card > .evaluation-card-actions { position: absolute; inset-block-start: 6px; inset-inline-end: 7px; width: 36px; height: 36px; }
 .evaluation-console .evaluation-job-list strong { font-size: 13px; font-weight: 600; line-height: 1.65; overflow-wrap: anywhere; }
 .evaluation-console .evaluation-job-list span { font-size: 11px; }
 .evaluation-console .evaluation-list-status { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -171,7 +173,7 @@
   .evaluation-console [aria-label="实验方案复用"] .ant-select { width: 100%; min-width: 180px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .evaluation-console .evaluation-job-list button, .gsm8k-job-list button { transition: none; }
+  .evaluation-console .evaluation-job-list .evaluation-card-select, .gsm8k-job-list .evaluation-card-select { transition: none; }
 }
 .gsm8k-workspace { display: grid; gap: 16px; }
 .gsm8k-page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; }
@@ -181,13 +183,13 @@
 .gsm8k-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); align-items: start; gap: 20px; }
 .gsm8k-rail { display: grid; align-content: start; gap: 12px; min-width: 0; }
 .gsm8k-job-list { display: grid; gap: 10px; min-width: 0; }
-.gsm8k-job-list button { display: grid; gap: 8px; width: 100%; min-width: 0; padding: 12px 14px; border: 1px solid var(--evaluation-border, #e4e8ef); border-radius: 9px; background: var(--panel); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: background .15s, border-color .15s; }
-.gsm8k-job-list button:hover { border-color: #a2bfe0; }
-.gsm8k-job-list button.selected { border-color: #0066cc; background: var(--evaluation-blue-soft, #edf5ff); }
-.gsm8k-job-list button:focus-visible { outline: 3px solid #0066cc66; outline-offset: 3px; }
-.gsm8k-job-list button:disabled { cursor: not-allowed; opacity: .6; }
+.gsm8k-job-list .evaluation-card-select { display: grid; gap: 8px; width: 100%; min-width: 0; padding: 12px 50px 12px 14px; border: 1px solid var(--evaluation-border, #e4e8ef); border-radius: 9px; background: var(--panel); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: background .15s, border-color .15s; }
+.gsm8k-job-list .evaluation-card-select:hover { border-color: #a2bfe0; }
+.gsm8k-job-list .evaluation-card-select.selected { border-color: #0066cc; background: var(--evaluation-blue-soft, #edf5ff); }
+.gsm8k-job-list .evaluation-card-select:focus-visible { outline: 3px solid #0066cc66; outline-offset: 3px; }
+.gsm8k-job-list .evaluation-card-select:disabled { cursor: not-allowed; opacity: .6; }
 .gsm8k-job-list strong { font-size: 13px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
-.gsm8k-job-list > button > span { color: var(--muted); font-size: 11px; }
+.gsm8k-job-list .evaluation-card-select > span { color: var(--muted); font-size: 11px; }
 .gsm8k-list-state { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .gsm8k-list-state .ant-tag { margin-inline-end: 0; font-size: 11px; }
 .gsm8k-list-state > span { font-variant-numeric: tabular-nums; }
@@ -283,6 +285,7 @@
 .gsm8k-results-pagination { justify-content: flex-end; }
 .gsm8k-detail { display: grid; gap: 12px; min-width: 0; padding: 16px; border: 1px solid var(--evaluation-border, #e4e8ef); border-radius: 10px; background: var(--evaluation-subtle, #f8f9fb); }
 .gsm8k-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px 20px; }
+.gsm8k-choice-detail { grid-template-columns: minmax(0, 1fr) max-content; }
 .gsm8k-detail-grid span { color: var(--muted); font-size: 11px; }
 .gsm8k-detail-grid p { margin: 2px 0 0; font-size: 13px; overflow-wrap: anywhere; }
 .gsm8k-detail .ant-collapse { border: 0; background: transparent; }

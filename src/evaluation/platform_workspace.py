@@ -59,8 +59,10 @@ def archive_job(store, job_id, archived):
     store.frozen(job_id)
     with store.connection() as db:
         db.execute('BEGIN IMMEDIATE')
-        status = db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
-        if status in ('queued', 'running', 'stopping'):
+        row = db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()
+        if row is None:
+            raise EvaluationFailure('评测任务不存在。', 404)
+        if row['status'] in ('queued', 'running', 'stopping'):
             raise EvaluationFailure('运行中的任务不能归档，请先暂停或等待结束。', 409)
         db.execute('INSERT INTO job_catalog VALUES (?,?) ON CONFLICT(job_id) DO UPDATE SET archived=excluded.archived',
                    (job_id, int(archived)))

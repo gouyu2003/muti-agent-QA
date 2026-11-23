@@ -60,6 +60,64 @@ it('creates a fake experiment from the drawer and shows the core scores and agen
   expect(screen.getByText(/第 1 轮 · 智能体 1/)).toBeInTheDocument()
 })
 
+it('starts the fixed MMLU-Pro smoke list and loads a Debate trace on demand', async () => {
+  const result = { qid: '42', method: 'debate', repeat: 0, status: 'completed', question: 'Question\nA. One\nB. Two',
+    category: 'math', gold: 'B', outputs: [], scores: { fixed: { correct: 1, prediction: 'B' } },
+    round_scores: [{ candidates: ['A', 'A', 'B'], votes: { A: 2, B: 1 }, prediction: 'A', correct: 0 },
+      { candidates: ['B', 'B', 'A'], votes: { B: 2, A: 1 }, prediction: 'B', correct: 1 }] }
+  const job = jobFixture({ job_id: 'mmlu_example', name: 'MMLU-Pro 5 题调试', methods: ['debate'], selection: 'smoke',
+    samples: 5, planned_calls: 30, actual_calls: 30, results: [result], quotas: { math: 1 } })
+  const base = '/mmlu-pro/jobs'
+  let created = false
+  let started = false
+  vi.mocked(evaluationRequest).mockImplementation(async (path, method) => {
+    if (path === '/mmlu-pro/manifests') return { items: [{ selection: 'smoke', count: 5 }] } as never
+    if (path === base && method === 'POST') created = true
+    if (path === base && method !== 'POST') return { items: created ? [job] : [] } as never
+    if (path.endsWith('/start')) started = true
+    if (path.endsWith('/questions/42/debate')) return { items: [{
+      task_key: 'debate:0:42', agent: 0, round: 0, attempt: 1, status: 'completed',
+      request: { messages: [] }, response: { content: 'FINAL: A' }, error: null,
+    }] } as never
+    return (started ? job : { ...job, state: 'draft', results: [], actual_calls: 0 }) as never
+  })
+  render(<ConfigProvider theme={{ token: { motion: false } }}><GSM8KEvaluation benchmark="mmlu-pro" /></ConfigProvider>)
+  fireEvent.click(await openCreate())
+  await waitFor(() => expect(evaluationRequest).toHaveBeenCalledWith(base, 'POST', expect.objectContaining({ selection: 'smoke', fake: true })))
+  fireEvent.click(await screen.findByRole('button', { name: '启动实验' }))
+  fireEvent.click(await screen.findByRole('button', { name: '确认启动' }))
+  await waitFor(() => expect(evaluationRequest).toHaveBeenCalledWith(base + '/mmlu_example/start', 'POST',
+    { allow_model_calls: false, retry_failed: false }))
+  fireEvent.click(screen.getByRole('button', { name: '逐题结果' }))
+  fireEvent.click(await screen.findByRole('button', { name: /42.*Debate/ }))
+  expect(await screen.findByText(/第 1 轮投票.*A 2 票/)).toBeInTheDocument()
+  expect(screen.getByText(/第 2 轮投票.*B 2 票/)).toBeInTheDocument()
+  expect(await screen.findByText(/第 1 轮 · 智能体 1/)).toBeInTheDocument()
+})
+
+it('shows the calibration manifest quotas and defaults its 60-call plan to Single', async () => {
+  vi.mocked(evaluationRequest).mockImplementation(async path => {
+    if (path === '/mmlu-pro/jobs') return { items: [] } as never
+    if (path === '/mmlu-pro/manifests') return { items: [
+      { selection: 'smoke', count: 5 },
+      { selection: 'calibration-60', count: 60, split: 'test', seed: 20261125,
+        quotas: { chemistry: 15, economics: 15, law: 15, philosophy: 15 } },
+    ] } as never
+    throw new Error(`unexpected ${path}`)
+  })
+  render(<ConfigProvider theme={{ token: { motion: false } }}><GSM8KEvaluation benchmark="mmlu-pro" /></ConfigProvider>)
+  const create = await openCreate()
+  await screen.findByText(/预计 75 次正常生成/)
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: 'MMLU-Pro 题目来源' }))
+  fireEvent.click(await screen.findByText('60 题难度校准', { exact: true }))
+  expect(await screen.findByText(/预计 60 次正常生成/)).toHaveTextContent('1 种方法')
+  expect(screen.getByText(/化学 15 题 · 经济学 15 题 · 法律 15 题 · 哲学 15 题/)).toBeInTheDocument()
+  expect(screen.getByRole('checkbox', { name: 'Single' })).toBeChecked()
+  expect(screen.getByRole('checkbox', { name: 'Debate' })).not.toBeChecked()
+  expect(create).toBeEnabled()
+  expect(vi.mocked(evaluationRequest).mock.calls.every(([, method]) => !method || method === 'GET')).toBe(true)
+})
+
 it('shows completed method tasks against all planned method tasks', async () => {
   const job = jobFixture({ job_id: 'gsm_progress', name: 'GSM8K formal v1', state: 'paused', fake: false,
     model: 'deepseek-v4.1-flash-1017', methods: ['single', 'reflection', 'majority', 'debate'],
@@ -132,6 +190,40 @@ it('invites creating the first experiment when no records exist', async () => {
   expect(await screen.findByText('还没有实验记录，先创建一个实验')).toBeInTheDocument()
   await openCreate()
   expect(screen.getByLabelText('GSM8K 实验名称')).toBeInTheDocument()
+})
+
+it.each(['gsm8k', 'mmlu-pro'] as const)('archives and confirms deletion from the %s card menu', async benchmark => {
+  const path = `/${benchmark}/jobs`
+  const record = jobFixture({ name: '待清理的实验' })
+  let archived = false
+  vi.mocked(evaluationRequest).mockImplementation(async (url, method, body) => {
+    if (url === '/mmlu-pro/manifests') return { items: [] } as never
+    if (url === path) return { items: archived ? [] : [record] } as never
+    if (url === `${path}?include_archived=true`) return { items: [{ ...record, archived }] } as never
+    if (url === `${path}/${record.job_id}/archive`) {
+      archived = (body as { archived: boolean }).archived
+      return { job_id: record.job_id, archived } as never
+    }
+    if (url === `${path}/${record.job_id}` && method === 'DELETE') {
+      return { job_id: record.job_id, deleted: true } as never
+    }
+    if (url === `${path}/${record.job_id}`) return { ...record, archived } as never
+    throw new Error(`unexpected ${url}`)
+  })
+  render(<ConfigProvider theme={{ token: { motion: false } }}><GSM8KEvaluation benchmark={benchmark} /></ConfigProvider>)
+  const menu = () => screen.findByRole('button', { name: '更多实验操作' })
+  fireEvent.click(await menu())
+  fireEvent.click(await screen.findByRole('menuitem', { name: '归档实验' }))
+  await waitFor(() => expect(screen.queryByRole('button', { name: '更多实验操作' })).not.toBeInTheDocument())
+  fireEvent.click(screen.getByRole('checkbox', { name: '显示已归档实验' }))
+  fireEvent.click(await menu())
+  fireEvent.click(await screen.findByRole('menuitem', { name: '删除实验' }))
+  const dialog = await screen.findByRole('dialog', { name: '永久删除实验？' })
+  expect(dialog).toHaveTextContent('待清理的实验')
+  expect(evaluationRequest).not.toHaveBeenCalledWith(`${path}/${record.job_id}`, 'DELETE')
+  fireEvent.click(within(dialog).getByRole('button', { name: '删除实验' }))
+  await waitFor(() => expect(evaluationRequest).toHaveBeenCalledWith(`${path}/${record.job_id}`, 'DELETE'))
+  await waitFor(() => expect(screen.queryByRole('button', { name: '更多实验操作' })).not.toBeInTheDocument())
 })
 
 it('restores the selected experiment and detail view from the URL', async () => {

@@ -18,6 +18,12 @@
 
 平台新增“批量评测”：上传并版本化问题库，比较标准六组或已发布用户系统，冻结任务后由独立后台进程执行，查看进度、逐题轨迹和比较报告。创建任务不调用模型；启动和补跑需在页面明确确认。数据独立保存在 `data/evaluations/`，使用说明与限制见 [平台批量评测](docs/platform-evaluation.md)。
 
+### MMLU-Pro 固定题单
+
+从 [TIGER-Lab/MMLU-Pro](https://huggingface.co/datasets/TIGER-Lab/MMLU-Pro) 的修订 `b189ec765aa7ed75c8acfea42df31fdae71f97be` 下载 `test-00000-of-00001.parquet` 和 `validation-00000-of-00001.parquet`，放入 `data/experiments/mmlu-pro/raw/`。将 `hyparquet@1.33.1` 的 npm 包解压到 `data/experiments/mmlu-pro/.deps/`，保留包内的 `package/src/node.js` 路径。
+
+在仓库根目录用 Python 3.13.17 运行 `python scripts/prepare_mmlu_pro_manifests.py`。脚本生成 5 题调试、60 题难度校准和 100 题开发清单。平台加载时检查题单指纹。
+
 ## 系统结构
 
 阶段 4.1 可在“我的系统”创建多套系统，组合现有流程与工作区共享的知识源固定版本，保存草稿、试运行并发布不可覆盖的 v1/v2。问答与历史记录关联当时的完整配置，原入口保留为“临时问答”。阶段 4.1 的历史验收记录见 [docs/stage41-validation.md](docs/stage41-validation.md)。

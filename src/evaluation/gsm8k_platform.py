@@ -5,7 +5,7 @@ This module never implements those algorithms or replays an unknown request.
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
@@ -293,7 +293,7 @@ def _read_db(directory):
     path = directory / 'core' / 'results.sqlite3'
     if not path.is_file():
         raise EvaluationFailure('复现实验账本缺失，请保留记录检查。', 409)
-    with sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True) as db:
+    with closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True)) as db:
         db.row_factory = sqlite3.Row
         tasks = [dict(r) for r in db.execute('SELECT * FROM tasks ORDER BY rowid')]
         calls = [dict(r) for r in db.execute('SELECT * FROM calls ORDER BY rowid')]
