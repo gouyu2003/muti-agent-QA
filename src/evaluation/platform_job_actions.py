@@ -90,11 +90,11 @@ def _benchmark_lock(catalog, engine, job_id, *, deleting=False):
         yield
 
 
-def start_benchmark_job(catalog, engine, job_id, allow_model_calls):
+def start_benchmark_job(catalog, engine, job_id, allow_model_calls, **options):
     with _benchmark_lock(catalog, engine, job_id):
         if job_archived(catalog, job_id):
             raise EvaluationFailure('实验已归档，请先取消归档再启动。', 409)
-        return dict(engine.start_job(job_id, allow_model_calls), archived=False)
+        return dict(engine.start_job(job_id, allow_model_calls, **options), archived=False)
 
 
 def stop_benchmark_job(catalog, engine, job_id):
@@ -124,6 +124,8 @@ def change_benchmark_job(catalog, engine, job_id, *, archived):
                 if row['state'] in ('running', 'stopping'):
                     raise EvaluationFailure('请等实验暂停或结束后再操作。', 409)
                 if archived is None:
+                    db.execute('DELETE FROM pending_resumes WHERE job_id=?', (job_id,))
+                    db.execute('DELETE FROM superseded_calls WHERE job_id=?', (job_id,))
                     db.execute('DELETE FROM calls WHERE job_id=?', (job_id,))
                     db.execute('DELETE FROM tasks WHERE job_id=?', (job_id,))
                     db.execute('DELETE FROM jobs WHERE id=?', (job_id,))

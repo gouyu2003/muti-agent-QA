@@ -15,7 +15,8 @@ type Call = { task_key: string; agent: number; round: number; attempt: number; s
   request: { messages?: { role: string; content: string }[] }; response: { content?: string; finish_reason?: string; usage?: unknown } | null; error: unknown }
 type Job = { job_id: string; name: string; state: string; error: string | null; fake: boolean; model: string;
   archived?: boolean;
-  methods: Method[]; selection: string; samples: number; planned_calls: number; actual_calls: number;
+  methods: Method[]; selection: string; samples: number; planned_calls: number; actual_calls: number; next_stage_calls?: number;
+  pending_calls?: number; can_resume_pending?: boolean; pending_resume_count?: number; superseded_calls?: number;
   counts: Record<string, number>; results: Result[]; calls?: Call[]; profile_sha256: string; budget_cny: string;
   frontend_observations?: { event: string; sha256: string | null; observed_at: string }[];
   pricing?: { input_per_million_cny: string; output_per_million_cny: string; verified_at: string; source: string };
@@ -27,11 +28,13 @@ type Manifest = { selection: string; count?: number; split?: string; revision?: 
 type Benchmark = 'gsm8k' | 'mmlu-pro'
 
 const labels: Record<Method, string> = { single: 'Single', reflection: 'Reflection', majority: 'Majority', debate: 'Debate' }
+const allMethods = Object.keys(labels) as Method[]
 const callsPerMethod: Record<Method, number> = { single: 1, reflection: 2, majority: 6, debate: 6 }
 const states: Record<string, string> = { draft: '待启动', running: '运行中', stopping: '当前题完成后暂停', paused: '已暂停', completed: '已完成', interrupted: '已中断' }
 const stateColors: Record<string, string> = { draft: 'default', running: 'processing', stopping: 'warning', paused: 'default', completed: 'success', interrupted: 'error' }
 const selectionLabels: Record<string, string> = { debug: '固定训练调试集', calibration: '固定训练校准集',
-  custom: '导入题目', formal: '正式测试集', smoke: '5 题调试', development: '100 题开发', 'calibration-60': '60 题难度校准' }
+  custom: '导入题目', formal: '正式测试集', smoke: '5 题调试', development: '100 题开发',
+  'calibration-60': '60 题难度校准', 'comparison-100': '100 题四组对照' }
 const subjectLabels: Record<string, string> = { math: '数学', physics: '物理', engineering: '工程', business: '商业',
   chemistry: '化学', economics: '经济学', law: '法律', philosophy: '哲学' }
 
@@ -170,7 +173,7 @@ function QuestionResults({ job, multipleChoice }: { job: Job; multipleChoice: bo
             {score.prediction && (score.correct ? '（答对）' : '（答错）')}</p>)
           : <p className="gsm8k-hint">固定评分：{JSON.stringify(chosen.scores.fixed)}；作者评分：{JSON.stringify(chosen.scores.author_faithful)}</p>}
         {activeTrace?.error && <Alert type="error" showIcon title={activeTrace.error} />}
-        {chosenCalls.length > 0 ? <Collapse items={chosenCalls.map((call, index) => ({ key: String(index), label: `第 ${call.round + 1} 轮 · 智能体 ${call.agent + 1} · ${call.status}${call.response?.finish_reason === 'length' ? ' · 输出截断' : ''}`, children: <>
+        {chosenCalls.length > 0 ? <Collapse items={chosenCalls.map((call, index) => ({ key: String(index), label: `${call.attempt > 1 ? `第 ${call.attempt} 次尝试 · ` : ''}第 ${call.round + 1} 轮 · 智能体 ${call.agent + 1} · ${call.status}${call.response?.finish_reason === 'length' ? ' · 输出截断' : ''}`, children: <>
           <p>结束原因：{call.response?.finish_reason ?? '未知'}；耗时：{call.duration_ms ?? '未知'} ms</p>
           <details><summary>本次消息</summary><pre>{JSON.stringify(call.request.messages, null, 2)}</pre></details>
           <details open><summary>模型回答</summary><pre>{call.response?.content ?? JSON.stringify(call.error)}</pre></details>
@@ -199,7 +202,7 @@ export default function GSM8KEvaluation({ benchmark = 'gsm8k' }: { benchmark?: B
   const [name, setName] = useState(multipleChoice ? 'MMLU-Pro 5 题调试' : 'GSM8K 训练题复现')
   const [selection, setSelection] = useState(multipleChoice ? 'smoke' : 'debug')
   const [count, setCount] = useState(1)
-  const [methods, setMethods] = useState<Method[]>(['single', 'reflection', 'majority', 'debate'])
+  const [methods, setMethods] = useState<Method[]>(allMethods)
   const [custom, setCustom] = useState('')
   const [fake, setFake] = useState(multipleChoice)
   const [busy, setBusy] = useState(false)
@@ -324,6 +327,9 @@ export default function GSM8KEvaluation({ benchmark = 'gsm8k' }: { benchmark?: B
   const manifest = manifests.find(item => item.selection === selection)
   const sampleCount = multipleChoice ? manifest?.count : count
   const pendingCalls = methods.reduce((total, method) => total + callsPerMethod[method], 0) * (sampleCount ?? 0)
+  const remainingCalls = job?.pending_calls ?? (job?.planned_calls ?? 0) - (job?.actual_calls ?? 0)
+  const nextStageCalls = job?.next_stage_calls ?? remainingCalls
+  const resuming = multipleChoice && !!job?.can_resume_pending
 
   return <section className="gsm8k-workspace" aria-label={multipleChoice ? title : 'GSM8K 论文复现实验'}>
     <header className="gsm8k-page-head">
@@ -366,7 +372,9 @@ export default function GSM8KEvaluation({ benchmark = 'gsm8k' }: { benchmark?: B
             {job.archived && <Tag>已归档</Tag>}
           </div>
           <div className="gsm8k-detail-actions">
-            <Button type="primary" disabled={busy || !!active || job.archived || job.state === 'completed' || (multipleChoice && job.state === 'interrupted') || !!job.counts.failed || !!job.counts.interrupted} onClick={start}>{job.state === 'draft' ? '启动实验' : '继续未执行题目'}</Button>
+            <Button type="primary" disabled={busy || !!active || job.archived || job.state === 'completed' ||
+              (!resuming && ((multipleChoice && job.state === 'interrupted') || !!job.counts.failed || !!job.counts.interrupted))}
+              onClick={start}>{resuming ? '仅续跑待执行题目' : job.state === 'draft' ? '启动实验' : '继续未执行题目'}</Button>
             <Button disabled={busy || job.state !== 'running'} onClick={() => void action(async () => { await evaluationRequest(`${jobsPath}/${job.job_id}/stop`, 'POST'); await refreshJob(job.job_id) })}>当前题完成后暂停</Button>
           </div>
           <div className="gsm8k-detail-views" role="group" aria-label="实验详情视图">
@@ -384,6 +392,7 @@ export default function GSM8KEvaluation({ benchmark = 'gsm8k' }: { benchmark?: B
               <div className="gsm8k-stat"><strong>{job.actual_calls}/{job.planned_calls}</strong><span>已记录 / 计划调用</span></div>
             </div>
             <p className="gsm8k-meta"><span>模型 {job.model}</span><span>{job.samples} 题</span>{job.fake && <span>离线假回答</span>}</p>
+            {!!job.superseded_calls && <p className="gsm8k-hint">已记录调用包含 {job.superseded_calls} 次补跑前的历史调用。</p>}
             {job.error && <Alert type={job.state === 'paused' ? 'info' : 'warning'} showIcon title={job.error} />}
             {(!!job.counts.failed || !!job.counts.interrupted) && <Alert type="warning" showIcon title="存在失败或未确认任务，请先检查调用和费用；不会自动重跑。" />}
             <div className="gsm8k-folds">
@@ -412,6 +421,7 @@ export default function GSM8KEvaluation({ benchmark = 'gsm8k' }: { benchmark?: B
                     <div><dt>题单指纹</dt><dd className="gsm8k-fingerprint">{job.manifest_sha256}</dd></div>
                     {job.scoring_version && <div><dt>评分版本</dt><dd>{job.scoring_version}</dd></div>}
                     <div><dt>抽样种子</dt><dd>{job.seed}</dd></div>
+                    {!!job.pending_resume_count && <div><dt>待执行题目续跑</dt><dd>{job.pending_resume_count} 次</dd></div>}
                   </>}
                   {job.frontend_observations?.map((item, index) => <div key={`${item.event}-${item.observed_at}-${index}`}>
                     <dt>{item.event === 'created' ? '创建时前端' : item.event === 'started' ? '启动时前端' : '前端记录'}</dt>
@@ -427,16 +437,19 @@ export default function GSM8KEvaluation({ benchmark = 'gsm8k' }: { benchmark?: B
             <div className="gsm8k-methods">{job.methods.map(method => {
               const rows = job.results.filter(row => row.method === method)
               const correct = rows.filter(row => row.scores.fixed?.correct === 1).length
-              const finished = multipleChoice ? rows.filter(row => row.status !== 'running').length : rows.length
-              const complete = rows.length === job.samples && rows.every(row => ['completed', 'failed', 'interrupted'].includes(row.status))
+              const finished = multipleChoice ? rows.filter(row => row.status === 'completed').length : rows.length
+              const complete = multipleChoice ? finished === job.samples
+                : rows.length === job.samples && rows.every(row => ['completed', 'failed', 'interrupted'].includes(row.status))
+              const unresolved = multipleChoice ? rows.filter(row => ['failed', 'interrupted'].includes(row.status)).length : 0
+              const scoreStatus = unresolved ? `有 ${unresolved} 道中断或失败题待核对` : '待整集完成'
               const metrics = job.method_metrics?.[method]
               const attempts = metrics?.calls ?? job.calls?.filter(call => call.task_key.startsWith(`${method}:`)).length ?? 0
               const durations = rows.flatMap(row => row.duration_ms == null ? [] : [row.duration_ms])
               return <div className="gsm8k-method" key={method}>
                 <div className="gsm8k-method-head"><strong>{labels[method]}</strong><span>完成 {finished}/{job.samples} 题</span></div>
-                <div className="gsm8k-method-score">{complete ? `${(correct * 100 / job.samples).toFixed(1)}%` : '—'}<small>{complete ? `${correct}/${job.samples} 题` : '待整集完成'}</small></div>
+                <div className="gsm8k-method-score">{complete ? `${(correct * 100 / job.samples).toFixed(1)}%` : '—'}<small>{complete ? `${correct}/${job.samples} 题` : scoreStatus}</small></div>
                 <span className="gsm8k-method-meta">生成记录 {attempts} 次</span>
-                <span className="gsm8k-method-meta">固定评分：{complete ? `${correct}/${job.samples}` : '待整集完成'}</span>
+                <span className="gsm8k-method-meta">固定评分：{complete ? `${correct}/${job.samples}` : scoreStatus}</span>
                 {metrics && <>
                   <span className="gsm8k-method-meta">Token 入 / 出 {metrics.usage.prompt_tokens ?? '—'} / {metrics.usage.completion_tokens ?? '—'}</span>
                   <span className="gsm8k-method-meta">平均每题 {durations.length ? `${(durations.reduce((a, b) => a + b, 0) / durations.length / 1000).toFixed(2)} 秒` : '—'}</span>
@@ -448,7 +461,7 @@ export default function GSM8KEvaluation({ benchmark = 'gsm8k' }: { benchmark?: B
                 <thead><tr><th scope="col">学科</th>{job.methods.map(method => <th scope="col" key={method}>{labels[method]}</th>)}</tr></thead>
                 <tbody>{Object.entries(job.quotas).map(([category, quota]) =>
                   <tr key={category}><th scope="row">{subjectLabels[category] ?? category}</th>{job.methods.map(method => {
-                    const rows = job.results.filter(row => row.method === method && row.category === category && row.status !== 'running')
+                    const rows = job.results.filter(row => row.method === method && row.category === category && row.status === 'completed')
                     return <td key={method}>{rows.length === quota
                       ? `${rows.filter(row => row.scores.fixed.correct === 1).length} / ${quota}`
                       : '—'}</td>
@@ -480,10 +493,11 @@ export default function GSM8KEvaluation({ benchmark = 'gsm8k' }: { benchmark?: B
           setSelection(value)
           if (multipleChoice) {
             if (value === 'calibration-60') setMethods(['single'])
+            if (value === 'comparison-100') setMethods(allMethods)
             if (name === `MMLU-Pro ${selectionLabels[selection] ?? selection}`) setName(`MMLU-Pro ${selectionLabels[value] ?? value}`)
           } else {
             setCount(value === 'formal' ? 100 : 1)
-            if (value === 'formal') { setFake(false); setMethods(['single', 'reflection', 'majority', 'debate']) }
+            if (value === 'formal') { setFake(false); setMethods(allMethods) }
           }
         }} options={multipleChoice ? manifests.map(item => ({ value: item.selection, label: selectionLabels[item.selection] ?? item.selection })) : [
           { value: 'debug', label: '固定训练调试集（10 题）' }, { value: 'calibration', label: '固定训练校准集（30 题）' }, { value: 'custom', label: '导入纯问题 JSON' }, { value: 'formal', label: '正式测试集（100 题，需先冻结条件）' },
@@ -495,7 +509,8 @@ export default function GSM8KEvaluation({ benchmark = 'gsm8k' }: { benchmark?: B
             {' · '}{manifest.split} · 种子 {manifest.seed} · 数据版本 {manifest.revision?.slice(0, 12)}
           </small>}
         </div>}
-        <fieldset><legend>复现方法</legend><Checkbox.Group disabled={selection === 'formal'} value={methods} onChange={v => setMethods(v as Method[])} options={Object.entries(labels).map(([value, label]) => ({ value, label }))} /></fieldset>
+        <fieldset><legend>复现方法</legend><Checkbox.Group disabled={selection === 'formal' || selection === 'comparison-100'} value={methods} onChange={v => setMethods(v as Method[])} options={Object.entries(labels).map(([value, label]) => ({ value, label }))} /></fieldset>
+        {selection === 'comparison-100' && <div className="gsm8k-fields-wide"><small>先运行 Single，完成后自动暂停。确认继续后运行其余三组。</small></div>}
         {selection === 'formal' && <div className="gsm8k-fields-wide"><Alert type="info" showIcon title="正式测试需先在实验方案中冻结条件与模型文件。" /></div>}
         {selection === 'custom' && <>
           <label className="gsm8k-fields-wide">导入 JSON 文件<input type="file" aria-label="导入 GSM8K JSON 文件" accept=".json,application/json" onChange={e => { const file = e.target.files?.[0]; if (file) void action(() => importFile(file)); e.target.value = '' }} /></label>
@@ -507,10 +522,13 @@ export default function GSM8KEvaluation({ benchmark = 'gsm8k' }: { benchmark?: B
 
     <Modal open={confirming} title={job?.fake ? '启动离线模拟？' : '确认调用真实模型？'} okText="确认启动" cancelText="取消" confirmLoading={busy}
       onCancel={() => setConfirming(false)} onOk={() => { if (!job) return; setConfirming(false); void action(async () => {
-        await evaluationRequest(`${jobsPath}/${job.job_id}/start`, 'POST', { allow_model_calls: !job.fake, retry_failed: false })
+        const endpoint = resuming ? 'resume-pending' : 'start'
+        await evaluationRequest(`${jobsPath}/${job.job_id}/${endpoint}`, 'POST', { allow_model_calls: !job.fake, retry_failed: false })
         await refreshJob(job.job_id); await refreshList()
       }) }}>
-      <p>{job?.fake ? '本次使用固定假回答，不调用模型。' : `${job?.selection === 'formal' ? '本次为正式测试，题目及结果不能用于调试。' : ''}本次计划 ${multipleChoice ? (job?.planned_calls ?? 0) - (job?.actual_calls ?? 0) : job?.planned_calls ?? 0} 次正常模型生成${multipleChoice ? '' : '，重试另计'}，实际费用以供应商账单为准。请确认已核实当前价格和预算。`}</p>
+      <p>{job?.fake ? '本次使用固定假回答，不调用模型。' : `${job?.selection === 'formal' ? '本次为正式测试，题目及结果不能用于调试。' : ''}本次计划 ${multipleChoice ? nextStageCalls : job?.planned_calls ?? 0} 次正常模型生成${multipleChoice ? '' : '，重试另计'}，实际费用以供应商账单为准。请确认已核实当前价格和预算。`}</p>
+      {resuming && <p>本次只续跑待执行题目。已完成结果和中断记录保留在这条实验中。</p>}
+      {multipleChoice && nextStageCalls < remainingCalls && <p>本次只运行 Single，完成后自动暂停。全程计划 {job?.planned_calls} 次生成。</p>}
     </Modal>
   </section>
 }

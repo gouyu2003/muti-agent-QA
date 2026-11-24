@@ -22,7 +22,7 @@
 
 从 [TIGER-Lab/MMLU-Pro](https://huggingface.co/datasets/TIGER-Lab/MMLU-Pro) 的修订 `b189ec765aa7ed75c8acfea42df31fdae71f97be` 下载 `test-00000-of-00001.parquet` 和 `validation-00000-of-00001.parquet`，放入 `data/experiments/mmlu-pro/raw/`。将 `hyparquet@1.33.1` 的 npm 包解压到 `data/experiments/mmlu-pro/.deps/`，保留包内的 `package/src/node.js` 路径。
 
-在仓库根目录用 Python 3.13.17 运行 `python scripts/prepare_mmlu_pro_manifests.py`。脚本生成 5 题调试、60 题难度校准和 100 题开发清单。平台加载时检查题单指纹。
+在仓库根目录用 Python 3.13.17 运行 `python scripts/prepare_mmlu_pro_manifests.py`。脚本生成 5 题调试、60 题难度校准、100 题开发和 100 题四组对照清单。四组对照从化学、经济学、法律和哲学各抽 25 道新题，排除已使用的题号与重复题干。平台加载时检查题单指纹。四组对照启动后先运行 Single，完成后暂停，确认继续后运行其余三组。
 
 ## 系统结构
 

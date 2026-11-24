@@ -1,4 +1,4 @@
-"""Create the fixed MMLU-Pro development and smoke manifests from local Parquet."""
+"""Create the fixed MMLU-Pro experiment manifests from local Parquet."""
 
 import hashlib
 import json
@@ -35,6 +35,9 @@ SELECTIONS = (
         "chemistry": 15, "economics": 15, "law": 15, "philosophy": 15,
     }),
 )
+COMPARISON_SELECTION = ("comparison-100", "development", "test", 20261126, {
+    "chemistry": 25, "economics": 25, "law": 25, "philosophy": 25,
+})
 
 
 def sha256_bytes(data):
@@ -75,7 +78,29 @@ def convert_choice_row(row):
     }
 
 
-def build_manifest(name, purpose, split, seed, quotas):
+def normalized_stem(question):
+    return " ".join(unicodedata.normalize("NFC", question).split())
+
+
+def unexposed_rows(rows, split, manifests):
+    excluded_ids = {
+        row["question_id"] for manifest in manifests if manifest["source_split"] == split
+        for row in manifest["records"]
+    }
+    seen_stems = {
+        normalized_stem(row["question"]) for manifest in manifests for row in manifest["records"]
+    }
+    eligible = []
+    for row in sorted(rows, key=lambda row: row["question_id"]):
+        stem = normalized_stem(row["question"])
+        if row["question_id"] in excluded_ids or stem in seen_stems:
+            continue
+        seen_stems.add(stem)
+        eligible.append(row)
+    return eligible
+
+
+def build_manifest(name, purpose, split, seed, quotas, *, exclude=()):
     source_file = ROOT / "raw" / f"{split}-00000-of-00001.parquet"
     reader = ROOT / ".deps" / "package" / "src" / "node.js"
     if not reader.is_file():
@@ -87,6 +112,8 @@ def build_manifest(name, purpose, split, seed, quotas):
     rows = [row for row in json.loads(decoded.stdout) if row["category"] in quotas]
     if len({row["question_id"] for row in rows}) != len(rows):
         raise ValueError(f"Duplicate question_id in source split {split}")
+    if exclude:
+        rows = unexposed_rows(rows, split, exclude)
 
     randomizer = random.Random(seed)
     records = []
@@ -116,6 +143,11 @@ def build_manifest(name, purpose, split, seed, quotas):
         },
         "records": records,
     }
+    if exclude:
+        manifest["sampling"]["excluded_manifests"] = {
+            previous["name"]: previous["manifest_sha256"] for previous in exclude
+        }
+        manifest["sampling"]["algorithm"] += " after excluding prior IDs and duplicate normalized stems"
     manifest["manifest_sha256"] = manifest_digest(manifest)
     return manifest
 
@@ -124,7 +156,7 @@ def check_distinct_questions(manifests):
     seen = set()
     for manifest in manifests:
         for row in manifest["records"]:
-            stem = " ".join(unicodedata.normalize("NFC", row["question"]).split())
+            stem = normalized_stem(row["question"])
             if stem in seen:
                 raise ValueError(
                     f"Repeated normalized question in {manifest['name']} at {row['question_id']}"
@@ -134,6 +166,7 @@ def check_distinct_questions(manifests):
 
 def main():
     manifests = [build_manifest(*selection) for selection in SELECTIONS]
+    manifests.append(build_manifest(*COMPARISON_SELECTION, exclude=manifests))
     check_distinct_questions(manifests)
     outputs = {
         ROOT / f"{manifest['name']}.json": (

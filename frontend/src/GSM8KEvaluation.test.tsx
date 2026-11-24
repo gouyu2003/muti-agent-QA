@@ -102,6 +102,8 @@ it('shows the calibration manifest quotas and defaults its 60-call plan to Singl
       { selection: 'smoke', count: 5 },
       { selection: 'calibration-60', count: 60, split: 'test', seed: 20261125,
         quotas: { chemistry: 15, economics: 15, law: 15, philosophy: 15 } },
+      { selection: 'comparison-100', count: 100, split: 'test', seed: 20261126,
+        quotas: { chemistry: 25, economics: 25, law: 25, philosophy: 25 } },
     ] } as never
     throw new Error(`unexpected ${path}`)
   })
@@ -115,7 +117,64 @@ it('shows the calibration manifest quotas and defaults its 60-call plan to Singl
   expect(screen.getByRole('checkbox', { name: 'Single' })).toBeChecked()
   expect(screen.getByRole('checkbox', { name: 'Debate' })).not.toBeChecked()
   expect(create).toBeEnabled()
+
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: 'MMLU-Pro 题目来源' }))
+  fireEvent.click(await screen.findByText('100 题四组对照', { exact: true }))
+  expect(await screen.findByText(/预计 1500 次正常生成/)).toHaveTextContent('4 种方法')
+  expect(screen.getByText(/化学 25 题 · 经济学 25 题 · 法律 25 题 · 哲学 25 题/)).toBeInTheDocument()
+  for (const name of ['Single', 'Reflection', 'Majority', 'Debate']) {
+    const method = screen.getByRole('checkbox', { name })
+    expect(method).toBeChecked()
+    expect(method).toBeDisabled()
+  }
   expect(vi.mocked(evaluationRequest).mock.calls.every(([, method]) => !method || method === 'GET')).toBe(true)
+})
+
+it('shows the Single stage call count separately from the four-method total', async () => {
+  const job = jobFixture({
+    job_id: 'mmlu_comparison', name: 'MMLU-Pro 100 题四组对照', fake: false, state: 'draft',
+    selection: 'comparison-100', samples: 100, planned_calls: 1500, actual_calls: 0, next_stage_calls: 100,
+    methods: ['single', 'reflection', 'majority', 'debate'],
+  })
+  vi.mocked(evaluationRequest).mockImplementation(async path => {
+    if (path === '/mmlu-pro/manifests') return { items: [] } as never
+    if (path === '/mmlu-pro/jobs') return { items: [job] } as never
+    if (path === '/mmlu-pro/jobs/mmlu_comparison') return job as never
+    throw new Error(`unexpected ${path}`)
+  })
+  render(<ConfigProvider theme={{ token: { motion: false } }}><GSM8KEvaluation benchmark="mmlu-pro" /></ConfigProvider>)
+  fireEvent.click(await screen.findByRole('button', { name: '启动实验' }))
+  const dialog = within(await screen.findByRole('dialog', { name: '确认调用真实模型？' }))
+  expect(dialog.getByText(/本次计划 100 次正常模型生成/)).toBeInTheDocument()
+  expect(dialog.getByText(/完成后自动暂停。全程计划 1500 次生成/)).toBeInTheDocument()
+})
+
+it('offers pending-only recovery after interruption with the exact additional call count', async () => {
+  const id = 'mmlu_interrupted'
+  const base = '/mmlu-pro/jobs'
+  const job = jobFixture({
+    job_id: id, name: 'MMLU-Pro 100 题四组对照', fake: false, state: 'interrupted',
+    counts: { pending: 296, running: 0, completed: 103, failed: 0, interrupted: 1 },
+    selection: 'comparison-100', samples: 100, planned_calls: 1500, actual_calls: 107,
+    next_stage_calls: 1392, pending_calls: 1392, can_resume_pending: true,
+    methods: ['single', 'reflection', 'majority', 'debate'],
+  })
+  vi.mocked(evaluationRequest).mockImplementation(async path => {
+    if (path === '/mmlu-pro/manifests') return { items: [] } as never
+    if (path === base) return { items: [job] } as never
+    if (path === `${base}/${id}` || path === `${base}/${id}/resume-pending`) return job as never
+    throw new Error(`unexpected ${path}`)
+  })
+  render(<ConfigProvider theme={{ token: { motion: false } }}><GSM8KEvaluation benchmark="mmlu-pro" /></ConfigProvider>)
+  fireEvent.click(await screen.findByRole('button', { name: '仅续跑待执行题目' }))
+  const dialog = within(await screen.findByRole('dialog', { name: '确认调用真实模型？' }))
+  expect(dialog.getByText(/本次计划 1392 次正常模型生成/)).toBeInTheDocument()
+  expect(dialog.getByText(/已完成结果和中断记录保留/)).toBeInTheDocument()
+  expect(dialog.queryByText(/本次只运行 Single/)).not.toBeInTheDocument()
+  expect(vi.mocked(evaluationRequest).mock.calls.every(([, method]) => !method || method === 'GET')).toBe(true)
+  fireEvent.click(dialog.getByRole('button', { name: '确认启动' }))
+  await waitFor(() => expect(evaluationRequest).toHaveBeenCalledWith(`${base}/${id}/resume-pending`, 'POST',
+    { allow_model_calls: true, retry_failed: false }))
 })
 
 it('shows completed method tasks against all planned method tasks', async () => {

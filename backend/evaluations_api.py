@@ -97,7 +97,7 @@ class MMLUCreateRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     name: str = Field(min_length=1, max_length=100)
     methods: list[Literal['single', 'reflection', 'majority', 'debate']] = Field(min_length=1, max_length=4)
-    selection: Literal['smoke', 'development', 'calibration-60']
+    selection: Literal['smoke', 'development', 'calibration-60', 'comparison-100']
     fake: bool = Field(default=True, strict=True)
 
 
@@ -126,6 +126,13 @@ def mmlu_start(job_id: str, body: StartRequest):
     if body.retry_failed:
         raise EvaluationFailure('调试任务不自动重跑失败或状态不明的请求。', 409)
     return start_benchmark_job(store(), mmlu_pro, job_id, body.allow_model_calls)
+
+
+@router.post('/mmlu-pro/jobs/{job_id}/resume-pending')
+def mmlu_resume_pending(job_id: str, body: StartRequest):
+    if body.retry_failed:
+        raise EvaluationFailure('此入口只续跑待执行题目。', 409)
+    return start_benchmark_job(store(), mmlu_pro, job_id, body.allow_model_calls, resume_pending=True)
 
 
 @router.post('/mmlu-pro/jobs/{job_id}/stop')
